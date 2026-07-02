@@ -1,0 +1,927 @@
+package com.velora.ui;
+
+import java.awt.*;
+import java.awt.event.*;
+import java.awt.geom.*;
+import java.awt.image.BufferedImage;
+import java.io.IOException;
+import javax.imageio.ImageIO;
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+
+/**
+ * Full screen Velora Motors login screen.
+ * Put the background image here:
+ * src/main/resources/images/velora-dealership.png
+ */
+public final class LoginScreen extends JFrame {
+
+    public LoginScreen() {
+        super("Velora Motors - Manager Login");
+        setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+        setUndecorated(true);
+        setMinimumSize(new Dimension(1100, 680));
+        setContentPane(new VeloraCanvas(this));
+        setExtendedState(JFrame.MAXIMIZED_BOTH);
+
+        getRootPane().registerKeyboardAction(
+                e -> dispose(),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+                JComponent.WHEN_IN_FOCUSED_WINDOW
+        );
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() -> {
+            try {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            } catch (Exception ignored) {}
+            new LoginScreen().setVisible(true);
+        });
+    }
+
+    private void toggleMaximize() {
+        int state = getExtendedState();
+        setExtendedState((state & Frame.MAXIMIZED_BOTH) != 0 ? Frame.NORMAL : Frame.MAXIMIZED_BOTH);
+    }
+
+    private static final class VeloraCanvas extends JPanel {
+        private static final Color GOLD = new Color(214, 168, 91);
+        private static final Color PALE = new Color(236, 203, 157);
+        private static final Color WHITE = new Color(248, 248, 248);
+        private static final Color MUTED = new Color(170, 176, 186);
+        private static final Color STROKE = new Color(214, 168, 91, 70);
+
+        private final LoginScreen frame;
+        private final BufferedImage bg;
+
+        private final JTextField username = new RoundTextField("Enter your username", false);
+        private final JPasswordField password = new RoundTextField("Enter your password", true);
+        private final JCheckBox remember = new JCheckBox("Remember Me", true);
+        private final JButton forgot = ghostButton("Forgot Password?");
+        private final JButton signIn = new GoldButton("SIGN IN      →");
+        private final JButton min = topButton("—");
+        private final JButton max = topButton("□");
+        private final JButton close = topButton("×");
+        private final JButton explore = ghostButton("EXPLORE NOW   ›");
+
+        private final long start = System.nanoTime();
+        private float intro = 0f;
+        private float statProgress = 0f;
+        private int failed = 0;
+        private int lockSeconds = 0;
+
+        VeloraCanvas(LoginScreen frame) {
+            this.frame = frame;
+            this.bg = loadImage("/images/velora-dealership.png");
+            setLayout(null);
+            setOpaque(true);
+
+            remember.setOpaque(false);
+            remember.setForeground(WHITE);
+            remember.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            remember.setFocusPainted(false);
+            remember.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+            forgot.setForeground(PALE);
+            forgot.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            forgot.addActionListener(e -> JOptionPane.showMessageDialog(this, "Please contact your administrator."));
+
+            signIn.addActionListener(e -> authenticate());
+            password.addActionListener(e -> authenticate());
+
+            min.addActionListener(e -> frame.setState(Frame.ICONIFIED));
+            max.addActionListener(e -> frame.toggleMaximize());
+            close.addActionListener(e -> frame.dispose());
+
+            explore.setForeground(WHITE);
+            explore.setBorder(BorderFactory.createLineBorder(new Color(214, 168, 91, 100)));
+
+            add(username);
+            add(password);
+            add(remember);
+            add(forgot);
+            add(signIn);
+            add(min);
+            add(max);
+            add(close);
+            add(explore);
+
+            addComponentListener(new ComponentAdapter() {
+                @Override
+                public void componentResized(ComponentEvent e) {
+                    layoutControls();
+                }
+            });
+
+            Timer timer = new Timer(16, e -> {
+                float t1 = Math.min(1f, (System.nanoTime() - start) / 750_000_000f);
+                float t2 = Math.min(1f, (System.nanoTime() - start) / 1_450_000_000f);
+                intro = ease(t1);
+                statProgress = ease(t2);
+                repaint();
+            });
+            timer.setCoalesce(true);
+            timer.start();
+        }
+
+        private void authenticate() {
+            if (lockSeconds > 0) return;
+
+            String u = username.getText().trim();
+            String p = new String(password.getPassword());
+
+            if (u.equalsIgnoreCase("manager") && p.equals("velora2026")) {
+                JOptionPane.showMessageDialog(this, "Welcome to Velora Motors Management System.");
+                return;
+            }
+
+            failed++;
+
+            if (failed >= 3) {
+                lockSeconds = 30;
+                signIn.setEnabled(false);
+
+                Timer countdown = new Timer(1000, null);
+                countdown.addActionListener(e -> {
+                    lockSeconds--;
+                    if (lockSeconds <= 0) {
+                        failed = 0;
+                        signIn.setEnabled(true);
+                        countdown.stop();
+                    }
+                    repaint();
+                });
+                countdown.start();
+            }
+        }
+
+        private void layoutControls() {
+            int w = getWidth();
+            int h = getHeight();
+            if (w <= 0 || h <= 0) return;
+
+            int loginX = (int) (w * 0.665);
+            int loginY = (int) (h * 0.030);
+            int loginW = (int) (w * 0.300);
+            int loginH = (int) (h * 0.700);
+
+            loginW = clamp(loginW, 385, 520);
+            loginH = clamp(loginH, 500, 670);
+
+            int ctrlW = scaleW(36);
+            int ctrlY = Math.max(6, loginY - scaleH(24));
+
+            close.setBounds(w - scaleW(56), ctrlY, ctrlW, scaleH(24));
+            max.setBounds(w - scaleW(92), ctrlY, ctrlW, scaleH(24));
+            min.setBounds(w - scaleW(128), ctrlY, ctrlW, scaleH(24));
+
+            int px = loginX + (int) (loginW * 0.105);
+            int fieldW = loginW - (int) (loginW * 0.210);
+            int fieldH = clamp((int) (h * 0.047), 34, 48);
+
+            int userY = loginY + (int) (loginH * 0.340);
+
+            username.setBounds(px, userY, fieldW, fieldH);
+            password.setBounds(px, userY + scaleH(74), fieldW, fieldH);
+
+            remember.setBounds(px, userY + scaleH(124), fieldW / 2, scaleH(28));
+            forgot.setBounds(px + fieldW / 2, userY + scaleH(124), fieldW / 2, scaleH(28));
+            signIn.setBounds(px, userY + scaleH(164), fieldW, clamp((int) (h * 0.055), 42, 56));
+
+            int featuredX = loginX;
+            int featuredY = Math.min(h - scaleH(185), loginY + loginH + scaleH(14));
+            int featuredW = loginW;
+            int featuredH = clamp((int) (h * 0.165), 128, 160);
+
+            explore.setBounds(
+                    featuredX + scaleW(24),
+                    featuredY + featuredH - scaleH(52),
+                    scaleW(145),
+                    scaleH(34)
+            );
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            super.paintComponent(raw);
+
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+            int w = getWidth();
+            int h = getHeight();
+
+            drawBackground(g, w, h);
+            drawHero(g, w, h);
+            drawLoginCard(g, w, h);
+            drawFeatured(g, w, h);
+            drawFooter(g, w, h);
+
+            g.dispose();
+        }
+
+        private void drawBackground(Graphics2D g, int w, int h) {
+            if (bg != null) {
+                double s = Math.max(w / (double) bg.getWidth(), h / (double) bg.getHeight());
+                int bw = (int) Math.ceil(bg.getWidth() * s);
+                int bh = (int) Math.ceil(bg.getHeight() * s);
+                int x = (w - bw) / 2;
+                int y = (h - bh) / 2;
+                g.drawImage(bg, x, y, bw, bh, null);
+            } else {
+                g.setPaint(new GradientPaint(0, 0, new Color(2, 6, 12), w, h, new Color(0, 0, 0)));
+                g.fillRect(0, 0, w, h);
+            }
+
+            g.setPaint(new GradientPaint(0, 0, new Color(0, 0, 0, 35), w, 0, new Color(0, 0, 0, 145)));
+            g.fillRect(0, 0, w, h);
+
+            g.setPaint(new GradientPaint(0, 0, new Color(0, 0, 0, 0), 0, h, new Color(0, 0, 0, 100)));
+            g.fillRect(0, 0, w, h);
+        }
+
+        private void drawHero(Graphics2D g, int w, int h) {
+            Composite old = g.getComposite();
+            g.setComposite(AlphaComposite.SrcOver.derive(Math.max(0.08f, intro)));
+
+            int brandX = (int) (w * 0.035);
+            int brandY = (int) (h * 0.040);
+            int brandW = (int) (w * 0.405);
+            drawBrand(g, brandX, brandY, brandW);
+
+            int trustX = (int) (w * 0.335);
+            int trustY = (int) (h * 0.080);
+            int trustW = (int) (w * 0.315);
+            int trustH = (int) (h * 0.185);
+            drawTrustPanel(g, trustX, trustY, trustW, trustH);
+
+            int signX = (int) (w * 0.252);
+            int signY = (int) (h * 0.400);
+            int signW = (int) (w * 0.205);
+            int signH = (int) (h * 0.062);
+
+            drawGlass(g, signX, signY, signW, signH, 14, 125);
+            drawBMW(g, signX + scaleW(18), signY + scaleH(9), scaleW(36));
+            drawFit(
+                    g,
+                    "VELORA MOTORS",
+                    signX + scaleW(62),
+                    signY + signH / 2 + scaleH(8),
+                    signW - scaleW(80),
+                    new Font("Segoe UI", Font.PLAIN, scaleFont(21)),
+                    WHITE,
+                    false
+            );
+
+            int featureY = (int) (h * 0.535);
+            int featureX = (int) (w * 0.035);
+            int featureW = (int) (w * 0.610);
+            int featureH = (int) (h * 0.115);
+
+            drawFeatures(g, featureX, featureY, featureW, featureH);
+
+            int quoteY = featureY + featureH + scaleH(10);
+            int quoteW = (int) (featureW * 0.420);
+            int statsW = featureW - quoteW;
+
+            drawQuote(g, featureX, quoteY, quoteW, scaleH(64));
+            drawStats(g, featureX + quoteW, quoteY, statsW, scaleH(64));
+
+            g.setComposite(old);
+        }
+
+        private void drawBrand(Graphics2D g, int x, int y, int bw) {
+            int cx = x + bw / 2;
+
+            int logoW = Math.min((int) (bw * 0.50), scaleW(220));
+            int logoH = scaleH(86);
+
+            g.setColor(new Color(214, 168, 91, 18));
+            g.fillOval(cx - logoW / 2, y - scaleH(4), logoW, logoH);
+
+            drawWings(g, cx, y + scaleH(22), Math.max(0.70, Math.min(1.25, bw / 520.0)));
+
+            drawFitCentered(
+                    g,
+                    "VELORA MOTORS",
+                    cx,
+                    y + scaleH(142),
+                    bw,
+                    new Font("Serif", Font.PLAIN, scaleFont(50)),
+                    WHITE
+            );
+
+            drawFitCentered(
+                    g,
+                    "P R E M I U M   B M W   V E H I C L E   R E N T A L   S Y S T E M",
+                    cx,
+                    y + scaleH(185),
+                    bw,
+                    new Font("Segoe UI", Font.PLAIN, scaleFont(14)),
+                    PALE
+            );
+
+            g.setStroke(new BasicStroke(scaleStroke(2f)));
+            g.setColor(new Color(214, 168, 91, 155));
+            g.drawLine(cx - (int) (bw * .38), y + scaleH(208), cx - scaleW(18), y + scaleH(208));
+            g.drawLine(cx + scaleW(18), y + scaleH(208), cx + (int) (bw * .38), y + scaleH(208));
+
+            drawFitCentered(
+                    g,
+                    "D R I V E   L U X U R Y .   D R I V E   B M W .",
+                    cx,
+                    y + scaleH(242),
+                    bw,
+                    new Font("Segoe UI", Font.PLAIN, scaleFont(17)),
+                    WHITE
+            );
+        }
+
+        private void drawTrustPanel(Graphics2D g, int x, int y, int w, int h) {
+            drawGlass(g, x, y, w, h, 15, 120);
+
+            String[][] data = {
+                    {"shield", "SECURE SYSTEM", "Your data is always", "protected with us."},
+                    {"calendar", "24/7 SUPPORT", "We're here for you,", "anytime, anywhere."},
+                    {"star", "PREMIUM EXPERI...", "Excellence in every", "drive, every time."},
+                    {"tag", "LOYALTY REWARDS", "Earn points & unlock", "exclusive benefits."}
+            };
+
+            int cell = w / 4;
+
+            for (int i = 0; i < 4; i++) {
+                int cx = x + i * cell + cell / 2;
+
+                drawSmallIcon(g, data[i][0], cx, y + scaleH(30), scaleW(25));
+                drawFitCentered(g, data[i][1], cx, y + scaleH(64), cell - scaleW(8), new Font("Segoe UI", Font.BOLD, scaleFont(8)), PALE);
+                drawFitCentered(g, data[i][2], cx, y + scaleH(88), cell - scaleW(10), new Font("Segoe UI", Font.PLAIN, scaleFont(9)), WHITE);
+                drawFitCentered(g, data[i][3], cx, y + scaleH(111), cell - scaleW(10), new Font("Segoe UI", Font.PLAIN, scaleFont(9)), WHITE);
+            }
+        }
+
+        private void drawFeatures(Graphics2D g, int x, int y, int w, int h) {
+            String[][] data = {
+                    {"car", "LATEST BMW MODE...", "Drive the newest BMW ...", "with cutting-edge techn..."},
+                    {"calendar", "FLEXIBLE RENTALS", "Daily, weekly, or monthly", "rentals to fit your sche..."},
+                    {"shield", "FULL INSURANCE", "All rentals include com...", "insurance coverage."},
+                    {"tag", "BEST RATES", "Competitive pricing with", "premium service."}
+            };
+
+            int cell = w / 4;
+
+            for (int i = 0; i < 4; i++) {
+                int px = x + i * cell;
+
+                drawGlass(g, px, y, cell + 1, h, 12, 145);
+                drawSmallIcon(g, data[i][0], px + scaleW(32), y + h / 2 + scaleH(2), scaleW(30));
+
+                drawFit(g, data[i][1], px + scaleW(62), y + scaleH(36), cell - scaleW(72), new Font("Segoe UI", Font.BOLD, scaleFont(12)), PALE, false);
+                drawFit(g, data[i][2], px + scaleW(62), y + scaleH(61), cell - scaleW(72), new Font("Segoe UI", Font.PLAIN, scaleFont(11)), WHITE, false);
+                drawFit(g, data[i][3], px + scaleW(62), y + scaleH(82), cell - scaleW(72), new Font("Segoe UI", Font.PLAIN, scaleFont(11)), WHITE, false);
+            }
+        }
+
+        private void drawQuote(Graphics2D g, int x, int y, int w, int h) {
+            drawGlass(g, x, y, w, h, 12, 135);
+
+            g.setColor(GOLD);
+            g.setFont(new Font("Serif", Font.BOLD, scaleFont(42)));
+            g.drawString("“", x + scaleW(26), y + scaleH(42));
+
+            g.setColor(WHITE);
+            g.setFont(new Font("Segoe UI", Font.ITALIC, scaleFont(13)));
+            g.drawString("The Ultimate Driving Experience.", x + scaleW(67), y + scaleH(30));
+            g.drawString("Now Available For Every Journey.", x + scaleW(67), y + scaleH(52));
+        }
+
+        private void drawStats(Graphics2D g, int x, int y, int w, int h) {
+            drawGlass(g, x, y, w, h, 12, 120);
+
+            String[] value = {
+                    ((int) (250 * statProgress)) + "+",
+                    statProgress > .995f ? "15K+" : String.format("%.0fK+", 15 * statProgress),
+                    ((int) (25 * statProgress)) + "+",
+                    String.format("%.1f/5", 4.9 * statProgress)
+            };
+
+            String[] label = {
+                    "Premium Vehicles",
+                    "Satisfied Customers",
+                    "Locations",
+                    "Customer Rating"
+            };
+
+            int cell = w / 4;
+
+            for (int i = 0; i < 4; i++) {
+                int cx = x + i * cell + cell / 2;
+                drawFitCentered(g, value[i], cx, y + scaleH(31), cell, new Font("Segoe UI", Font.BOLD, scaleFont(20)), WHITE);
+                drawFitCentered(g, label[i], cx, y + scaleH(55), cell, new Font("Segoe UI", Font.PLAIN, scaleFont(10)), new Color(106, 140, 192));
+            }
+        }
+
+        private void drawLoginCard(Graphics2D g, int w, int h) {
+            int x = (int) (w * 0.665);
+            int y = (int) (h * 0.030);
+            int cw = clamp((int) (w * 0.300), 385, 520);
+            int ch = clamp((int) (h * 0.700), 500, 670);
+
+            drawGlass(g, x, y, cw, ch, 24, 184);
+
+            int cx = x + cw / 2;
+
+            drawBMW(g, cx - scaleW(31), y + scaleH(28), scaleW(62));
+
+            drawFitCentered(
+                    g,
+                    "M A N A G E R   L O G I N",
+                    cx,
+                    y + scaleH(140),
+                    cw - scaleW(40),
+                    new Font("Segoe UI", Font.PLAIN, scaleFont(27)),
+                    PALE
+            );
+
+            drawFitCentered(
+                    g,
+                    "Welcome back! Please sign in to continue.",
+                    cx,
+                    y + scaleH(177),
+                    cw - scaleW(40),
+                    new Font("Segoe UI", Font.PLAIN, scaleFont(13)),
+                    WHITE
+            );
+
+            g.setColor(new Color(214, 168, 91, 170));
+            g.drawLine(cx - scaleW(28), y + scaleH(194), cx + scaleW(28), y + scaleH(194));
+
+            int px = x + (int) (cw * 0.105);
+            int labelY = y + (int) (ch * 0.318);
+
+            g.setFont(new Font("Segoe UI", Font.PLAIN, scaleFont(12)));
+            g.setColor(WHITE);
+            g.drawString("USERNAME", px, labelY);
+            g.drawString("PASSWORD", px, labelY + scaleH(74));
+
+            drawFieldIcon(g, px + scaleW(13), labelY + scaleH(18), "user");
+            drawFieldIcon(g, px + scaleW(13), labelY + scaleH(92), "lock");
+
+            drawNotice(g, x + (int) (cw * .105), y + (int) (ch * .615), cw - (int) (cw * .210), scaleH(58), false);
+            drawNotice(g, x + (int) (cw * .105), y + (int) (ch * .735), cw - (int) (cw * .210), scaleH(74), true);
+        }
+
+        private void drawNotice(Graphics2D g, int x, int y, int w, int h, boolean error) {
+            g.setColor(error ? new Color(95, 9, 16, 220) : new Color(7, 13, 19, 220));
+            g.fillRoundRect(x, y, w, h, scaleW(8), scaleW(8));
+
+            g.setColor(error ? new Color(240, 68, 76) : WHITE);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, scaleFont(11)));
+
+            if (error) {
+                String sec = lockSeconds > 0 ? lockSeconds + " seconds" : "30 seconds";
+                g.drawString("Too many failed attempts.", x + scaleW(46), y + scaleH(27));
+                g.drawString("Wait " + sec + " before trying again.", x + scaleW(46), y + scaleH(50));
+                drawAlertIcon(g, x + scaleW(22), y + scaleH(35));
+            } else {
+                g.drawString("For your security, session expires", x + scaleW(46), y + scaleH(25));
+                g.drawString("after 10 minutes of inactivity.", x + scaleW(46), y + scaleH(47));
+                drawShieldIcon(g, x + scaleW(22), y + scaleH(31), scaleW(24));
+            }
+        }
+
+        private void drawFeatured(Graphics2D g, int w, int h) {
+            int loginX = (int) (w * 0.665);
+            int loginY = (int) (h * 0.030);
+            int loginW = clamp((int) (w * 0.300), 385, 520);
+            int loginH = clamp((int) (h * 0.700), 500, 670);
+
+            int x = loginX;
+            int y = Math.min(h - scaleH(185), loginY + loginH + scaleH(14));
+            int fw = loginW;
+            int fh = clamp((int) (h * 0.165), 128, 160);
+
+            drawGlass(g, x, y, fw, fh, 18, 155);
+
+            Shape oldClip = g.getClip();
+            g.setClip(new RoundRectangle2D.Double(x + fw * .53, y, fw * .47, fh, 18, 18));
+
+            if (bg != null) {
+                g.drawImage(
+                        bg,
+                        x + (int) (fw * .53),
+                        y,
+                        x + fw,
+                        y + fh,
+                        bg.getWidth() / 5,
+                        bg.getHeight() / 2,
+                        bg.getWidth() * 4 / 5,
+                        bg.getHeight(),
+                        null
+                );
+            }
+
+            g.setClip(oldClip);
+
+            g.setColor(PALE);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, scaleFont(9)));
+            g.drawString("FEATURED MODEL", x + scaleW(24), y + scaleH(31));
+
+            g.setColor(WHITE);
+            g.setFont(new Font("Segoe UI", Font.BOLD, scaleFont(18)));
+            g.drawString("BMW i8 ROADSTER", x + scaleW(24), y + scaleH(58));
+
+            g.setColor(MUTED);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, scaleFont(11)));
+            g.drawString("Future meets performance.", x + scaleW(24), y + scaleH(84));
+            g.drawString("Rent the extraordinary.", x + scaleW(24), y + scaleH(105));
+        }
+
+        private void drawFooter(Graphics2D g, int w, int h) {
+            int fh = clamp((int) (h * 0.085), 62, 86);
+            int y = h - fh;
+
+            g.setColor(new Color(3, 7, 12, 244));
+            g.fillRect(0, y, w, fh);
+
+            g.setColor(new Color(255, 215, 150, 35));
+            g.drawLine(0, y, w, y);
+
+            int left = scaleW(45);
+
+            g.setFont(new Font("Segoe UI", Font.PLAIN, scaleFont(15)));
+            g.setColor(WHITE);
+            g.drawString("◆   V E L O R A   M O T O R S", left, y + scaleH(31));
+
+            g.setFont(new Font("Segoe UI", Font.PLAIN, scaleFont(11)));
+            g.setColor(MUTED);
+            g.drawString("      Premium BMW Vehicle Rental System", left, y + scaleH(52));
+
+            drawFitCentered(
+                    g,
+                    "© 2026 Velora Motors. All rights reserved.",
+                    w / 2,
+                    y + scaleH(46),
+                    (int) (w * .32),
+                    new Font("Segoe UI", Font.PLAIN, scaleFont(13)),
+                    MUTED
+            );
+
+            int sx = (int) (w * .725);
+
+            g.setColor(MUTED);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, scaleFont(12)));
+            g.drawString("F O L L O W   U S", sx, y + scaleH(38));
+
+            g.setColor(PALE);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, scaleFont(13)));
+            g.drawString("f", sx + scaleW(120), y + scaleH(38));
+            g.drawString("◎", sx + scaleW(175), y + scaleH(38));
+            g.drawString("in", sx + scaleW(230), y + scaleH(38));
+            g.drawString("▶", sx + scaleW(285), y + scaleH(38));
+        }
+
+        private void drawGlass(Graphics2D g, int x, int y, int w, int h, int r, int alpha) {
+            g.setColor(new Color(5, 10, 16, alpha));
+            g.fillRoundRect(x, y, w, h, r, r);
+
+            g.setColor(STROKE);
+            g.drawRoundRect(x, y, w, h, r, r);
+        }
+
+        private void drawBMW(Graphics2D g, int x, int y, int size) {
+            int r = size / 2;
+
+            g.setColor(WHITE);
+            g.fillOval(x, y, size, size);
+
+            g.setColor(new Color(4, 8, 13));
+            g.fillOval(x + scaleW(4), y + scaleW(4), size - scaleW(8), size - scaleW(8));
+
+            int inset = scaleW(12);
+            int d = size - inset * 2;
+            int xx = x + inset;
+            int yy = y + inset;
+
+            g.setColor(WHITE);
+            g.fillArc(xx, yy, d, d, 0, 90);
+            g.fillArc(xx, yy, d, d, 180, 90);
+
+            g.setColor(new Color(20, 126, 199));
+            g.fillArc(xx, yy, d, d, 90, 90);
+            g.fillArc(xx, yy, d, d, 270, 90);
+
+            g.setColor(new Color(255, 255, 255, 200));
+            g.setStroke(new BasicStroke(scaleStroke(2f)));
+            g.drawOval(xx, yy, d, d);
+        }
+
+        private void drawWings(Graphics2D g, int cx, int y, double s) {
+            Graphics2D gg = (Graphics2D) g.create();
+
+            gg.translate(cx, y);
+            gg.scale(s, s);
+            gg.setColor(GOLD);
+            gg.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+            Path2D p = new Path2D.Double();
+
+            p.moveTo(0, 55);
+            p.lineTo(-37, 0);
+            p.lineTo(-105, 0);
+
+            p.moveTo(0, 55);
+            p.lineTo(37, 0);
+            p.lineTo(105, 0);
+
+            p.moveTo(-28, 13);
+            p.lineTo(-86, 13);
+
+            p.moveTo(28, 13);
+            p.lineTo(86, 13);
+
+            p.moveTo(-19, 26);
+            p.lineTo(-63, 26);
+
+            p.moveTo(19, 26);
+            p.lineTo(63, 26);
+
+            gg.draw(p);
+            gg.dispose();
+        }
+
+        private void drawSmallIcon(Graphics2D g, String type, int cx, int cy, int size) {
+            g.setColor(GOLD);
+            g.setStroke(new BasicStroke(scaleStroke(2f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+            int s = size;
+
+            if ("shield".equals(type)) {
+                drawShieldIcon(g, cx, cy, s);
+            } else if ("calendar".equals(type)) {
+                g.drawRoundRect(cx - s / 2, cy - s / 2, s, s, 3, 3);
+                g.drawLine(cx - s / 2, cy - s / 5, cx + s / 2, cy - s / 5);
+                g.drawLine(cx - s / 4, cy - s / 2 - 3, cx - s / 4, cy - s / 3);
+                g.drawLine(cx + s / 4, cy - s / 2 - 3, cx + s / 4, cy - s / 3);
+            } else if ("star".equals(type)) {
+                Path2D star = new Path2D.Double();
+
+                for (int i = 0; i < 10; i++) {
+                    double a = -Math.PI / 2 + i * Math.PI / 5;
+                    double rr = (i % 2 == 0) ? s / 2.0 : s / 4.0;
+                    double px = cx + Math.cos(a) * rr;
+                    double py = cy + Math.sin(a) * rr;
+
+                    if (i == 0) {
+                        star.moveTo(px, py);
+                    } else {
+                        star.lineTo(px, py);
+                    }
+                }
+
+                star.closePath();
+                g.draw(star);
+            } else if ("tag".equals(type)) {
+                Path2D tag = new Path2D.Double();
+
+                tag.moveTo(cx - s / 2, cy - s / 7);
+                tag.lineTo(cx, cy - s / 2);
+                tag.lineTo(cx + s / 2, cy);
+                tag.lineTo(cx, cy + s / 2);
+                tag.closePath();
+
+                g.draw(tag);
+                g.fillOval(cx - s / 8, cy - s / 4, 4, 4);
+            } else if ("car".equals(type)) {
+                g.drawRoundRect(cx - s / 2, cy - s / 6, s, s / 3, 4, 4);
+                g.drawLine(cx - s / 3, cy - s / 6, cx - s / 5, cy - s / 2);
+                g.drawLine(cx - s / 5, cy - s / 2, cx + s / 4, cy - s / 2);
+                g.drawLine(cx + s / 4, cy - s / 2, cx + s / 2, cy - s / 6);
+                g.fillOval(cx - s / 3, cy + s / 6, s / 6, s / 6);
+                g.fillOval(cx + s / 5, cy + s / 6, s / 6, s / 6);
+            }
+        }
+
+        private void drawFieldIcon(Graphics2D g, int x, int y, String type) {
+            g.setColor(new Color(215, 220, 228));
+            g.setStroke(new BasicStroke(scaleStroke(1.7f)));
+
+            if ("user".equals(type)) {
+                g.drawOval(x, y, scaleW(10), scaleW(10));
+                g.drawArc(x - scaleW(5), y + scaleH(13), scaleW(20), scaleH(15), 0, 180);
+            } else {
+                g.drawRoundRect(x - scaleW(2), y + scaleH(9), scaleW(16), scaleH(16), 3, 3);
+                g.drawArc(x + scaleW(1), y, scaleW(10), scaleH(17), 0, 180);
+            }
+        }
+
+        private void drawShieldIcon(Graphics2D g, int cx, int cy, int s) {
+            Path2D p = new Path2D.Double();
+
+            p.moveTo(cx, cy - s / 2.0);
+            p.lineTo(cx + s / 2.0, cy - s / 4.0);
+            p.lineTo(cx + s / 3.0, cy + s / 3.0);
+            p.lineTo(cx, cy + s / 2.0);
+            p.lineTo(cx - s / 3.0, cy + s / 3.0);
+            p.lineTo(cx - s / 2.0, cy - s / 4.0);
+            p.closePath();
+
+            g.draw(p);
+            g.drawLine(cx, cy - s / 4, cx, cy + s / 4);
+            g.drawLine(cx - s / 5, cy, cx + s / 5, cy);
+        }
+
+        private void drawAlertIcon(Graphics2D g, int cx, int cy) {
+            g.setColor(new Color(240, 68, 76));
+            g.setStroke(new BasicStroke(scaleStroke(2f)));
+            g.drawOval(cx - scaleW(12), cy - scaleW(12), scaleW(24), scaleW(24));
+            g.drawLine(cx, cy - scaleH(7), cx, cy + scaleH(3));
+            g.fillOval(cx - 2, cy + scaleH(7), 4, 4);
+        }
+
+        private void drawFitCentered(Graphics2D g, String text, int cx, int y, int maxW, Font font, Color color) {
+            Font f = fitFont(g, text, font, maxW);
+
+            g.setFont(f);
+            g.setColor(color);
+
+            int tw = g.getFontMetrics().stringWidth(text);
+            g.drawString(text, cx - tw / 2, y);
+        }
+
+        private void drawFit(Graphics2D g, String text, int x, int y, int maxW, Font font, Color color, boolean right) {
+            Font f = fitFont(g, text, font, maxW);
+
+            g.setFont(f);
+            g.setColor(color);
+
+            int tw = g.getFontMetrics().stringWidth(text);
+            g.drawString(text, right ? x + maxW - tw : x, y);
+        }
+
+        private Font fitFont(Graphics2D g, String text, Font font, int maxW) {
+            Font f = font;
+
+            while (f.getSize() > 8) {
+                g.setFont(f);
+
+                if (g.getFontMetrics().stringWidth(text) <= maxW) {
+                    return f;
+                }
+
+                f = f.deriveFont((float) f.getSize() - 1f);
+            }
+
+            return f;
+        }
+
+        private int scaleW(int v) {
+            return Math.max(1, Math.round(v * getWidth() / 1536f));
+        }
+
+        private int scaleH(int v) {
+            return Math.max(1, Math.round(v * getHeight() / 960f));
+        }
+
+        private int scaleFont(int v) {
+            float s = Math.min(getWidth() / 1536f, getHeight() / 960f);
+            return Math.max(8, Math.round(v * s));
+        }
+
+        private float scaleStroke(float v) {
+            float s = Math.min(getWidth() / 1536f, getHeight() / 960f);
+            return Math.max(1f, v * s);
+        }
+
+        private static int clamp(int v, int min, int max) {
+            return Math.max(min, Math.min(max, v));
+        }
+
+        private static float ease(float p) {
+            return 1f - (1f - p) * (1f - p) * (1f - p);
+        }
+
+        private static BufferedImage loadImage(String path) {
+            try {
+                return ImageIO.read(VeloraCanvas.class.getResource(path));
+            } catch (IOException | IllegalArgumentException e) {
+                return null;
+            }
+        }
+
+        private static JButton ghostButton(String text) {
+            JButton b = new JButton(text);
+
+            b.setOpaque(false);
+            b.setContentAreaFilled(false);
+            b.setBorderPainted(false);
+            b.setFocusPainted(false);
+            b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+            return b;
+        }
+
+        private static JButton topButton(String text) {
+            JButton b = ghostButton(text);
+
+            b.setForeground(WHITE);
+            b.setFont(new Font("Segoe UI", Font.BOLD, 12));
+
+            return b;
+        }
+    }
+
+    private static final class RoundTextField extends JPasswordField {
+        private final String placeholder;
+        private final boolean passwordMode;
+
+        RoundTextField(String placeholder, boolean passwordMode) {
+            this.placeholder = placeholder;
+            this.passwordMode = passwordMode;
+
+            setEchoChar(passwordMode ? '•' : (char) 0);
+            setOpaque(false);
+            setForeground(new Color(248, 248, 248));
+            setCaretColor(new Color(214, 168, 91));
+            setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            setBorder(new EmptyBorder(0, 48, 0, 14));
+        }
+
+        @Override
+        public String getText() {
+            return new String(getPassword());
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(new Color(8, 14, 20, 230));
+            g.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+
+            g.setColor(new Color(214, 168, 91, isFocusOwner() ? 150 : 48));
+            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+
+            g.dispose();
+
+            super.paintComponent(raw);
+
+            if (getPassword().length == 0) {
+                g = (Graphics2D) raw.create();
+
+                g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                g.setFont(getFont());
+                g.setColor(new Color(135, 139, 146));
+
+                FontMetrics fm = g.getFontMetrics();
+                int tw = fm.stringWidth(placeholder);
+
+                g.drawString(
+                        placeholder,
+                        Math.max(48, (getWidth() - tw) / 2),
+                        (getHeight() + fm.getAscent()) / 2 - 3
+                );
+
+                g.dispose();
+            }
+        }
+    }
+
+    private static final class GoldButton extends JButton {
+        GoldButton(String text) {
+            super(text);
+
+            setOpaque(false);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setFont(new Font("Segoe UI", Font.BOLD, 14));
+            setForeground(new Color(28, 20, 12));
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            Color top = getModel().isRollover()
+                    ? new Color(255, 225, 174)
+                    : new Color(244, 207, 151);
+
+            Color bottom = getModel().isPressed()
+                    ? new Color(166, 114, 61)
+                    : new Color(190, 137, 72);
+
+            g.setPaint(new GradientPaint(0, 0, top, 0, getHeight(), bottom));
+            g.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+
+            g.dispose();
+
+            super.paintComponent(raw);
+        }
+    }
+}

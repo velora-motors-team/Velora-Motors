@@ -1,21 +1,22 @@
 package com.velora;
 
-import com.velora.ui.LuxuryLoginScreen;
-import com.velora.ui.VeloraTheme;
-import java.awt.EventQueue;
+import com.velora.ui.LoginScreen;
+import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
-public final class Velora_Motors {
-    private Velora_Motors() {}
+public class Velora_Motors {
 
     public static void main(String[] args) {
-        System.setProperty("awt.useSystemAAFontSettings", "lcd");
-        EventQueue.invokeLater(() -> {
-            VeloraTheme.install();
-            LuxuryLoginScreen screen = new LuxuryLoginScreen();
+        System.setProperty("sun.java2d.uiScale", "1.0");
+
+        SwingUtilities.invokeLater(() -> {
+            try {
+                UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+            } catch (Exception ignored) {
+            }
+
+            LoginScreen screen = new LoginScreen();
             screen.setVisible(true);
-            screen.getGraphicsConfiguration().getDevice().setFullScreenWindow(screen);
         });
     }
-
 }
