@@ -6,13 +6,7 @@ import javax.swing.UIManager;
 
 public class Velora_Motors {
 
-import com.velora.ui.LoginScreen;
-import javax.swing.SwingUtilities;
-
-public class Velora_Motors {
     public static void main(String[] args) {
-        System.setProperty("sun.java2d.uiScale", "1.0");
-
         SwingUtilities.invokeLater(() -> {
             try {
                 UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
