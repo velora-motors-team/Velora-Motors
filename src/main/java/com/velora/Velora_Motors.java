@@ -4,16 +4,12 @@
 
 package com.velora;
 
-/**
- *
- * @author HP
- */
-public class Velora_Motors {
 
+import com.velora.ui.LoginScreen;
+import javax.swing.SwingUtilities;
+
+public class Velora_Motors {
     public static void main(String[] args) {
-        System.out.println("Hello World!");
-        System.out.println("Hello HAMADA!");
-        
-        
+        SwingUtilities.invokeLater(() -> new LoginScreen().setVisible(true));
     }
 }

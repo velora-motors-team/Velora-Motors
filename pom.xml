@@ -13,7 +13,11 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <maven.compiler.release>25</maven.compiler.release>
+
+        <!-- استخدم Java 17 لأنها مستقرة ومناسبة للمشروع -->
+        <maven.compiler.release>17</maven.compiler.release>
+
+        <!-- الكلاس الرئيسي الذي يشغل البرنامج -->
         <exec.mainClass>com.velora.VeloraMotors</exec.mainClass>
 
         <junit.version>5.10.2</junit.version>
@@ -41,7 +45,6 @@
     </dependencies>
 
     <build>
-
         <plugins>
 
             <!-- Java Compiler -->
@@ -50,7 +53,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
                 <configuration>
-                    <release>25</release>
+                    <release>${maven.compiler.release}</release>
                 </configuration>
             </plugin>
 
@@ -62,7 +65,6 @@
             </plugin>
 
         </plugins>
-
     </build>
 
 </project>
