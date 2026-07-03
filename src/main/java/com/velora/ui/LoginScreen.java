@@ -623,7 +623,7 @@ public final class LoginScreen extends JFrame {
                         g,
                         data[i][2],
                         cx,
-                        y + sh(70),
+                        y + sh(58),
                         cell - sw(10),
                         new Font("Segoe UI", Font.PLAIN, sf(7)),
                         WHITE
@@ -747,31 +747,33 @@ public final class LoginScreen extends JFrame {
                     gg.setComposite(AlphaComposite.SrcOver);
                 }
 
-                Font valueFont = new Font("Segoe UI", Font.BOLD, sf(19));
+                Font valueFont = new Font("Segoe UI", Font.BOLD, sf(22));
                 gg.setFont(valueFont);
                 FontMetrics fm = gg.getFontMetrics();
 
-                int iconSize = sw(18);
-                int gap = sw(7);
+                // كبرنا الرموز وخليّنا كل مجموعة بالنص بشكل متناسق
+                int iconSize = Math.max(sw(24), sh(24));
+                int gap = sw(10);
                 int textW = fm.stringWidth(value[i]);
                 int totalW = iconSize + gap + textW;
                 int groupX = cx - totalW / 2;
-                int topY = y + sh(17);
+                int iconY = y + sh(13);
+                int valueBaseY = y + sh(32);
 
                 // الرموز المطلوبة مرسومة يدويًا حتى تظهر أكيد بدون مشاكل إيموجي أو مربعات
-                drawStatIcon(gg, icon[i], groupX, topY - sh(11), iconSize);
+                drawStatIcon(gg, icon[i], groupX, iconY, iconSize);
 
                 gg.setColor(WHITE);
                 gg.setFont(valueFont);
-                gg.drawString(value[i], groupX + iconSize + gap, y + sh(27));
+                gg.drawString(value[i], groupX + iconSize + gap, valueBaseY);
 
                 drawFitCentered(
                         gg,
                         label[i],
                         cx,
-                        y + sh(55),
+                        y + sh(58),
                         cell - sw(8),
-                        new Font("Segoe UI", Font.PLAIN, sf(10)),
+                        new Font("Segoe UI", Font.PLAIN, sf(11)),
                         BLUE_TEXT
                 );
             }
@@ -1271,8 +1273,8 @@ public final class LoginScreen extends JFrame {
             Graphics2D gg = (Graphics2D) g.create();
 
             gg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            gg.setColor(new Color(230, 236, 245, 220));
-            gg.setStroke(new BasicStroke(Math.max(1f, ss(1.45f)), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            gg.setColor(new Color(235, 240, 248, 235));
+            gg.setStroke(new BasicStroke(Math.max(1.8f, ss(2.05f)), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
 
             int s = size;
             int cx = x + s / 2;
@@ -1715,17 +1717,15 @@ public final class LoginScreen extends JFrame {
     }
     
     
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
+
+
+
+
+
+
+
+
+
     
     
 }
