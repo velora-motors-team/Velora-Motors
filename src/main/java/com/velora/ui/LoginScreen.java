@@ -708,6 +708,13 @@ public final class LoginScreen extends JFrame {
         private void drawStats(Graphics2D g, int x, int y, int w, int h) {
             drawGlass(g, x, y, w, h, 10, 115);
 
+            String[] icon = {
+                    "car",
+                    "users",
+                    "location",
+                    "star"
+            };
+
             String[] value = {
                     (int) (250 * statProgress) + "+",
                     statProgress > .995f ? "15K+" : String.format("%.0fK+", 15 * statProgress),
@@ -724,29 +731,52 @@ public final class LoginScreen extends JFrame {
 
             int cell = w / 4;
 
+            Graphics2D gg = (Graphics2D) g.create();
+            gg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            gg.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            gg.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+
             for (int i = 0; i < 4; i++) {
                 int cx = x + i * cell + cell / 2;
 
-                drawFitCentered(
-                        g,
-                        value[i],
-                        cx,
-                        y + sh(31),
-                        cell,
-                        new Font("Segoe UI", Font.BOLD, sf(20)),
-                        WHITE
-                );
+                // فواصل خفيفة مثل الصورة
+                if (i > 0) {
+                    gg.setComposite(AlphaComposite.SrcOver.derive(.34f));
+                    gg.setColor(new Color(214, 168, 91, 55));
+                    gg.drawLine(x + i * cell, y + sh(13), x + i * cell, y + h - sh(13));
+                    gg.setComposite(AlphaComposite.SrcOver);
+                }
+
+                Font valueFont = new Font("Segoe UI", Font.BOLD, sf(19));
+                gg.setFont(valueFont);
+                FontMetrics fm = gg.getFontMetrics();
+
+                int iconSize = sw(18);
+                int gap = sw(7);
+                int textW = fm.stringWidth(value[i]);
+                int totalW = iconSize + gap + textW;
+                int groupX = cx - totalW / 2;
+                int topY = y + sh(17);
+
+                // الرموز المطلوبة مرسومة يدويًا حتى تظهر أكيد بدون مشاكل إيموجي أو مربعات
+                drawStatIcon(gg, icon[i], groupX, topY - sh(11), iconSize);
+
+                gg.setColor(WHITE);
+                gg.setFont(valueFont);
+                gg.drawString(value[i], groupX + iconSize + gap, y + sh(27));
 
                 drawFitCentered(
-                        g,
+                        gg,
                         label[i],
                         cx,
-                        y + sh(56),
-                        cell,
+                        y + sh(55),
+                        cell - sw(8),
                         new Font("Segoe UI", Font.PLAIN, sf(10)),
                         BLUE_TEXT
                 );
             }
+
+            gg.dispose();
         }
 
         private void drawLoginCard(Graphics2D g, int w, int h) {
@@ -1235,6 +1265,78 @@ public final class LoginScreen extends JFrame {
                 g.fillOval(cx - s / 3, cy + s / 6, s / 6, s / 6);
                 g.fillOval(cx + s / 5, cy + s / 6, s / 6, s / 6);
             }
+        }
+
+        private void drawStatIcon(Graphics2D g, String type, int x, int y, int size) {
+            Graphics2D gg = (Graphics2D) g.create();
+
+            gg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            gg.setColor(new Color(230, 236, 245, 220));
+            gg.setStroke(new BasicStroke(Math.max(1f, ss(1.45f)), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+            int s = size;
+            int cx = x + s / 2;
+            int cy = y + s / 2;
+
+            if ("car".equals(type)) {
+                int bodyY = y + (int) (s * .46);
+                int bodyH = Math.max(5, (int) (s * .31));
+                int bodyX = x + (int) (s * .08);
+                int bodyW = (int) (s * .84);
+
+                gg.drawRoundRect(bodyX, bodyY, bodyW, bodyH, Math.max(3, s / 5), Math.max(3, s / 5));
+
+                Path2D roof = new Path2D.Double();
+                roof.moveTo(x + s * .24, bodyY);
+                roof.lineTo(x + s * .36, y + s * .25);
+                roof.lineTo(x + s * .64, y + s * .25);
+                roof.lineTo(x + s * .78, bodyY);
+                gg.draw(roof);
+
+                gg.drawLine(x + (int) (s * .48), y + (int) (s * .27), x + (int) (s * .48), bodyY);
+                gg.fillOval(x + (int) (s * .22), y + (int) (s * .73), Math.max(3, s / 5), Math.max(3, s / 5));
+                gg.fillOval(x + (int) (s * .63), y + (int) (s * .73), Math.max(3, s / 5), Math.max(3, s / 5));
+            } else if ("users".equals(type)) {
+                int r = Math.max(3, s / 5);
+
+                gg.drawOval(cx - r / 2, y + (int) (s * .13), r, r);
+                gg.drawArc(cx - (int) (s * .34), y + (int) (s * .49), (int) (s * .68), (int) (s * .42), 0, 180);
+
+                int sideR = Math.max(3, s / 6);
+                gg.drawOval(x + (int) (s * .07), y + (int) (s * .24), sideR, sideR);
+                gg.drawArc(x, y + (int) (s * .58), (int) (s * .35), (int) (s * .30), 12, 160);
+
+                gg.drawOval(x + (int) (s * .75), y + (int) (s * .24), sideR, sideR);
+                gg.drawArc(x + (int) (s * .65), y + (int) (s * .58), (int) (s * .35), (int) (s * .30), 8, 160);
+            } else if ("location".equals(type)) {
+                Path2D pin = new Path2D.Double();
+                pin.moveTo(cx, y + s - 1);
+                pin.curveTo(x + (int) (s * .13), y + (int) (s * .58), x + (int) (s * .16), y + (int) (s * .16), cx, y + (int) (s * .10));
+                pin.curveTo(x + (int) (s * .84), y + (int) (s * .16), x + (int) (s * .87), y + (int) (s * .58), cx, y + s - 1);
+                pin.closePath();
+                gg.draw(pin);
+                gg.drawOval(cx - s / 7, y + (int) (s * .34), Math.max(3, s / 4), Math.max(3, s / 4));
+            } else if ("star".equals(type)) {
+                Path2D star = new Path2D.Double();
+
+                for (int i = 0; i < 10; i++) {
+                    double a = -Math.PI / 2 + i * Math.PI / 5;
+                    double rr = (i % 2 == 0) ? s * .47 : s * .21;
+                    double px = cx + Math.cos(a) * rr;
+                    double py = cy + Math.sin(a) * rr;
+
+                    if (i == 0) {
+                        star.moveTo(px, py);
+                    } else {
+                        star.lineTo(px, py);
+                    }
+                }
+
+                star.closePath();
+                gg.draw(star);
+            }
+
+            gg.dispose();
         }
 
         private void drawFieldIcon(Graphics2D g, int x, int y, String type) {
