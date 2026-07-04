@@ -1335,6 +1335,9 @@ public final class CustomerDashboard extends JFrame {
             Graphics2D g = (Graphics2D) raw.create();
             g.translate(x + w / 2, y + h / 2);
             drawVeloraLogo(g, 0, 0, 0.42f);
+            
+            
+            
             g.dispose();
         }
     }
