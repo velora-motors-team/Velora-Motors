@@ -1,5 +1,8 @@
 package com.velora.ui;
 
+import com.velora.authentication.Customer;
+import com.velora.service.AuthenticationService;
+
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.*;
@@ -53,8 +56,10 @@ public final class LoginScreen extends JFrame {
         private static final Color WHITE = new Color(248, 248, 248);
         private static final Color MUTED = new Color(170, 176, 186);
         private static final Color BLUE_TEXT = new Color(106, 140, 192);
+        private static final char PASSWORD_BULLET = '•';
 
         private final LoginScreen frame;
+        private final AuthenticationService authenticationService = new AuthenticationService();
 
         private final BufferedImage bg;
         private final BufferedImage bmwLogo;
@@ -64,10 +69,11 @@ public final class LoginScreen extends JFrame {
         private final RoundTextField username = new RoundTextField("Enter your username", false);
         private final RoundTextField password = new RoundTextField("Enter your password", true);
 
-        private final JCheckBox remember = new JCheckBox("Remember Me", true);
+        private final JButton createAccount = ghostButton("Create Account");
         private final JButton forgot = ghostButton("Forgot Password?");
         private final JButton signIn = new GoldButton("SIGN IN      →");
-        private final JButton explore = new ExploreButton("EXPLORE  →");
+        private final JButton eye = new EyeButton();
+        private final JButton explore = new ExploreButton("EXPLORE NOW     ›");
 
         private final JButton min = topButton("—");
         private final JButton max = topButton("□");
@@ -83,6 +89,7 @@ public final class LoginScreen extends JFrame {
 
         private int failed;
         private int lockSeconds;
+        private boolean passwordVisible;
 
         VeloraCanvas(LoginScreen frame) {
             this.frame = frame;
@@ -95,6 +102,7 @@ public final class LoginScreen extends JFrame {
             );
 
             bmwLogo = loadFirst(
+                    "/images/bmw-logo-reference.png",
                     "/assets/icons/bmw-logo.png",
                     "/assets/icons/bmw.png",
                     "/images/bmw-logo.png",
@@ -109,6 +117,7 @@ public final class LoginScreen extends JFrame {
             );
 
             featuredCar = loadFirst(
+                    "/images/featured-roadster-clean.png",
                     "/assets/backgrounds/bmw-i8-roadster.png",
                     "/assets/backgrounds/featured-car.png",
                     "/images/bmw-i8-roadster.png",
@@ -118,21 +127,36 @@ public final class LoginScreen extends JFrame {
             setLayout(null);
             setOpaque(true);
 
-            remember.setOpaque(false);
-            remember.setForeground(WHITE);
-            remember.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-            remember.setFocusPainted(false);
-            remember.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            createAccount.setForeground(PALE);
+            createAccount.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            createAccount.setHorizontalAlignment(SwingConstants.LEFT);
+            createAccount.setToolTipText("Create a new Velora account");
+            createAccount.addActionListener(e -> showCreateAccount());
 
             forgot.setForeground(PALE);
             forgot.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-            forgot.addActionListener(e -> JOptionPane.showMessageDialog(this, "Please contact your administrator."));
+            forgot.addActionListener(e -> showResetPassword());
 
             explore.setForeground(PALE);
             explore.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            explore.setToolTipText("Explore the BMW i8 Roadster");
+            explore.addActionListener(e -> showFeaturedModel());
+
+            eye.putClientProperty("visible", Boolean.FALSE);
+            eye.setToolTipText("Show password");
 
             signIn.addActionListener(e -> authenticate());
             password.addActionListener(e -> authenticate());
+
+            eye.addActionListener(e -> {
+                passwordVisible = !passwordVisible;
+                password.setEchoChar(passwordVisible ? (char) 0 : PASSWORD_BULLET);
+                eye.putClientProperty("visible", passwordVisible);
+                eye.setToolTipText(passwordVisible ? "Hide password" : "Show password");
+                password.requestFocusInWindow();
+                password.repaint();
+                eye.repaint();
+            });
 
             min.addActionListener(e -> frame.setState(Frame.ICONIFIED));
             max.addActionListener(e -> frame.toggleMaximize());
@@ -140,13 +164,17 @@ public final class LoginScreen extends JFrame {
 
             add(username);
             add(password);
-            add(remember);
+            add(eye);
+            add(createAccount);
             add(forgot);
             add(signIn);
             add(explore);
             add(min);
             add(max);
             add(close);
+
+            // خلي زر العين فوق حقل كلمة السر حتى يستقبل الضغطات أكيد.
+            setComponentZOrder(eye, 0);
 
             addComponentListener(new ComponentAdapter() {
                 @Override
@@ -177,8 +205,15 @@ public final class LoginScreen extends JFrame {
             String u = username.getRealText().trim();
             String p = password.getRealText();
 
-            if (u.equalsIgnoreCase("manager") && p.equals("velora2026")) {
-                JOptionPane.showMessageDialog(this, "Welcome to Velora Motors Management System.");
+            java.util.Optional<Customer> account = authenticationService.authenticateCustomer(
+                    u,
+                    p.toCharArray()
+            );
+
+            if (account.isPresent()) {
+                Customer signedInAccount = account.get();
+                new SplashScreen(signedInAccount).setVisible(true);
+                frame.dispose();
                 return;
             }
 
@@ -187,6 +222,9 @@ public final class LoginScreen extends JFrame {
             if (failed >= 3) {
                 lockSeconds = 30;
                 signIn.setEnabled(false);
+                username.setEnabled(false);
+                password.setEnabled(false);
+                eye.setEnabled(false);
 
                 Timer t = new Timer(1000, null);
 
@@ -196,6 +234,10 @@ public final class LoginScreen extends JFrame {
                     if (lockSeconds <= 0) {
                         failed = 0;
                         signIn.setEnabled(true);
+                        username.setEnabled(true);
+                        password.setEnabled(true);
+                        eye.setEnabled(true);
+                        username.requestFocusInWindow();
                         t.stop();
                     }
 
@@ -204,6 +246,62 @@ public final class LoginScreen extends JFrame {
 
                 t.start();
             }
+        }
+
+        private void showFeaturedModel() {
+            JPanel details = new JPanel();
+            details.setLayout(new BoxLayout(details, BoxLayout.Y_AXIS));
+            details.setBackground(new Color(7, 12, 19));
+            details.setBorder(new EmptyBorder(14, 18, 10, 18));
+
+            JLabel title = new JLabel("BMW i8 ROADSTER");
+            title.setAlignmentX(Component.LEFT_ALIGNMENT);
+            title.setForeground(PALE);
+            title.setFont(new Font("Segoe UI", Font.BOLD, 22));
+
+            JLabel description = new JLabel(
+                    "<html><div style='width:340px;color:#E9EDF2'>"
+                    + "Future meets performance.<br><br>"
+                    + "<span style='color:#AAB0BA'>A premium open-top hybrid experience, "
+                    + "featured exclusively by Velora Motors. Sign in to view availability "
+                    + "and rental details.</span></div></html>"
+            );
+            description.setAlignmentX(Component.LEFT_ALIGNMENT);
+            description.setBorder(new EmptyBorder(12, 0, 4, 0));
+
+            details.add(title);
+            details.add(description);
+
+            JOptionPane.showMessageDialog(
+                    frame,
+                    details,
+                    "Featured Model",
+                    JOptionPane.PLAIN_MESSAGE
+            );
+        }
+
+        private void showCreateAccount() {
+            CreateAccountDialog dialog = new CreateAccountDialog(
+                    frame,
+                    authenticationService,
+                    email -> {
+                username.setText(email);
+                password.setText("");
+                password.requestFocusInWindow();
+            });
+            dialog.setVisible(true);
+        }
+
+        private void showResetPassword() {
+            ResetPasswordDialog dialog = new ResetPasswordDialog(
+                    frame,
+                    authenticationService,
+                    email -> {
+                username.setText(email);
+                password.setText("");
+                password.requestFocusInWindow();
+            });
+            dialog.setVisible(true);
         }
 
         private void layoutControls() {
@@ -271,20 +369,21 @@ public final class LoginScreen extends JFrame {
 
             username.setBounds(px, userY, fieldW, fieldH);
             password.setBounds(px, passY, fieldW, fieldH);
+            eye.setBounds(px + fieldW - sw(52), passY + sh(6), sw(40), fieldH - sh(12));
+            setComponentZOrder(eye, 0);
 
-            remember.setBounds(px, optionsY, fieldW / 2, sh(26));
+            createAccount.setBounds(px, optionsY, fieldW / 2, sh(26));
             forgot.setBounds(px + fieldW / 2, optionsY, fieldW / 2, sh(26));
 
             signIn.setBounds(px, buttonY, fieldW, buttonH);
 
-            int featuredY = rightY + loginH + sh(16);
-            int featuredH = Math.max(sh(145), h - footerH() - featuredY - sh(18));
+            int featuredY = rightY + loginH + sh(10);
+            int featuredH = Math.max(sh(128), h - footerH() - featuredY - sh(24));
 
-            // زر Explore أصغر ومرفوع داخل بطاقة Featured Model، بعيد عن خط الفوتر
-            int exploreW = sw(104);
-            int exploreH = sh(23);
-            int exploreX = rightX + sw(28);
-            int exploreY = Math.min(featuredY + sh(96), featuredY + featuredH - exploreH - sh(26));
+            int exploreW = Math.max(sw(118), Math.round(rightW * .225f));
+            int exploreH = Math.max(sh(27), Math.round(featuredH * .19f));
+            int exploreX = rightX + sw(32);
+            int exploreY = featuredY + featuredH - exploreH - sh(10);
             explore.setBounds(exploreX, exploreY, exploreW, exploreH);
         }
 
@@ -403,10 +502,10 @@ public final class LoginScreen extends JFrame {
             drawTrustPanel(g, trustX, sh(48), trustW, sh(104));
 
             // اسم المحل فوق خط الإضاءة الذهبي الأصلي الموجود على واجهة المبنى
-            int signW = Math.min(sw(400), Math.max(sw(315), (int) (leftW * .325)));
-            int signH = sh(42);
-            int signX = leftX + (int) (leftW * .352);
-            int signY = sh(230);
+            int signW = Math.min(sw(300), Math.max(sw(260), (int) (leftW * .265)));
+            int signH = sh(48);
+            int signX = leftX + (int) (leftW * .335);
+            int signY = sh(246);
             drawCenterSign(g, signX, signY, signW, signH);
 
             int footerTop = h - footerH();
@@ -497,74 +596,47 @@ public final class LoginScreen extends JFrame {
             gg.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
             gg.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
 
+            double angle = Math.toRadians(-3.2);
+            Graphics2D sign = (Graphics2D) gg.create();
+            sign.rotate(angle, x + w / 2.0, y + h / 2.0);
+
             String title = "VELORA MOTORS";
-            Font signFont = new Font("Serif", Font.PLAIN, sf(24));
-            Font fitted = fitFont(gg, title, signFont, w - sw(44));
-
-            /*
-             * شعار المحل صار راكب على واجهة المبنى:
-             * - بدون مستطيل ظاهر.
-             * - ميل أوضح مع منظور خط الواجهة.
-             * - ظل خفيف جدًا فقط خلف الحروف عشان يبين كأنه مثبت على الجدار.
-             * - شعار BMW صغرناه وخففنا الهالة الكبيرة حوله.
-             */
-            double angle = Math.toRadians(-3.9);
-            int textBaseY = y + sh(25);
-
-            Graphics2D textG = (Graphics2D) gg.create();
-            textG.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-            textG.rotate(angle, x + w / 2.0, y + h / 2.0);
-
-            textG.setFont(fitted);
-            FontMetrics fm = textG.getFontMetrics();
+            Font titleFont = fitFont(
+                    sign,
+                    title,
+                    new Font("Times New Roman", Font.PLAIN, sf(24)),
+                    w - sw(16)
+            );
+            sign.setFont(titleFont);
+            FontMetrics fm = sign.getFontMetrics();
             int textW = fm.stringWidth(title);
-            int tx = x + (w - textW) / 2;
+            int textX = x + (w - textW) / 2;
+            int titleY = y + (h - fm.getHeight()) / 2 + fm.getAscent();
 
-            // ظل جداري ناعم بدل البوكس، يعطي دمج مع الواجهة
-            textG.setComposite(AlphaComposite.SrcOver.derive(.32f));
-            textG.setColor(new Color(0, 0, 0, 135));
-            textG.fillRoundRect(tx - sw(12), textBaseY - sh(25), textW + sw(24), sh(35), sh(5), sh(5));
+            // Very soft halo: the letters stay thin and printed on the facade.
+            sign.setComposite(AlphaComposite.SrcOver.derive(.10f + .03f * pulse));
+            sign.setColor(new Color(255, 245, 226));
+            sign.drawString(title, textX - sw(1), titleY);
+            sign.drawString(title, textX + sw(1), titleY);
+            sign.drawString(title, textX, titleY - sh(1));
+            sign.drawString(title, textX, titleY + sh(1));
 
-            // ظل الحروف
-            textG.setComposite(AlphaComposite.SrcOver.derive(1f));
-            textG.setColor(new Color(0, 0, 0, 210));
-            textG.drawString(title, tx + sw(3), textBaseY + sh(3));
+            sign.setComposite(AlphaComposite.SrcOver);
+            sign.setColor(new Color(0, 0, 0, 190));
+            sign.drawString(title, textX + sw(1), titleY + sh(2));
 
-            // النص الأساسي
-            textG.setColor(new Color(255, 255, 255, 248));
-            textG.drawString(title, tx, textBaseY);
+            sign.setPaint(new GradientPaint(
+                    0, titleY - fm.getAscent(), new Color(255, 255, 252),
+                    0, titleY + fm.getDescent(), new Color(224, 214, 195)
+            ));
+            sign.drawString(title, textX, titleY);
+            sign.dispose();
 
-            // لمعة متحركة على الحروف نفسها
-            int shine = tx - sw(45) + (int) (shimmer * (textW + sw(90)));
-            Shape oldClip = textG.getClip();
-            textG.setClip(new Rectangle(tx, textBaseY - sh(28), textW, sh(36)));
-            textG.setComposite(AlphaComposite.SrcOver.derive(.24f));
-            textG.setStroke(new BasicStroke(ss(2.4f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            textG.setColor(new Color(255, 232, 188, 145));
-            textG.drawLine(shine, textBaseY - sh(26), shine + sw(32), textBaseY + sh(6));
-            textG.setClip(oldClip);
-
-            // خط ذهبي رفيع جدًا تحت الاسم، نفس ميل واجهة المحل
-            textG.setComposite(AlphaComposite.SrcOver.derive(.18f + .12f * pulse));
-            textG.setStroke(new BasicStroke(ss(1.1f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            textG.setColor(new Color(214, 168, 91, 110));
-            textG.drawLine(tx + sw(6), textBaseY + sh(7), tx + textW - sw(8), textBaseY + sh(4));
-            textG.dispose();
-
-            // شعار BMW متوازن مع النص وبدون هالة كبيرة
+            // Keep the BMW emblem on its original architectural column.
             int logoSize = sh(40);
-            int logoX = x + w + sw(28);
+            int logoX = x + w + sw(158);
             int logoY = y - sh(1);
 
-            gg.setComposite(AlphaComposite.SrcOver.derive(.12f + .12f * pulse));
-            gg.setColor(new Color(255, 255, 255, 82));
-            gg.fillOval(logoX - sw(5), logoY - sh(5), logoSize + sw(10), logoSize + sh(10));
-
-            gg.setComposite(AlphaComposite.SrcOver.derive(.08f + .10f * pulse));
-            gg.setColor(new Color(214, 168, 91, 70));
-            gg.fillOval(logoX - sw(10), logoY - sh(10), logoSize + sw(20), logoSize + sh(20));
-
-            gg.setComposite(AlphaComposite.SrcOver);
             drawBMW(gg, logoX, logoY, logoSize);
 
             gg.dispose();
@@ -789,15 +861,16 @@ public final class LoginScreen extends JFrame {
             int ch = loginH();
             int cx = x + cw / 2;
 
-            drawGlass(g, x, y, cw, ch, 18, 188);
+            drawGlass(g, x, y, cw, ch, 18, 205);
+            drawLoginCardPattern(g, x, y, cw, ch);
 
-            drawBMW(g, cx - sw(30), y + sh(26), sw(60));
+            drawBMW(g, cx - sw(34), y + sh(24), sw(68));
 
             drawFitCentered(
                     g,
                     "M A N A G E R   L O G I N",
                     cx,
-                    y + sh(132),
+                    y + sh(136),
                     cw - sw(50),
                     new Font("Segoe UI", Font.PLAIN, sf(27)),
                     PALE
@@ -807,7 +880,7 @@ public final class LoginScreen extends JFrame {
                     g,
                     "Welcome back! Please sign in to continue.",
                     cx,
-                    y + sh(168),
+                    y + sh(171),
                     cw - sw(50),
                     new Font("Segoe UI", Font.PLAIN, sf(13)),
                     WHITE
@@ -815,7 +888,7 @@ public final class LoginScreen extends JFrame {
 
             g.setColor(new Color(214, 168, 91, 170));
             g.setStroke(new BasicStroke(ss(1.5f)));
-            g.drawLine(cx - sw(30), y + sh(190), cx + sw(30), y + sh(190));
+            g.drawLine(cx - sw(32), y + sh(194), cx + sw(32), y + sh(194));
 
             int px = username.getX();
 
@@ -845,7 +918,47 @@ public final class LoginScreen extends JFrame {
             }
 
             drawNotice(g, noticeX, securityY, noticeW, sh(58), false);
-            drawNotice(g, noticeX, errorY, noticeW, sh(74), true);
+
+            if (lockSeconds > 0) {
+                drawNotice(g, noticeX, errorY, noticeW, sh(74), true);
+            }
+        }
+
+        private void drawLoginCardPattern(Graphics2D g, int x, int y, int w, int h) {
+            Graphics2D gg = (Graphics2D) g.create();
+
+            gg.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            gg.setComposite(AlphaComposite.SrcOver.derive(.10f));
+            gg.setColor(new Color(214, 168, 91, 90));
+            gg.setStroke(new BasicStroke(ss(.8f)));
+
+            int size = sh(18);
+            int startX = x + w - sw(150);
+            int startY = y + sh(28);
+
+            for (int row = 0; row < 8; row++) {
+                for (int col = 0; col < 6; col++) {
+                    int hx = startX + col * size + (row % 2) * size / 2;
+                    int hy = startY + row * (int) (size * .85);
+
+                    Path2D hex = new Path2D.Double();
+                    for (int i = 0; i < 6; i++) {
+                        double a = Math.PI / 6 + i * Math.PI / 3;
+                        double px = hx + Math.cos(a) * size * .35;
+                        double py = hy + Math.sin(a) * size * .35;
+
+                        if (i == 0) {
+                            hex.moveTo(px, py);
+                        } else {
+                            hex.lineTo(px, py);
+                        }
+                    }
+                    hex.closePath();
+                    gg.draw(hex);
+                }
+            }
+
+            gg.dispose();
         }
 
         private void drawNotice(Graphics2D g, int x, int y, int w, int h, boolean error) {
@@ -872,7 +985,7 @@ public final class LoginScreen extends JFrame {
                 gg.drawLine(iconCx, iconCy - sh(8), iconCx, iconCy + sh(3));
                 gg.fillOval(iconCx - 2, iconCy + sh(8), 4, 4);
 
-                String sec = lockSeconds > 0 ? String.valueOf(lockSeconds) : "30";
+                String sec = String.valueOf(lockSeconds);
 
                 gg.setColor(new Color(255, 92, 92));
                 gg.setFont(new Font("Segoe UI", Font.PLAIN, sf(11)));
@@ -886,8 +999,20 @@ public final class LoginScreen extends JFrame {
                 gg.setColor(new Color(135, 20, 20, 210));
                 gg.fillOval(badgeX, badgeY, badgeSize, badgeSize);
 
-                gg.setColor(new Color(255, 76, 76));
+                gg.setStroke(new BasicStroke(ss(2f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                gg.setColor(new Color(255, 76, 76, 80));
                 gg.drawOval(badgeX, badgeY, badgeSize, badgeSize);
+
+                int countdownArc = Math.round(360f * lockSeconds / 30f);
+                gg.setColor(new Color(255, 92, 92));
+                gg.drawArc(
+                        badgeX,
+                        badgeY,
+                        badgeSize,
+                        badgeSize,
+                        90,
+                        -countdownArc
+                );
 
                 gg.setColor(WHITE);
                 gg.setFont(new Font("Segoe UI", Font.BOLD, sf(10)));
@@ -923,74 +1048,95 @@ public final class LoginScreen extends JFrame {
             int margin = sideMargin();
             int fw = rightW();
             int x = w - margin - fw;
-
             int loginY = topY();
             int loginH = loginH();
+            int y = loginY + loginH + sh(10);
+            int fh = Math.max(sh(128), h - footerH() - y - sh(24));
 
-            int y = loginY + loginH + sh(16);
-            int fh = Math.max(sh(145), h - footerH() - y - sh(18));
+            Graphics2D banner = (Graphics2D) g.create();
+            banner.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            banner.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            banner.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
-            drawGlass(g, x, y, fw, fh, 14, 150);
-
-            Shape oldClip = g.getClip();
-
-            RoundRectangle2D rightClip = new RoundRectangle2D.Double(
-                    x + fw * .53,
-                    y,
-                    fw * .47,
-                    fh,
-                    sh(14),
-                    sh(14)
+            RoundRectangle2D frameShape = new RoundRectangle2D.Double(
+                    x + .5,
+                    y + .5,
+                    fw - 1,
+                    fh - 1,
+                    sh(13),
+                    sh(13)
             );
 
-            g.setClip(rightClip);
+            banner.setColor(new Color(0, 0, 0, 105));
+            banner.fill(new RoundRectangle2D.Double(
+                    x + sw(2),
+                    y + sh(3),
+                    fw - sw(4),
+                    fh,
+                    sh(13),
+                    sh(13)
+            ));
+
+            banner.clip(frameShape);
 
             if (featuredCar != null) {
-                drawCover(g, featuredCar, x + (int) (fw * .53), y, (int) (fw * .47), fh);
-            } else if (bg != null) {
-                g.drawImage(
-                        bg,
-                        x + (int) (fw * .53),
-                        y,
-                        x + fw,
-                        y + fh,
-                        bg.getWidth() / 5,
-                        bg.getHeight() / 2,
-                        bg.getWidth() * 4 / 5,
-                        bg.getHeight(),
-                        null
-                );
+                drawCover(banner, featuredCar, x, y, fw, fh);
+            } else {
+                banner.setPaint(new GradientPaint(
+                        x, y, new Color(7, 13, 20),
+                        x + fw, y + fh, new Color(18, 12, 9)
+                ));
+                banner.fillRect(x, y, fw, fh);
             }
 
-            g.setClip(oldClip);
+            banner.setPaint(new GradientPaint(
+                    x, y, new Color(2, 7, 12, 244),
+                    x + (int) (fw * .61), y, new Color(2, 7, 12, 8)
+            ));
+            banner.fillRect(x, y, (int) (fw * .67), fh);
 
-            int leftX = x + sw(28);
+            banner.setPaint(new GradientPaint(
+                    x, y, new Color(0, 0, 0, 42),
+                    x, y + fh, new Color(0, 0, 0, 82)
+            ));
+            banner.fillRect(x, y, fw, fh);
 
-            g.setColor(PALE);
-            g.setFont(new Font("Segoe UI", Font.BOLD, sf(9)));
-            g.drawString("FEATURED MODEL", leftX, y + sh(28));
+            int leftX = x + sw(32);
+            int accentX = x + sw(18);
 
-            g.setColor(WHITE);
-            g.setFont(new Font("Segoe UI", Font.BOLD, sf(18)));
-            g.drawString("BMW i8 ROADSTER", leftX, y + sh(56));
+            banner.setColor(new Color(224, 177, 101, 125));
+            banner.fillRoundRect(accentX, y + sh(16), sw(2), fh - sh(32), sw(2), sw(2));
 
-            g.setColor(MUTED);
-            g.setFont(new Font("Segoe UI", Font.PLAIN, sf(11)));
-            g.drawString("Future meets performance.", leftX, y + sh(83));
+            banner.setColor(PALE);
+            banner.setFont(new Font("Segoe UI", Font.BOLD, sf(8)));
+            banner.drawString("FEATURED MODEL", leftX, y + sh(22));
 
-            // خط فاصل صغير فوق الزر، حتى تبقى البطاقة مرتبة وما يطلع الزر على الفوتر
-            int lineY = y + sh(91);
-            g.setComposite(AlphaComposite.SrcOver.derive(.45f));
-            g.setColor(new Color(214, 168, 91, 72));
-            g.drawLine(leftX, lineY, leftX + sw(104), lineY);
-            g.setComposite(AlphaComposite.SrcOver);
+            banner.setColor(WHITE);
+            banner.setFont(new Font("Segoe UI", Font.BOLD, sf(17)));
+            banner.drawString("BMW i8 ROADSTER", leftX, y + sh(48));
 
-            // لمعة قصيرة فوق منطقة الزر بدل أسفل البطاقة
-            int shineX = leftX + (int) (shimmer * sw(82));
-            g.setComposite(AlphaComposite.SrcOver.derive(.24f));
-            g.setColor(new Color(255, 226, 172, 115));
-            g.drawLine(shineX, lineY + sh(12), shineX + sw(24), lineY + sh(12));
-            g.setComposite(AlphaComposite.SrcOver);
+            banner.setColor(new Color(193, 198, 207));
+            banner.setFont(new Font("Segoe UI", Font.PLAIN, sf(10)));
+            banner.drawString("Future meets performance.", leftX, y + sh(70));
+            banner.setColor(new Color(153, 160, 171));
+            banner.drawString("Rent the extraordinary.", leftX, y + sh(88));
+
+            banner.setClip(null);
+            banner.setStroke(new BasicStroke(ss(1.2f)));
+            banner.setColor(new Color(218, 171, 94, 150));
+            banner.draw(frameShape);
+
+            banner.setStroke(new BasicStroke(ss(.6f)));
+            banner.setColor(new Color(255, 226, 174, 42));
+            banner.draw(new RoundRectangle2D.Double(
+                    x + sw(2),
+                    y + sh(2),
+                    fw - sw(4),
+                    fh - sh(4),
+                    sh(11),
+                    sh(11)
+            ));
+            banner.dispose();
         }
 
         private void drawFooter(Graphics2D g, int w, int h) {
@@ -1153,8 +1299,47 @@ public final class LoginScreen extends JFrame {
         }
 
         private void drawBMW(Graphics2D g, int x, int y, int size) {
+            Graphics2D logo = (Graphics2D) g.create();
+            logo.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            logo.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            logo.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+
             if (bmwLogo != null) {
-                drawContain(g, bmwLogo, x, y, size, size);
+                int shadow = Math.max(1, size / 24);
+                logo.setColor(new Color(0, 0, 0, 105));
+                logo.fillOval(
+                        x - shadow,
+                        y + shadow,
+                        size + shadow * 2,
+                        size + shadow * 2
+                );
+
+                Shape circle = new Ellipse2D.Double(
+                        x,
+                        y,
+                        size,
+                        size
+                );
+                logo.clip(circle);
+
+                // Crop only the source image's black square margin. The BMW
+                // artwork itself stays unchanged and fills the round badge.
+                int sourceCrop = Math.max(1, Math.round(bmwLogo.getWidth() * .028f));
+                logo.drawImage(
+                        bmwLogo,
+                        x,
+                        y,
+                        x + size,
+                        y + size,
+                        sourceCrop,
+                        sourceCrop,
+                        bmwLogo.getWidth() - sourceCrop,
+                        bmwLogo.getHeight() - sourceCrop,
+                        null
+                );
+
+                logo.setClip(null);
+                logo.dispose();
                 return;
             }
 
@@ -1164,23 +1349,24 @@ public final class LoginScreen extends JFrame {
             int xx = x + in12;
             int yy = y + in12;
 
-            g.setColor(WHITE);
-            g.fillOval(x, y, size, size);
+            logo.setColor(WHITE);
+            logo.fillOval(x, y, size, size);
 
-            g.setColor(new Color(4, 8, 13));
-            g.fillOval(x + in4, y + in4, size - in4 * 2, size - in4 * 2);
+            logo.setColor(new Color(4, 8, 13));
+            logo.fillOval(x + in4, y + in4, size - in4 * 2, size - in4 * 2);
 
-            g.setColor(WHITE);
-            g.fillArc(xx, yy, d, d, 0, 90);
-            g.fillArc(xx, yy, d, d, 180, 90);
+            logo.setColor(WHITE);
+            logo.fillArc(xx, yy, d, d, 0, 90);
+            logo.fillArc(xx, yy, d, d, 180, 90);
 
-            g.setColor(new Color(20, 126, 199));
-            g.fillArc(xx, yy, d, d, 90, 90);
-            g.fillArc(xx, yy, d, d, 270, 90);
+            logo.setColor(new Color(20, 126, 199));
+            logo.fillArc(xx, yy, d, d, 90, 90);
+            logo.fillArc(xx, yy, d, d, 270, 90);
 
-            g.setColor(new Color(255, 255, 255, 200));
-            g.setStroke(new BasicStroke(ss(2f)));
-            g.drawOval(xx, yy, d, d);
+            logo.setColor(new Color(255, 255, 255, 200));
+            logo.setStroke(new BasicStroke(ss(2f)));
+            logo.drawOval(xx, yy, d, d);
+            logo.dispose();
         }
 
         private void drawWings(Graphics2D g, int cx, int y, double s) {
@@ -1536,6 +1722,699 @@ public final class LoginScreen extends JFrame {
         }
     }
 
+    private static final class CreateAccountDialog extends JDialog {
+
+        CreateAccountDialog(
+                Frame owner,
+                AuthenticationService authenticationService,
+                java.util.function.Consumer<String> onCreated
+        ) {
+            super(owner, true);
+            setUndecorated(true);
+            setResizable(false);
+            setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+            setSize(450, 620);
+            setBackground(new Color(0, 0, 0, 0));
+            setContentPane(new CreateAccountPanel(
+                    this,
+                    authenticationService,
+                    onCreated
+            ));
+            setLocationRelativeTo(owner);
+
+            try {
+                setShape(new RoundRectangle2D.Double(0, 0, 450, 620, 24, 24));
+            } catch (UnsupportedOperationException ignored) {
+            }
+
+            getRootPane().registerKeyboardAction(
+                    e -> dispose(),
+                    KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+                    JComponent.WHEN_IN_FOCUSED_WINDOW
+            );
+        }
+    }
+
+    private static final class ResetPasswordDialog extends JDialog {
+
+        ResetPasswordDialog(
+                Frame owner,
+                AuthenticationService authenticationService,
+                java.util.function.Consumer<String> onReset
+        ) {
+            super(owner, true);
+            setUndecorated(true);
+            setResizable(false);
+            setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
+            setSize(410, 580);
+            setBackground(new Color(0, 0, 0, 0));
+            setContentPane(new ResetPasswordPanel(
+                    this,
+                    authenticationService,
+                    onReset
+            ));
+            setLocationRelativeTo(owner);
+
+            try {
+                setShape(new RoundRectangle2D.Double(0, 0, 410, 580, 24, 24));
+            } catch (UnsupportedOperationException ignored) {
+            }
+
+            getRootPane().registerKeyboardAction(
+                    e -> dispose(),
+                    KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
+                    JComponent.WHEN_IN_FOCUSED_WINDOW
+            );
+        }
+    }
+
+    private static final class ResetPasswordPanel extends JPanel {
+
+        private final JDialog dialog;
+        private final AuthenticationService authenticationService;
+        private final java.util.function.Consumer<String> onReset;
+
+        private final SignupField email = new SignupField("Email Address", "mail", false);
+        private final SignupField newPassword = new SignupField("New Password", "lock", true);
+        private final SignupField confirmPassword = new SignupField("Confirm New Password", "lock", true);
+
+        private final EyeButton newPasswordEye = new EyeButton();
+        private final EyeButton confirmPasswordEye = new EyeButton();
+        private final JButton reset = new GoldButton("RESET PASSWORD     →");
+        private final JButton close = new DialogCloseButton();
+        private final JButton signIn = new JButton("Sign in");
+        private final JLabel status = new JLabel("", SwingConstants.CENTER);
+
+        ResetPasswordPanel(
+                JDialog dialog,
+                AuthenticationService authenticationService,
+                java.util.function.Consumer<String> onReset
+        ) {
+            this.dialog = dialog;
+            this.authenticationService = authenticationService;
+            this.onReset = onReset;
+
+            setOpaque(false);
+            setLayout(null);
+
+            close.setToolTipText("Close");
+            close.addActionListener(e -> dialog.dispose());
+
+            signIn.setOpaque(false);
+            signIn.setContentAreaFilled(false);
+            signIn.setBorderPainted(false);
+            signIn.setFocusPainted(false);
+            signIn.setForeground(new Color(236, 203, 157));
+            signIn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            signIn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            signIn.addActionListener(e -> dialog.dispose());
+
+            status.setForeground(new Color(255, 104, 104));
+            status.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+
+            configureEye(newPasswordEye, newPassword);
+            configureEye(confirmPasswordEye, confirmPassword);
+            reset.addActionListener(e -> resetPassword());
+
+            email.setBounds(30, 160, 350, 43);
+            newPassword.setBounds(30, 213, 350, 43);
+            confirmPassword.setBounds(30, 266, 350, 43);
+            newPasswordEye.setBounds(337, 219, 36, 31);
+            confirmPasswordEye.setBounds(337, 272, 36, 31);
+            status.setBounds(30, 401, 350, 19);
+            reset.setBounds(30, 427, 350, 50);
+            close.setBounds(354, 13, 38, 38);
+            signIn.setBounds(236, 517, 72, 30);
+
+            add(email);
+            add(newPassword);
+            add(confirmPassword);
+            add(newPasswordEye);
+            add(confirmPasswordEye);
+            add(status);
+            add(reset);
+            add(close);
+            add(signIn);
+
+            setComponentZOrder(newPasswordEye, 0);
+            setComponentZOrder(confirmPasswordEye, 0);
+        }
+
+        private void configureEye(EyeButton eye, SignupField field) {
+            eye.putClientProperty("visible", Boolean.FALSE);
+            eye.setToolTipText("Show password");
+            eye.addActionListener(e -> {
+                boolean visible = !Boolean.TRUE.equals(eye.getClientProperty("visible"));
+                field.setEchoChar(visible ? (char) 0 : '•');
+                eye.putClientProperty("visible", visible);
+                eye.setToolTipText(visible ? "Hide password" : "Show password");
+                field.requestFocusInWindow();
+                eye.repaint();
+            });
+        }
+
+        private void resetPassword() {
+            String mail = email.getRealText().trim();
+            String pass = newPassword.getRealText();
+            String repeated = confirmPassword.getRealText();
+
+            if (mail.isBlank() || pass.isBlank() || repeated.isBlank()) {
+                showError("Please complete all fields.");
+                return;
+            }
+
+            if (!mail.matches("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")) {
+                showError("Please enter a valid email address.");
+                email.requestFocusInWindow();
+                return;
+            }
+
+            boolean validPassword = pass.length() >= 8
+                    && pass.matches(".*[A-Z].*")
+                    && pass.matches(".*[a-z].*")
+                    && pass.matches(".*[0-9].*")
+                    && pass.matches(".*[^A-Za-z0-9].*");
+
+            if (!validPassword) {
+                showError("Password does not meet the security requirements.");
+                newPassword.requestFocusInWindow();
+                return;
+            }
+
+            if (!pass.equals(repeated)) {
+                showError("Passwords do not match.");
+                confirmPassword.requestFocusInWindow();
+                return;
+            }
+
+            try {
+                boolean updated = authenticationService.resetPassword(
+                        mail,
+                        pass.toCharArray()
+                );
+
+                if (!updated) {
+                    showError("No account was found for this email address.");
+                    email.requestFocusInWindow();
+                    return;
+                }
+            } catch (IllegalStateException ex) {
+                showError(ex.getMessage());
+                return;
+            }
+
+            onReset.accept(mail);
+            dialog.dispose();
+
+            JOptionPane.showMessageDialog(
+                    dialog.getOwner(),
+                    "Your password has been updated successfully.",
+                    "Password Reset",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+        }
+
+        private void showError(String message) {
+            status.setText(message);
+            Toolkit.getDefaultToolkit().beep();
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+            int w = getWidth();
+            int h = getHeight();
+            int cx = w / 2;
+
+            RoundRectangle2D card = new RoundRectangle2D.Double(
+                    .75, .75, w - 1.5, h - 1.5, 23, 23
+            );
+            g.setPaint(new GradientPaint(
+                    0, 0, new Color(10, 17, 24, 252),
+                    w, h, new Color(3, 8, 13, 252)
+            ));
+            g.fill(card);
+            g.setStroke(new BasicStroke(1.35f));
+            g.setColor(new Color(214, 168, 91, 185));
+            g.draw(card);
+
+            int iconY = 52;
+            g.setColor(new Color(237, 239, 244, 145));
+            g.setStroke(new BasicStroke(1.2f));
+            g.drawOval(cx - 23, iconY - 23, 46, 46);
+
+            g.setColor(new Color(236, 203, 157));
+            g.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.drawRoundRect(cx - 7, iconY - 2, 14, 13, 2, 2);
+            g.drawArc(cx - 5, iconY - 11, 10, 12, 0, 180);
+            g.fillOval(cx - 1, iconY + 3, 3, 3);
+            g.drawLine(cx, iconY + 6, cx, iconY + 8);
+
+            drawCentered(g, "R E S E T   P A S S W O R D", 100,
+                    new Font("Segoe UI", Font.BOLD, 16), new Color(236, 203, 157));
+
+            g.setColor(new Color(214, 168, 91, 125));
+            g.drawLine(cx - 64, 116, cx - 12, 116);
+            g.drawLine(cx + 12, 116, cx + 64, 116);
+            Path2D diamond = new Path2D.Double();
+            diamond.moveTo(cx, 111);
+            diamond.lineTo(cx + 5, 116);
+            diamond.lineTo(cx, 121);
+            diamond.lineTo(cx - 5, 116);
+            diamond.closePath();
+            g.draw(diamond);
+
+            drawCentered(g, "Enter your email and choose a new password.", 137,
+                    new Font("Segoe UI", Font.PLAIN, 11), new Color(220, 223, 228));
+            drawCentered(g, "We'll update your password securely.", 153,
+                    new Font("Segoe UI", Font.PLAIN, 11), new Color(220, 223, 228));
+
+            RoundRectangle2D requirements = new RoundRectangle2D.Double(
+                    30.5, 320.5, 349, 76, 8, 8
+            );
+            g.setColor(new Color(7, 13, 19, 220));
+            g.fill(requirements);
+            g.setColor(new Color(255, 255, 255, 28));
+            g.setStroke(new BasicStroke(1f));
+            g.draw(requirements);
+
+            g.setColor(new Color(226, 181, 105));
+            g.setStroke(new BasicStroke(1.3f));
+            g.drawOval(43, 332, 14, 14);
+            g.drawLine(50, 336, 50, 340);
+            g.fillOval(49, 342, 2, 2);
+
+            g.setFont(new Font("Segoe UI", Font.BOLD, 10));
+            g.setColor(new Color(224, 227, 232));
+            g.drawString("Password Requirements:", 66, 343);
+
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 9));
+            String[] rules = {
+                    "At least 8 characters long",
+                    "Include uppercase and lowercase letters",
+                    "Include a number and a special character"
+            };
+            for (int i = 0; i < rules.length; i++) {
+                int ruleY = 359 + i * 16;
+                g.setColor(new Color(226, 181, 105));
+                g.drawLine(68, ruleY - 3, 71, ruleY);
+                g.drawLine(71, ruleY, 77, ruleY - 7);
+                g.setColor(new Color(187, 192, 201));
+                g.drawString(rules[i], 84, ruleY);
+            }
+
+            int dividerY = 500;
+            g.setColor(new Color(255, 255, 255, 34));
+            g.drawLine(30, dividerY, cx - 25, dividerY);
+            g.drawLine(cx + 25, dividerY, w - 30, dividerY);
+            drawCentered(g, "OR", dividerY + 4,
+                    new Font("Segoe UI", Font.PLAIN, 10), new Color(187, 192, 201));
+
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            g.setColor(new Color(224, 227, 232));
+            g.drawString("Remember your password?", 91, 537);
+
+            g.dispose();
+        }
+
+        private void drawCentered(Graphics2D g, String text, int baseline, Font font, Color color) {
+            g.setFont(font);
+            g.setColor(color);
+            FontMetrics fm = g.getFontMetrics();
+            g.drawString(text, (getWidth() - fm.stringWidth(text)) / 2, baseline);
+        }
+    }
+
+    private static final class CreateAccountPanel extends JPanel {
+
+        private final JDialog dialog;
+        private final AuthenticationService authenticationService;
+        private final java.util.function.Consumer<String> onCreated;
+
+        private final SignupField fullName = new SignupField("Full Name", "user", false);
+        private final SignupField email = new SignupField("Email Address", "mail", false);
+        private final SignupField phone = new SignupField("Phone Number", "phone", false);
+        private final SignupField password = new SignupField("Password", "lock", true);
+        private final SignupField confirm = new SignupField("Confirm Password", "lock", true);
+
+        private final EyeButton passwordEye = new EyeButton();
+        private final EyeButton confirmEye = new EyeButton();
+        private final JButton create = new GoldButton("CREATE ACCOUNT     →");
+        private final JButton close = new DialogCloseButton();
+        private final JButton signIn = dialogButton("Sign in");
+        private final JLabel status = new JLabel("", SwingConstants.CENTER);
+
+        CreateAccountPanel(
+                JDialog dialog,
+                AuthenticationService authenticationService,
+                java.util.function.Consumer<String> onCreated
+        ) {
+            this.dialog = dialog;
+            this.authenticationService = authenticationService;
+            this.onCreated = onCreated;
+
+            setOpaque(false);
+            setLayout(null);
+
+            close.setToolTipText("Close");
+            close.addActionListener(e -> dialog.dispose());
+
+            signIn.setForeground(new Color(236, 203, 157));
+            signIn.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            signIn.addActionListener(e -> dialog.dispose());
+
+            status.setForeground(new Color(255, 104, 104));
+            status.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+
+            configureEye(passwordEye, password);
+            configureEye(confirmEye, confirm);
+            create.addActionListener(e -> createAccount());
+
+            fullName.setBounds(30, 175, 190, 43);
+            email.setBounds(230, 175, 190, 43);
+            phone.setBounds(30, 230, 390, 43);
+            password.setBounds(30, 285, 390, 43);
+            confirm.setBounds(30, 340, 390, 43);
+            passwordEye.setBounds(376, 291, 37, 31);
+            confirmEye.setBounds(376, 346, 37, 31);
+            status.setBounds(30, 428, 390, 20);
+            create.setBounds(30, 456, 390, 52);
+            close.setBounds(394, 13, 38, 38);
+            signIn.setBounds(271, 546, 72, 30);
+
+            add(fullName);
+            add(email);
+            add(phone);
+            add(password);
+            add(confirm);
+            add(passwordEye);
+            add(confirmEye);
+            add(status);
+            add(create);
+            add(close);
+            add(signIn);
+
+            setComponentZOrder(passwordEye, 0);
+            setComponentZOrder(confirmEye, 0);
+        }
+
+        private void configureEye(EyeButton eye, SignupField field) {
+            eye.putClientProperty("visible", Boolean.FALSE);
+            eye.setToolTipText("Show password");
+            eye.addActionListener(e -> {
+                boolean visible = !Boolean.TRUE.equals(eye.getClientProperty("visible"));
+                field.setEchoChar(visible ? (char) 0 : '•');
+                eye.putClientProperty("visible", visible);
+                eye.setToolTipText(visible ? "Hide password" : "Show password");
+                field.requestFocusInWindow();
+                eye.repaint();
+            });
+        }
+
+        private static JButton dialogButton(String text) {
+            JButton button = new JButton(text);
+            button.setOpaque(false);
+            button.setContentAreaFilled(false);
+            button.setBorderPainted(false);
+            button.setFocusPainted(false);
+            button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            return button;
+        }
+
+        private void createAccount() {
+            String name = fullName.getRealText().trim();
+            String mail = email.getRealText().trim();
+            String number = phone.getRealText().trim();
+            String pass = password.getRealText();
+            String repeated = confirm.getRealText();
+
+            if (name.isBlank() || mail.isBlank() || number.isBlank()
+                    || pass.isBlank() || repeated.isBlank()) {
+                showError("Please complete all fields.");
+                return;
+            }
+
+            if (!mail.matches("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")) {
+                showError("Please enter a valid email address.");
+                email.requestFocusInWindow();
+                return;
+            }
+
+            if (!number.matches("[0-9+()\\-\\s]{7,}")) {
+                showError("Please enter a valid phone number.");
+                phone.requestFocusInWindow();
+                return;
+            }
+
+            boolean strongPassword = pass.length() >= 8
+                    && pass.matches(".*[A-Z].*")
+                    && pass.matches(".*[0-9].*")
+                    && pass.matches(".*[^A-Za-z0-9].*");
+
+            if (!strongPassword) {
+                showError("Password does not meet the security requirements.");
+                password.requestFocusInWindow();
+                return;
+            }
+
+            if (!pass.equals(repeated)) {
+                showError("Passwords do not match.");
+                confirm.requestFocusInWindow();
+                return;
+            }
+
+            try {
+                authenticationService.registerCustomer(
+                        name,
+                        mail,
+                        number,
+                        pass.toCharArray()
+                );
+            } catch (IllegalArgumentException | IllegalStateException ex) {
+                showError(ex.getMessage());
+                return;
+            }
+
+            onCreated.accept(mail);
+            dialog.dispose();
+
+            JOptionPane.showMessageDialog(
+                    dialog.getOwner(),
+                    "Your Velora account has been created successfully.",
+                    "Account Created",
+                    JOptionPane.INFORMATION_MESSAGE
+            );
+        }
+
+        private void showError(String message) {
+            status.setText(message);
+            Toolkit.getDefaultToolkit().beep();
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+            int w = getWidth();
+            int h = getHeight();
+
+            RoundRectangle2D card = new RoundRectangle2D.Double(
+                    .75, .75, w - 1.5, h - 1.5, 23, 23
+            );
+            g.setPaint(new GradientPaint(
+                    0, 0, new Color(10, 17, 24, 252),
+                    w, h, new Color(3, 8, 13, 252)
+            ));
+            g.fill(card);
+
+            g.setStroke(new BasicStroke(1.35f));
+            g.setColor(new Color(214, 168, 91, 185));
+            g.draw(card);
+
+            int cx = w / 2;
+            int iconY = 59;
+
+            g.setColor(new Color(237, 239, 244, 150));
+            g.setStroke(new BasicStroke(1.2f));
+            g.drawOval(cx - 25, iconY - 25, 50, 50);
+
+            g.setColor(new Color(236, 203, 157));
+            g.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.drawOval(cx - 7, iconY - 13, 14, 14);
+            g.drawArc(cx - 12, iconY + 2, 24, 17, 15, 150);
+            g.drawLine(cx + 13, iconY + 7, cx + 13, iconY + 18);
+            g.drawLine(cx + 8, iconY + 12, cx + 18, iconY + 12);
+
+            drawCentered(g, "C R E A T E   A C C O U N T", 112,
+                    new Font("Segoe UI", Font.BOLD, 17), new Color(236, 203, 157));
+
+            g.setColor(new Color(214, 168, 91, 125));
+            g.drawLine(cx - 66, 130, cx - 13, 130);
+            g.drawLine(cx + 13, 130, cx + 66, 130);
+            Path2D diamond = new Path2D.Double();
+            diamond.moveTo(cx, 125);
+            diamond.lineTo(cx + 5, 130);
+            diamond.lineTo(cx, 135);
+            diamond.lineTo(cx - 5, 130);
+            diamond.closePath();
+            g.draw(diamond);
+
+            drawCentered(g, "Join Velora Motors and start your journey.", 155,
+                    new Font("Segoe UI", Font.PLAIN, 12), new Color(220, 223, 228));
+
+            g.setColor(new Color(226, 181, 105));
+            g.setStroke(new BasicStroke(1.3f));
+            g.drawOval(34, 396, 12, 14);
+            g.drawLine(40, 399, 40, 407);
+            g.drawLine(37, 402, 43, 402);
+
+            g.setColor(new Color(174, 180, 190));
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+            g.drawString("Password must be at least 8 characters and include", 56, 404);
+            g.drawString("a number, an uppercase letter, and a special character.", 56, 421);
+
+            int dividerY = 533;
+            g.setColor(new Color(255, 255, 255, 32));
+            g.drawLine(30, dividerY, cx - 26, dividerY);
+            g.drawLine(cx + 26, dividerY, w - 30, dividerY);
+            drawCentered(g, "OR", dividerY + 4,
+                    new Font("Segoe UI", Font.PLAIN, 10), new Color(187, 192, 201));
+
+            g.setColor(new Color(224, 227, 232));
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            String footer = "Already have an account?";
+            int footerW = g.getFontMetrics().stringWidth(footer);
+            g.drawString(footer, cx - 104, 566);
+
+            g.dispose();
+        }
+
+        private void drawCentered(Graphics2D g, String text, int baseline, Font font, Color color) {
+            g.setFont(font);
+            g.setColor(color);
+            FontMetrics fm = g.getFontMetrics();
+            g.drawString(text, (getWidth() - fm.stringWidth(text)) / 2, baseline);
+        }
+    }
+
+    private static final class DialogCloseButton extends JButton {
+
+        DialogCloseButton() {
+            setOpaque(false);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            boolean hover = getModel().isRollover();
+            boolean pressed = getModel().isPressed();
+
+            if (hover) {
+                g.setColor(new Color(214, 168, 91, pressed ? 55 : 28));
+                g.fillOval(3, 3, getWidth() - 6, getHeight() - 6);
+            }
+
+            int cx = getWidth() / 2;
+            int cy = getHeight() / 2;
+            int arm = 7;
+            g.setColor(new Color(236, 203, 157, pressed ? 210 : 255));
+            g.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.drawLine(cx - arm, cy - arm, cx + arm, cy + arm);
+            g.drawLine(cx + arm, cy - arm, cx - arm, cy + arm);
+            g.dispose();
+        }
+    }
+
+    private static final class SignupField extends JPasswordField {
+
+        private final String placeholder;
+        private final String icon;
+
+        SignupField(String placeholder, String icon, boolean passwordMode) {
+            this.placeholder = placeholder;
+            this.icon = icon;
+            setEchoChar(passwordMode ? '•' : (char) 0);
+            setOpaque(false);
+            setForeground(new Color(248, 248, 248));
+            setCaretColor(new Color(214, 168, 91));
+            setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            setBorder(new EmptyBorder(0, 42, 0, passwordMode ? 52 : 14));
+        }
+
+        String getRealText() {
+            return new String(getPassword());
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+            RoundRectangle2D box = new RoundRectangle2D.Double(
+                    .5, .5, getWidth() - 1, getHeight() - 1, 9, 9
+            );
+            g.setColor(new Color(6, 12, 18, 230));
+            g.fill(box);
+            g.setColor(new Color(214, 168, 91, isFocusOwner() ? 150 : 62));
+            g.setStroke(new BasicStroke(isFocusOwner() ? 1.35f : 1f));
+            g.draw(box);
+            drawFieldIcon(g);
+            g.dispose();
+
+            super.paintComponent(raw);
+
+            if (getPassword().length == 0) {
+                g = (Graphics2D) raw.create();
+                g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+                g.setColor(new Color(142, 148, 158));
+                g.setFont(getFont());
+                FontMetrics fm = g.getFontMetrics();
+                g.drawString(placeholder, 42, (getHeight() + fm.getAscent()) / 2 - 3);
+                g.dispose();
+            }
+        }
+
+        private void drawFieldIcon(Graphics2D g) {
+            int cx = 20;
+            int cy = getHeight() / 2;
+            g.setColor(new Color(151, 169, 191));
+            g.setStroke(new BasicStroke(1.25f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+            switch (icon) {
+                case "user" -> {
+                    g.drawOval(cx - 4, cy - 8, 8, 8);
+                    g.drawArc(cx - 7, cy + 1, 14, 11, 15, 150);
+                }
+                case "mail" -> {
+                    g.drawRoundRect(cx - 7, cy - 6, 14, 11, 2, 2);
+                    g.drawLine(cx - 7, cy - 5, cx, cy + 1);
+                    g.drawLine(cx + 7, cy - 5, cx, cy + 1);
+                }
+                case "phone" -> {
+                    g.drawArc(cx - 7, cy - 8, 14, 16, 135, 105);
+                    g.drawLine(cx - 7, cy - 4, cx - 3, cy);
+                    g.drawLine(cx + 3, cy + 5, cx + 7, cy + 2);
+                }
+                default -> {
+                    g.drawRoundRect(cx - 6, cy - 3, 12, 11, 2, 2);
+                    g.drawArc(cx - 4, cy - 9, 8, 10, 0, 180);
+                }
+            }
+        }
+    }
+
     private static final class RoundTextField extends JPasswordField {
 
         private final String placeholder;
@@ -1548,7 +2427,7 @@ public final class LoginScreen extends JFrame {
             setForeground(new Color(248, 248, 248));
             setCaretColor(new Color(214, 168, 91));
             setFont(new Font("Segoe UI", Font.PLAIN, 13));
-            setBorder(new EmptyBorder(0, 48, 0, 14));
+            setBorder(new EmptyBorder(0, 48, 0, passwordMode ? 62 : 14));
         }
 
         String getRealText() {
@@ -1566,11 +2445,11 @@ public final class LoginScreen extends JFrame {
                     .5,
                     getWidth() - 1,
                     getHeight() - 1,
-                    7,
-                    7
+                    10,
+                    10
             );
 
-            g.setColor(new Color(8, 14, 20, 230));
+            g.setColor(new Color(7, 13, 20, 235));
             g.fill(box);
 
             g.setColor(new Color(214, 168, 91, isFocusOwner() ? 150 : 48));
@@ -1599,6 +2478,76 @@ public final class LoginScreen extends JFrame {
 
                 g.dispose();
             }
+        }
+    }
+
+    private static final class EyeButton extends JButton {
+
+        EyeButton() {
+            super("");
+            setOpaque(false);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setFocusable(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+
+            int w = getWidth();
+            int h = getHeight();
+            int cx = w / 2;
+            int cy = h / 2;
+
+            boolean visible = Boolean.TRUE.equals(getClientProperty("visible"));
+            boolean hover = getModel().isRollover();
+            boolean pressed = getModel().isPressed();
+
+            if (hover || visible) {
+                g.setColor(new Color(214, 168, 91, pressed ? 58 : (visible ? 44 : 28)));
+                g.fillRoundRect(2, 2, w - 4, h - 4, Math.max(8, h / 2), Math.max(8, h / 2));
+            }
+
+            Color eyeColor = visible
+                    ? new Color(236, 203, 157, pressed ? 255 : 245)
+                    : new Color(214, 168, 91, hover ? 215 : 125);
+
+            g.setColor(eyeColor);
+            g.setStroke(new BasicStroke(Math.max(1.4f, h / 18f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+            Path2D eye = new Path2D.Double();
+            eye.moveTo(swLocal(w, 5), cy);
+            eye.curveTo(swLocal(w, 12), shLocal(h, 6), swLocal(w, 28), shLocal(h, 6), swLocal(w, 35), cy);
+            eye.curveTo(swLocal(w, 28), shLocal(h, 28), swLocal(w, 12), shLocal(h, 28), swLocal(w, 5), cy);
+            g.draw(eye);
+
+            if (visible) {
+                g.setColor(new Color(236, 203, 157, 55));
+                g.fillOval(cx - swLocal(w, 8), cy - swLocal(w, 8), swLocal(w, 16), swLocal(w, 16));
+                g.setColor(new Color(248, 248, 248, 238));
+                g.fillOval(cx - swLocal(w, 4), cy - swLocal(w, 4), swLocal(w, 8), swLocal(w, 8));
+            } else {
+                g.fillOval(cx - swLocal(w, 3), cy - swLocal(w, 3), swLocal(w, 6), swLocal(w, 6));
+                g.setColor(new Color(214, 168, 91, hover ? 230 : 155));
+                g.setStroke(new BasicStroke(Math.max(1.6f, h / 16f), BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                g.drawLine(swLocal(w, 8), shLocal(h, 25), swLocal(w, 33), shLocal(h, 8));
+            }
+
+            g.dispose();
+        }
+
+        private int swLocal(int w, int v) {
+            return Math.max(1, Math.round(v * w / 40f));
+        }
+
+        private int shLocal(int h, int v) {
+            return Math.max(1, Math.round(v * h / 34f));
         }
     }
 
@@ -1633,21 +2582,24 @@ public final class LoginScreen extends JFrame {
                     6
             );
 
-            g.setColor(new Color(4, 9, 15, hover ? 235 : 210));
+            Color top = hover
+                    ? new Color(39, 31, 22, 238)
+                    : new Color(8, 14, 20, 226);
+            Color bottom = press
+                    ? new Color(87, 59, 29, 242)
+                    : new Color(3, 8, 13, 238);
+
+            g.setPaint(new GradientPaint(0, 0, top, 0, getHeight(), bottom));
             g.fill(body);
 
             g.setPaint(new GradientPaint(
-                    0,
-                    0,
-                    new Color(255, 231, 180, hover ? 145 : 95),
-                    getWidth(),
-                    getHeight(),
-                    new Color(214, 168, 91, hover ? 170 : 115)
+                    0, 0, new Color(255, 225, 169, hover ? 225 : 170),
+                    getWidth(), getHeight(), new Color(176, 121, 55, hover ? 235 : 165)
             ));
-            g.setStroke(new BasicStroke(press ? 1.55f : 1.05f));
+            g.setStroke(new BasicStroke(press ? 1.65f : 1.1f));
             g.draw(body);
 
-            g.setColor(new Color(255, 255, 255, hover ? 34 : 18));
+            g.setColor(new Color(255, 240, 209, hover ? 48 : 22));
             g.drawLine(10, 2, getWidth() - 10, 2);
 
             g.dispose();
@@ -1688,8 +2640,8 @@ public final class LoginScreen extends JFrame {
                     3,
                     getWidth(),
                     getHeight() - 1,
-                    7,
-                    7
+                    12,
+                    12
             );
 
             RoundRectangle2D body = new RoundRectangle2D.Double(
@@ -1697,8 +2649,8 @@ public final class LoginScreen extends JFrame {
                     0,
                     getWidth(),
                     getHeight() - 2,
-                    7,
-                    7
+                    12,
+                    12
             );
 
             g.setColor(new Color(0, 0, 0, 55));
@@ -1715,17 +2667,5 @@ public final class LoginScreen extends JFrame {
             super.paintComponent(raw);
         }
     }
-    
-    
-
-
-
-
-
-
-
-
-
-    
     
 }
