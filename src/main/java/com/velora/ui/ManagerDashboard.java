@@ -248,8 +248,7 @@ public final class ManagerDashboard extends JFrame {
 
         GoldOutlineButton logout = new GoldOutlineButton("LOGOUT");
         logout.setPreferredSize(new Dimension(205, 52));
-        logout.addActionListener(e -> logout());
-
+        logout.addActionListener(e -> handleLogout());
         shell.add(top, BorderLayout.NORTH);
         shell.add(logout, BorderLayout.SOUTH);
         panel.add(shell, BorderLayout.CENTER);
@@ -2184,4 +2183,17 @@ public final class ManagerDashboard extends JFrame {
                 null
         );
     }
+    
+    private void handleLogout() {
+        LogoutConfirmDialog confirmDialog = new LogoutConfirmDialog(this);
+        confirmDialog.setVisible(true);
+
+        if (confirmDialog.isConfirmed()) {
+            this.dispose();
+
+            FarewellScreen farewellScreen = new FarewellScreen("Velora Guest");
+farewellScreen.setVisible(true);
+        }
+    }
 }
+
