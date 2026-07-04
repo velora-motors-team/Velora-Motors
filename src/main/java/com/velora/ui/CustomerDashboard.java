@@ -93,8 +93,8 @@ public final class CustomerDashboard extends JFrame {
         JButton logout = sideButton("Logout", "logout");
         logout.setPreferredSize(new Dimension(142, 40));
         logout.addActionListener(e -> {
-            new LoginScreen().setVisible(true);
             dispose();
+            new FarewellScreen(customer.getFullName()).setVisible(true);
         });
 
         JPanel bottom = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));

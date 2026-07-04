@@ -195,12 +195,12 @@ public final class ManagerDashboard extends JFrame {
     private JPanel createSidebar() {
         JPanel panel = new JPanel(new BorderLayout());
         panel.setOpaque(false);
-        panel.setPreferredSize(new Dimension(245, 900));
-        panel.setBorder(new EmptyBorder(16, 16, 16, 14));
+        panel.setPreferredSize(new Dimension(232, 860));
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
         RoundedPanel shell = new RoundedPanel(18, new Color(2, 8, 13, 244));
         shell.setLayout(new BorderLayout());
-        shell.setBorder(new EmptyBorder(20, 15, 18, 15));
+        shell.setBorder(new EmptyBorder(14, 12, 14, 12));
 
         JPanel top = new JPanel();
         top.setOpaque(false);
@@ -208,8 +208,8 @@ public final class ManagerDashboard extends JFrame {
 
         BrandMark brandMark = new BrandMark();
         brandMark.setAlignmentX(Component.CENTER_ALIGNMENT);
-        brandMark.setPreferredSize(new Dimension(185, 72));
-        brandMark.setMaximumSize(new Dimension(185, 72));
+        brandMark.setPreferredSize(new Dimension(185, 60));
+        brandMark.setMaximumSize(new Dimension(185, 60));
 
         JLabel brand = label("VELORA MOTORS", 19, Font.BOLD, TEXT);
         brand.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -221,9 +221,9 @@ public final class ManagerDashboard extends JFrame {
         top.add(brand);
         top.add(Box.createVerticalStrut(4));
         top.add(subBrand);
-        top.add(Box.createVerticalStrut(24));
+        top.add(Box.createVerticalStrut(16));
         top.add(createManagerCard());
-        top.add(Box.createVerticalStrut(20));
+        top.add(Box.createVerticalStrut(13));
 
         String[][] menu = {
                 {"Dashboard", "HOME"},
@@ -238,16 +238,16 @@ public final class ManagerDashboard extends JFrame {
         for (String[] item : menu) {
             MenuButton button = new MenuButton(item[0], item[1]);
             button.setAlignmentX(Component.CENTER_ALIGNMENT);
-            button.setMaximumSize(new Dimension(205, 50));
-            button.setPreferredSize(new Dimension(205, 50));
+            button.setMaximumSize(new Dimension(198, 45));
+            button.setPreferredSize(new Dimension(198, 45));
             button.addActionListener(e -> showSection(item[0]));
             menuButtons.put(item[0], button);
             top.add(button);
-            top.add(Box.createVerticalStrut(7));
+            top.add(Box.createVerticalStrut(4));
         }
 
         GoldOutlineButton logout = new GoldOutlineButton("LOGOUT");
-        logout.setPreferredSize(new Dimension(205, 52));
+        logout.setPreferredSize(new Dimension(198, 45));
         logout.addActionListener(e -> handleLogout());
         shell.add(top, BorderLayout.NORTH);
         shell.add(logout, BorderLayout.SOUTH);
@@ -260,20 +260,20 @@ public final class ManagerDashboard extends JFrame {
     private JComponent createManagerCard() {
         RoundedPanel card = new RoundedPanel(15, new Color(7, 14, 21, 235));
         card.setLayout(null);
-        card.setPreferredSize(new Dimension(205, 118));
-        card.setMaximumSize(new Dimension(205, 118));
+        card.setPreferredSize(new Dimension(198, 105));
+        card.setMaximumSize(new Dimension(198, 105));
         card.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         Avatar avatar = new Avatar();
-        avatar.setBounds(12, 17, 52, 52);
+        avatar.setBounds(11, 15, 48, 48);
         card.add(avatar);
 
         JLabel name = label(manager.getFullName(), 13, Font.BOLD, TEXT);
-        name.setBounds(76, 15, 120, 22);
+        name.setBounds(69, 12, 120, 22);
         card.add(name);
 
         JLabel role = label("Role • Administrator", 10, Font.PLAIN, MUTED);
-        role.setBounds(76, 38, 125, 20);
+        role.setBounds(69, 33, 125, 18);
         card.add(role);
 
         JLabel date = label(
@@ -282,11 +282,11 @@ public final class ManagerDashboard extends JFrame {
                 Font.PLAIN,
                 new Color(202, 206, 213)
         );
-        date.setBounds(76, 61, 125, 20);
+        date.setBounds(69, 54, 125, 18);
         card.add(date);
 
         JLabel online = label("●  Online", 10, Font.BOLD, GREEN);
-        online.setBounds(76, 84, 110, 20);
+        online.setBounds(69, 76, 110, 18);
         card.add(online);
 
         return card;
@@ -295,7 +295,7 @@ public final class ManagerDashboard extends JFrame {
     private JComponent createTopBar() {
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setOpaque(false);
-        wrapper.setBorder(new EmptyBorder(16, 12, 12, 22));
+        wrapper.setBorder(new EmptyBorder(10, 12, 8, 18));
 
         HeaderButton menu = new HeaderButton("MENU");
         menu.setToolTipText("Show or hide navigation");
@@ -306,7 +306,7 @@ public final class ManagerDashboard extends JFrame {
         wrapper.add(menu, BorderLayout.WEST);
 
         searchField = new SearchField();
-        searchField.setPreferredSize(new Dimension(355, 43));
+        searchField.setPreferredSize(new Dimension(355, 40));
         searchField.addActionListener(e -> searchVehicles());
 
         JPanel searchHolder = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
@@ -336,8 +336,8 @@ public final class ManagerDashboard extends JFrame {
                 "7 unread messages from customers and rental support."
         ));
 
-        JButton profile = new GoldOutlineButton(manager.getFullName());
-        profile.setPreferredSize(new Dimension(185, 43));
+        JButton profile = new ProfileButton(manager.getFullName());
+        profile.setPreferredSize(new Dimension(205, 40));
         profile.addActionListener(e -> showInfo(
                 "Administrator Profile",
                 manager.getFullName() + "\n" + manager.getEmail()
@@ -390,15 +390,15 @@ public final class ManagerDashboard extends JFrame {
         DashboardScrollPanel page = new DashboardScrollPanel();
         page.setOpaque(false);
         page.setLayout(new BoxLayout(page, BoxLayout.Y_AXIS));
-        page.setBorder(new EmptyBorder(0, 12, 24, 22));
+        page.setBorder(new EmptyBorder(0, 12, 10, 18));
 
         HeroPanel hero = new HeroPanel(manager.getFullName());
         hero.setAlignmentX(Component.LEFT_ALIGNMENT);
-        hero.setPreferredSize(new Dimension(1200, 300));
-        hero.setMaximumSize(new Dimension(Integer.MAX_VALUE, 300));
+        hero.setPreferredSize(new Dimension(1200, 320));
+        hero.setMaximumSize(new Dimension(Integer.MAX_VALUE, 320));
         hero.getStatisticsButton().addActionListener(e -> showSection("Analytics"));
         page.add(hero);
-        page.add(Box.createVerticalStrut(12));
+        page.add(Box.createVerticalStrut(9));
 
         JLabel quickTitle = label("Quick Navigation", 15, Font.BOLD, TEXT);
         quickTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -410,13 +410,13 @@ public final class ManagerDashboard extends JFrame {
         underline.setAlignmentX(Component.LEFT_ALIGNMENT);
         page.add(Box.createVerticalStrut(5));
         page.add(underline);
-        page.add(Box.createVerticalStrut(10));
+        page.add(Box.createVerticalStrut(8));
 
         JPanel navigationBand = new JPanel(new BorderLayout(13, 0));
         navigationBand.setOpaque(false);
         navigationBand.setAlignmentX(Component.LEFT_ALIGNMENT);
-        navigationBand.setMaximumSize(new Dimension(Integer.MAX_VALUE, 170));
-        navigationBand.setPreferredSize(new Dimension(1100, 170));
+        navigationBand.setMaximumSize(new Dimension(Integer.MAX_VALUE, 190));
+        navigationBand.setPreferredSize(new Dimension(1100, 190));
 
         JPanel quickGrid = new JPanel(new GridLayout(2, 4, 11, 11));
         quickGrid.setOpaque(false);
@@ -431,22 +431,22 @@ public final class ManagerDashboard extends JFrame {
         navigationBand.add(quickGrid, BorderLayout.CENTER);
 
         LuxuryCarCard luxuryCard = new LuxuryCarCard();
-        luxuryCard.setPreferredSize(new Dimension(295, 170));
+        luxuryCard.setPreferredSize(new Dimension(350, 190));
         luxuryCard.addActionListener(e -> showSection("Vehicles"));
         navigationBand.add(luxuryCard, BorderLayout.EAST);
         page.add(navigationBand);
-        page.add(Box.createVerticalStrut(14));
+        page.add(Box.createVerticalStrut(10));
 
         JPanel overview = new JPanel(new GridLayout(1, 3, 12, 0));
         overview.setOpaque(false);
         overview.setAlignmentX(Component.LEFT_ALIGNMENT);
-        overview.setMaximumSize(new Dimension(Integer.MAX_VALUE, 175));
-        overview.setPreferredSize(new Dimension(1100, 175));
+        overview.setMaximumSize(new Dimension(Integer.MAX_VALUE, 165));
+        overview.setPreferredSize(new Dimension(1100, 165));
         overview.add(createOverviewCard());
         overview.add(createActivityCard());
         overview.add(createOfferCard());
         page.add(overview);
-        page.add(Box.createVerticalStrut(14));
+        page.add(Box.createVerticalStrut(9));
         page.add(createDashboardFooter());
 
         JScrollPane scroll = new JScrollPane(page);
@@ -469,8 +469,8 @@ public final class ManagerDashboard extends JFrame {
         JPanel footer = new JPanel(new BorderLayout(12, 0));
         footer.setOpaque(false);
         footer.setAlignmentX(Component.LEFT_ALIGNMENT);
-        footer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 58));
-        footer.setPreferredSize(new Dimension(1000, 58));
+        footer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 52));
+        footer.setPreferredSize(new Dimension(1000, 52));
         footer.setBorder(BorderFactory.createMatteBorder(
                 1, 0, 0, 0, new Color(214, 160, 66, 28)
         ));
@@ -478,7 +478,7 @@ public final class ManagerDashboard extends JFrame {
         JLabel copyright = label("© 2026 Velora Motors. All rights reserved.", 10, Font.PLAIN, MUTED);
         copyright.setBorder(new EmptyBorder(14, 0, 0, 0));
         BrandSignature signature = new BrandSignature();
-        signature.setPreferredSize(new Dimension(330, 56));
+        signature.setPreferredSize(new Dimension(330, 50));
         JLabel slogan = label("<html>Drive Luxury. Drive <font color='#D6A042'><b>BMW.</b></font></html>",
                 11, Font.PLAIN, MUTED);
         slogan.setHorizontalAlignment(SwingConstants.RIGHT);
@@ -1436,8 +1436,11 @@ public final class ManagerDashboard extends JFrame {
             g.setStroke(new BasicStroke(getModel().isRollover() ? 1.4f : 1f));
             g.draw(card);
 
-            int circle = Math.min(57, getHeight() - 34);
+            int circle = Math.min(57, Math.max(42, getHeight() - 18));
             int circleY = (getHeight() - circle) / 2;
+            int textX = 14 + circle + 12;
+            int titleY = Math.max(27, getHeight() / 2 - 5);
+            int descriptionY = titleY + 18;
             if (thumbnail != null) {
                 java.awt.Shape previousClip = g.getClip();
                 g.clip(new java.awt.geom.Ellipse2D.Double(14, circleY, circle, circle));
@@ -1470,26 +1473,30 @@ public final class ManagerDashboard extends JFrame {
                         },
                         14 + circle / 2,
                         circleY + circle / 2,
-                        22
+                        Math.min(20, circle / 2)
                 );
             }
 
             g.setColor(new Color(249, 249, 250));
-            g.setFont(new Font("Segoe UI", Font.BOLD, 13));
-            g.drawString(title, 82, 38);
+            g.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            g.drawString(title, textX, titleY);
             g.setColor(new Color(184, 190, 199));
-            g.setFont(new Font("Segoe UI", Font.PLAIN, 9));
-            drawWrapped(g, description, 82, 58, Math.max(58, getWidth() - 112), 16);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 8));
+            drawWrapped(g, description, textX, descriptionY,
+                    Math.max(54, getWidth() - textX - 42), 13);
 
+            int arrowSize = 25;
+            int arrowX = getWidth() - arrowSize - 13;
+            int arrowY = (getHeight() - arrowSize) / 2;
             g.setPaint(new GradientPaint(
-                    getWidth() - 40, getHeight() - 40, PALE,
-                    getWidth() - 13, getHeight() - 13, new Color(151, 101, 35)
+                    arrowX, arrowY, PALE,
+                    arrowX + arrowSize, arrowY + arrowSize, new Color(151, 101, 35)
             ));
-            g.fillOval(getWidth() - 40, getHeight() - 40, 27, 27);
+            g.fillOval(arrowX, arrowY, arrowSize, arrowSize);
             g.setColor(new Color(33, 23, 10));
             g.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            int ax = getWidth() - 27;
-            int ay = getHeight() - 27;
+            int ax = arrowX + arrowSize / 2;
+            int ay = arrowY + arrowSize / 2;
             g.drawLine(ax - 4, ay, ax + 4, ay);
             g.drawLine(ax + 1, ay - 4, ax + 5, ay);
             g.drawLine(ax + 1, ay + 4, ax + 5, ay);
@@ -1530,7 +1537,10 @@ public final class ManagerDashboard extends JFrame {
             ));
             g.fillRect(0, 0, getWidth(), getHeight());
             if (image != null) {
-                drawCover(g, image, 0, 0, getWidth(), getHeight());
+                // The dashboard hero is intentionally fitted to the full frame.
+                // Its source aspect ratio is already banner-shaped; using "cover"
+                // here cropped the wheels and the wet-floor reflection.
+                g.drawImage(image, 0, 0, getWidth(), getHeight(), null);
                 g.setPaint(new GradientPaint(
                         0, 0, new Color(2, 8, 13, 245),
                         getWidth() * .82f, 0, new Color(2, 8, 13, 20)
@@ -1555,23 +1565,23 @@ public final class ManagerDashboard extends JFrame {
 
             g.setFont(new Font("Segoe UI", Font.PLAIN, 10));
             g.setColor(new Color(221, 223, 228));
-            g.drawString("4.4L V8 Twin Turbo", 33, 76);
-            g.drawString("617 HP   •   305 km/h", 33, 96);
+            g.drawString("4.4L V8 Twin Turbo", 33, 72);
+            g.drawString("617 HP   •   305 km/h", 33, 91);
             g.setColor(GOLD);
-            g.fillOval(16, 68, 7, 7);
-            g.fillOval(16, 90, 7, 7);
+            g.fillOval(16, 64, 7, 7);
+            g.fillOval(16, 84, 7, 7);
 
-            int buttonY = getHeight() - 45;
+            int buttonY = getHeight() - 38;
             g.setColor(new Color(3, 8, 12, 225));
-            g.fillRoundRect(15, buttonY, 142, 31, 9, 9);
+            g.fillRoundRect(15, buttonY, 142, 28, 9, 9);
             g.setColor(new Color(214, 160, 66, 145));
-            g.drawRoundRect(15, buttonY, 142, 31, 9, 9);
+            g.drawRoundRect(15, buttonY, 142, 28, 9, 9);
             g.setColor(PALE);
             g.setFont(new Font("Segoe UI", Font.BOLD, 10));
-            g.drawString("VIEW DETAILS", 29, buttonY + 20);
-            g.drawLine(126, buttonY + 15, 142, buttonY + 15);
-            g.drawLine(137, buttonY + 10, 142, buttonY + 15);
-            g.drawLine(142, buttonY + 15, 137, buttonY + 20);
+            g.drawString("VIEW DETAILS", 29, buttonY + 18);
+            g.drawLine(126, buttonY + 14, 142, buttonY + 14);
+            g.drawLine(137, buttonY + 9, 142, buttonY + 14);
+            g.drawLine(142, buttonY + 14, 137, buttonY + 19);
             g.dispose();
         }
     }
@@ -1689,6 +1699,68 @@ public final class ManagerDashboard extends JFrame {
                     g.fillOval(cx + 7, cy - 11, 7, 7);
                 }
             }
+            g.dispose();
+        }
+    }
+
+    private static final class ProfileButton extends JButton {
+
+        private final String managerName;
+
+        ProfileButton(String managerName) {
+            super("");
+            this.managerName = managerName;
+            setOpaque(false);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            g.setColor(new Color(5, 12, 18, getModel().isRollover() ? 248 : 226));
+            g.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
+            g.setColor(new Color(214, 160, 66, getModel().isRollover() ? 118 : 62));
+            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 12, 12);
+
+            int avatarSize = 31;
+            int avatarX = 8;
+            int avatarY = (getHeight() - avatarSize) / 2;
+            g.setColor(new Color(17, 29, 39));
+            g.fillOval(avatarX, avatarY, avatarSize, avatarSize);
+            g.setColor(PALE);
+            g.drawOval(avatarX, avatarY, avatarSize, avatarSize);
+            g.setColor(new Color(223, 179, 143));
+            g.fillOval(avatarX + 10, avatarY + 6, 11, 12);
+            g.setColor(new Color(38, 29, 24));
+            g.fillArc(avatarX + 9, avatarY + 4, 13, 11, 0, 180);
+            g.setColor(new Color(232, 235, 239));
+            g.fillArc(avatarX + 6, avatarY + 17, 19, 13, 0, 180);
+
+            String displayName = managerName;
+            Font nameFont = new Font("Segoe UI", Font.BOLD, 10);
+            g.setFont(nameFont);
+            FontMetrics metrics = g.getFontMetrics();
+            int maxNameWidth = getWidth() - 78;
+            while (metrics.stringWidth(displayName) > maxNameWidth && displayName.length() > 4) {
+                displayName = displayName.substring(0, displayName.length() - 2) + "…";
+            }
+            g.setColor(PALE);
+            g.drawString("Welcome " + displayName, 48, 16);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 8));
+            g.setColor(MUTED);
+            g.drawString("Administrator", 48, 29);
+
+            int arrowX = getWidth() - 17;
+            int arrowY = getHeight() / 2;
+            g.setColor(TEXT);
+            g.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.drawLine(arrowX - 4, arrowY - 2, arrowX, arrowY + 2);
+            g.drawLine(arrowX, arrowY + 2, arrowX + 4, arrowY - 2);
             g.dispose();
         }
     }
@@ -1827,9 +1899,14 @@ public final class ManagerDashboard extends JFrame {
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
             if (logo != null) {
                 int w = Math.min(getWidth() - 16, 170);
-                int h = Math.max(34, w * logo.getHeight() / logo.getWidth());
+                int h = w * logo.getHeight() / logo.getWidth();
+                int availableHeight = Math.max(30, getHeight() - 6);
+                if (h > availableHeight) {
+                    h = availableHeight;
+                    w = h * logo.getWidth() / logo.getHeight();
+                }
                 int x = (getWidth() - w) / 2;
-                int y = (getHeight() - h) / 2 + 2;
+                int y = (getHeight() - h) / 2;
                 g.drawImage(logo, x, y, w, h, null);
             } else {
                 drawVeloraWingLogo(g, getWidth() / 2, getHeight() / 2 + 3, 150, PALE, true);
@@ -1945,12 +2022,12 @@ public final class ManagerDashboard extends JFrame {
             this.image = loadHeroImage();
             setOpaque(false);
             setLayout(null);
-            statistics.setPreferredSize(new Dimension(165, 43));
+            statistics.setPreferredSize(new Dimension(165, 39));
             add(statistics);
             addComponentListener(new ComponentAdapter() {
                 @Override
                 public void componentResized(ComponentEvent e) {
-                    statistics.setBounds(24, getHeight() - 64, 170, 42);
+                    statistics.setBounds(24, getHeight() - 54, 170, 38);
                 }
             });
         }
@@ -1987,18 +2064,21 @@ public final class ManagerDashboard extends JFrame {
             g.setStroke(new BasicStroke(1f));
             g.draw(clip);
 
-            int nameSize = Math.max(25, Math.min(38, getWidth() / 38));
+            int nameSize = Math.max(23, Math.min(31, getWidth() / 44));
+            int welcomeY = Math.max(62, getHeight() / 4);
+            int nameY = welcomeY + 36;
+            int descriptionY = nameY + 33;
             g.setColor(TEXT);
             g.setFont(new Font("Segoe UI", Font.BOLD, nameSize - 8));
-            g.drawString("Welcome back,", 24, 80);
+            g.drawString("Welcome back,", 24, welcomeY);
             g.setColor(PALE);
             g.setFont(new Font("Segoe UI", Font.BOLD, nameSize));
-            g.drawString(managerName, 24, 125);
+            g.drawString(managerName, 24, nameY);
             g.setColor(TEXT);
-            g.setFont(new Font("Segoe UI", Font.PLAIN, 15));
-            g.drawString("Drive luxury. Drive Velora.", 24, 165);
-            g.drawString("We provide premium experience", 24, 190);
-            g.drawString("and top quality service.", 24, 214);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+            g.drawString("Drive luxury. Drive Velora.", 24, descriptionY);
+            g.drawString("We provide premium experience", 24, descriptionY + 22);
+            g.drawString("and top quality service.", 24, descriptionY + 44);
 
             g.dispose();
         }
@@ -2149,7 +2229,7 @@ public final class ManagerDashboard extends JFrame {
     }
 
     private static BufferedImage loadHeroImage() {
-        return loadResourceImage("/assets/backgrounds/manager-hero-user-premium.png");
+        return loadResourceImage("/assets/backgrounds/manager-hero-reference-v4.png");
     }
 
     private static BufferedImage loadResourceImage(String path) {
@@ -2191,9 +2271,8 @@ public final class ManagerDashboard extends JFrame {
         if (confirmDialog.isConfirmed()) {
             this.dispose();
 
-            FarewellScreen farewellScreen = new FarewellScreen("Velora Guest");
-farewellScreen.setVisible(true);
+            FarewellScreen farewellScreen = new FarewellScreen(manager.getFullName());
+            farewellScreen.setVisible(true);
         }
     }
 }
-
