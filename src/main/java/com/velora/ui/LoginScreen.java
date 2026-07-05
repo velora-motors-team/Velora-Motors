@@ -57,6 +57,7 @@ public final class LoginScreen extends JFrame {
         private static final Color MUTED = new Color(170, 176, 186);
         private static final Color BLUE_TEXT = new Color(106, 140, 192);
         private static final char PASSWORD_BULLET = '•';
+        private static final int[] REJECTION_SHAKE = {0, -7, 7, -6, 6, -4, 4, -2, 2, 0};
 
         private final LoginScreen frame;
         private final AuthenticationService authenticationService = new AuthenticationService();
@@ -90,6 +91,10 @@ public final class LoginScreen extends JFrame {
         private int failed;
         private int lockSeconds;
         private boolean passwordVisible;
+        private Timer rejectionShakeTimer;
+        private int rejectionShakeStep;
+        private int passwordBaseX;
+        private int eyeBaseX;
 
         VeloraCanvas(LoginScreen frame) {
             this.frame = frame;
@@ -218,6 +223,7 @@ public final class LoginScreen extends JFrame {
             }
 
             failed++;
+            shakePasswordField();
 
             if (failed >= 3) {
                 lockSeconds = 30;
@@ -246,6 +252,33 @@ public final class LoginScreen extends JFrame {
 
                 t.start();
             }
+        }
+
+        private void shakePasswordField() {
+            if (rejectionShakeTimer != null && rejectionShakeTimer.isRunning()) {
+                rejectionShakeTimer.stop();
+                password.setLocation(passwordBaseX, password.getY());
+                eye.setLocation(eyeBaseX, eye.getY());
+            }
+
+            passwordBaseX = password.getX();
+            eyeBaseX = eye.getX();
+            rejectionShakeStep = 0;
+
+            rejectionShakeTimer = new Timer(28, e -> {
+                if (rejectionShakeStep >= REJECTION_SHAKE.length) {
+                    password.setLocation(passwordBaseX, password.getY());
+                    eye.setLocation(eyeBaseX, eye.getY());
+                    rejectionShakeTimer.stop();
+                    return;
+                }
+
+                int offset = sw(REJECTION_SHAKE[rejectionShakeStep++]);
+                password.setLocation(passwordBaseX + offset, password.getY());
+                eye.setLocation(eyeBaseX + offset, eye.getY());
+            });
+            rejectionShakeTimer.setCoalesce(true);
+            rejectionShakeTimer.start();
         }
 
         private void showFeaturedModel() {

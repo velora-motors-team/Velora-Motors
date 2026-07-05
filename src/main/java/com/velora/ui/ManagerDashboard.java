@@ -553,33 +553,11 @@ public final class ManagerDashboard extends JFrame {
     }
 
     private JComponent createOfferCard() {
-        RoundedPanel card = cardPanel();
-        card.setLayout(new BorderLayout(0, 9));
-        card.setBorder(new EmptyBorder(14, 15, 14, 15));
-        card.add(label("Announcements", 13, Font.BOLD, TEXT), BorderLayout.NORTH);
-
-        JLabel offer = new JLabel(
-                "<html><b><font color='#EEC98B'>Summer Discount!</font></b><br><br>"
-                + "<font color='#9DA4AF'>Enjoy up to 30% off selected premium models.</font></html>"
-        );
-        offer.setFont(new Font("Segoe UI", Font.PLAIN, 12));
-        card.add(offer, BorderLayout.CENTER);
-        OfferArtwork artwork = new OfferArtwork();
-        artwork.setPreferredSize(new Dimension(78, 82));
-        card.add(artwork, BorderLayout.WEST);
-        LeafArtwork leaves = new LeafArtwork();
-        leaves.setPreferredSize(new Dimension(62, 82));
-        card.add(leaves, BorderLayout.EAST);
-
-        GoldOutlineButton button = new GoldOutlineButton("VIEW OFFERS");
-        button.setPreferredSize(new Dimension(125, 35));
-        button.addActionListener(e -> showInfo(
+        AnnouncementCard card = new AnnouncementCard();
+        card.getOfferButton().addActionListener(e -> showInfo(
                 "Velora Summer Offers",
                 "30% off selected BMW models.\nOffer valid until 31 August 2026."
         ));
-        JPanel bottom = transparentFlow(FlowLayout.LEFT);
-        bottom.add(button);
-        card.add(bottom, BorderLayout.SOUTH);
         return card;
     }
 
@@ -1954,6 +1932,181 @@ public final class ManagerDashboard extends JFrame {
             g.fillPolygon(new int[]{cx, cx - 2, cx, cx + 2},
                     new int[]{34, 39, 45, 39}, 4);
             g.dispose();
+        }
+    }
+
+    private static final class AnnouncementCard extends JPanel {
+
+        private final GoldOutlineButton offerButton = new GoldOutlineButton("View Offers");
+
+        AnnouncementCard() {
+            setOpaque(false);
+            setLayout(null);
+            offerButton.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+            add(offerButton);
+        }
+
+        JButton getOfferButton() {
+            return offerButton;
+        }
+
+        @Override
+        public void doLayout() {
+            int buttonWidth = Math.max(96, Math.min(112, getWidth() / 3));
+            offerButton.setBounds(15, Math.max(116, getHeight() - 43), buttonWidth, 29);
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            super.paintComponent(raw);
+
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+
+            int w = getWidth();
+            int h = getHeight();
+            RoundRectangle2D card = new RoundRectangle2D.Double(
+                    .5, .5, Math.max(0, w - 1), Math.max(0, h - 1), 15, 15
+            );
+
+            g.setColor(new Color(0, 0, 0, 82));
+            g.fillRoundRect(4, 6, Math.max(0, w - 8), Math.max(0, h - 8), 15, 15);
+            g.setPaint(new GradientPaint(
+                    0, 0, new Color(7, 13, 18, 250),
+                    w, h, new Color(2, 7, 11, 252)
+            ));
+            g.fill(card);
+
+            g.setPaint(new GradientPaint(
+                    0, 0, new Color(214, 160, 66, 17),
+                    w * .58f, h, new Color(214, 160, 66, 0)
+            ));
+            g.fill(card);
+
+            drawLeaves(g, w, h);
+            drawMegaphone(g, 58, Math.min(82, h / 2 + 2));
+
+            g.setColor(TEXT);
+            g.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            g.drawString("Announcements", 15, 25);
+
+            int textX = 106;
+            g.setColor(PALE);
+            g.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            g.drawString("Summer Discount!", textX, 62);
+
+            g.setColor(new Color(190, 196, 205));
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+            g.drawString("Enjoy up to 30% off on", textX, 82);
+            g.drawString("selected models.", textX, 98);
+
+            g.setColor(new Color(214, 160, 66, 70));
+            g.setStroke(new BasicStroke(1f));
+            g.draw(card);
+            g.setColor(new Color(255, 255, 255, 10));
+            g.drawRoundRect(2, 2, Math.max(0, w - 5), Math.max(0, h - 5), 12, 12);
+            g.dispose();
+        }
+
+        private void drawMegaphone(Graphics2D g, int cx, int cy) {
+            g.setColor(new Color(214, 160, 66, 12));
+            g.fillOval(cx - 35, cy - 35, 70, 70);
+            g.setColor(new Color(214, 160, 66, 44));
+            g.setStroke(new BasicStroke(1f));
+            g.drawOval(cx - 31, cy - 31, 62, 62);
+
+            Path2D horn = new Path2D.Double();
+            horn.moveTo(cx - 14, cy - 10);
+            horn.curveTo(cx + 1, cy - 13, cx + 11, cy - 20, cx + 20, cy - 25);
+            horn.lineTo(cx + 20, cy + 17);
+            horn.curveTo(cx + 9, cy + 11, cx, cy + 7, cx - 14, cy + 6);
+            horn.closePath();
+            g.setPaint(new GradientPaint(
+                    cx - 18, cy - 17, new Color(249, 210, 137),
+                    cx + 22, cy + 20, new Color(151, 91, 24)
+            ));
+            g.fill(horn);
+
+            g.setColor(new Color(246, 202, 124));
+            g.fillRoundRect(cx - 24, cy - 11, 12, 19, 6, 6);
+            g.setColor(new Color(119, 71, 20));
+            g.setStroke(new BasicStroke(1.1f));
+            g.drawLine(cx + 18, cy - 24, cx + 18, cy + 16);
+
+            Path2D handle = new Path2D.Double();
+            handle.moveTo(cx - 5, cy + 7);
+            handle.lineTo(cx + 5, cy + 9);
+            handle.lineTo(cx + 1, cy + 27);
+            handle.quadTo(cx - 4, cy + 30, cx - 9, cy + 26);
+            handle.closePath();
+            g.setPaint(new GradientPaint(
+                    cx - 8, cy + 8, new Color(195, 126, 40),
+                    cx + 4, cy + 27, new Color(111, 66, 20)
+            ));
+            g.fill(handle);
+
+            g.setColor(new Color(232, 181, 94, 165));
+            g.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.drawArc(cx + 20, cy - 17, 10, 24, -58, 116);
+            g.drawArc(cx + 22, cy - 23, 17, 36, -58, 116);
+        }
+
+        private void drawLeaves(Graphics2D g, int w, int h) {
+            int baseX = w - 91;
+            int baseY = h + 6;
+
+            g.setColor(new Color(189, 137, 66, 38));
+            g.setStroke(new BasicStroke(1.15f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+            Path2D stem = new Path2D.Double();
+            stem.moveTo(baseX, baseY);
+            stem.curveTo(w - 88, h - 42, w - 59, 55, w - 31, 24);
+            g.draw(stem);
+            g.drawLine(baseX + 5, h - 31, w - 122, h - 57);
+            g.drawLine(baseX + 15, h - 61, w - 116, h - 90);
+            g.drawLine(baseX + 25, h - 88, w - 89, h - 119);
+            g.drawLine(baseX + 28, h - 44, w - 40, h - 72);
+            g.drawLine(baseX + 39, h - 74, w - 24, h - 101);
+
+            drawLeaf(g, w - 119, h - 59, 32, 13, -.20, 42);
+            drawLeaf(g, w - 113, h - 92, 34, 14, -.39, 47);
+            drawLeaf(g, w - 87, h - 120, 30, 13, -.74, 38);
+            drawLeaf(g, w - 43, h - 74, 34, 14, -2.72, 48);
+            drawLeaf(g, w - 27, h - 102, 34, 14, -2.58, 42);
+            drawLeaf(g, w - 57, h - 46, 31, 13, -2.78, 36);
+            drawLeaf(g, w - 34, h - 125, 31, 13, -2.34, 32);
+        }
+
+        private void drawLeaf(
+                Graphics2D g,
+                double x,
+                double y,
+                double length,
+                double width,
+                double angle,
+                int alpha
+        ) {
+            Graphics2D leaf = (Graphics2D) g.create();
+            leaf.translate(x, y);
+            leaf.rotate(angle);
+
+            Path2D shape = new Path2D.Double();
+            shape.moveTo(0, 0);
+            shape.curveTo(length * .26, -width, length * .76, -width * .68, length, 0);
+            shape.curveTo(length * .72, width * .72, length * .24, width, 0, 0);
+            shape.closePath();
+
+            leaf.setPaint(new GradientPaint(
+                    0, 0, new Color(222, 169, 88, Math.min(70, alpha + 14)),
+                    (float) length, 0, new Color(111, 72, 30, alpha / 2)
+            ));
+            leaf.fill(shape);
+            leaf.setColor(new Color(230, 185, 110, Math.min(76, alpha + 10)));
+            leaf.setStroke(new BasicStroke(.65f));
+            leaf.drawLine(2, 0, (int) (length - 3), 0);
+            leaf.dispose();
         }
     }
 

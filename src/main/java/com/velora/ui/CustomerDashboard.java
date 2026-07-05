@@ -487,8 +487,10 @@ public final class CustomerDashboard extends JFrame {
     }
 
     private void addMiniStat(JPanel parent, String title, String value, String icon, int x) {
-        JLabel ic = new JLabel(new LineIcon(icon, 18, GOLD));
-        ic.setBounds(x + 34, 36, 20, 20);
+        JLabel ic = new JLabel(new LineIcon(icon, 15, new Color(194, 139, 46)));
+        ic.setHorizontalAlignment(SwingConstants.CENTER);
+        ic.setVerticalAlignment(SwingConstants.CENTER);
+        ic.setBounds(x + 35, 37, 18, 18);
         parent.add(ic);
 
         JLabel t = new JLabel(title, SwingConstants.CENTER);
@@ -505,8 +507,8 @@ public final class CustomerDashboard extends JFrame {
 
         if (x > 20) {
             JSeparator sep = new JSeparator(SwingConstants.VERTICAL);
-            sep.setForeground(new Color(210, 154, 65, 25));
-            sep.setBounds(x - 8, 40, 1, 50);
+            sep.setForeground(new Color(210, 154, 65, 14));
+            sep.setBounds(x - 8, 39, 1, 45);
             parent.add(sep);
         }
     }
