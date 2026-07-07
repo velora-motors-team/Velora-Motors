@@ -1,6 +1,7 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
+import com.velora.repository.RatingRepository;
 import com.velora.service.AuthenticationService;
 import com.velora.service.VehicleService;
 import com.velora.vehicle.Vehicle;
@@ -18,18 +19,23 @@ import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPasswordField;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.ListSelectionModel;
 import javax.swing.RowFilter;
 import javax.swing.Scrollable;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.WindowConstants;
 import javax.swing.border.EmptyBorder;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
+import javax.swing.table.TableCellRenderer;
 import javax.swing.table.TableRowSorter;
 import javax.swing.plaf.basic.BasicScrollBarUI;
 import java.awt.BasicStroke;
@@ -58,6 +64,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -77,6 +84,7 @@ public final class ManagerDashboard extends JFrame {
     private final Customer manager;
     private final VehicleService vehicleService = new VehicleService();
     private final AuthenticationService authenticationService = new AuthenticationService();
+    private final RatingRepository ratingRepository = new RatingRepository();
     private final Map<String, MenuButton> menuButtons = new LinkedHashMap<>();
 
     private final CardLayout contentLayout = new CardLayout();
@@ -92,6 +100,16 @@ public final class ManagerDashboard extends JFrame {
     private JLabel availableMetric;
     private JLabel customerMetric;
     private JLabel maintenanceMetric;
+    private DefaultTableModel customerModel;
+    private JTable customerTable;
+    private TableRowSorter<DefaultTableModel> customerSorter;
+    private JPanel customerProfileHost;
+    private JLabel totalCustomersMetric;
+    private JLabel activeCustomersMetric;
+    private JLabel newCustomersMetric;
+    private JLabel loyalCustomersMetric;
+    private JLabel customerPagerLabel;
+    private String activeSection = "Dashboard";
 
     public ManagerDashboard() {
         this(new Customer(
@@ -144,17 +162,7 @@ public final class ManagerDashboard extends JFrame {
                 },
                 "NEW RENTAL"
         ), "Rentals");
-        contentCards.add(createOperationalPage(
-                "Customers",
-                "View registered customers and account activity.",
-                new String[][]{
-                        {String.valueOf(customerCount()), "Registered"},
-                        {"8", "New This Month"},
-                        {"4.9", "Average Rating"}
-                },
-                customerActivity(),
-                "ADD CUSTOMER"
-        ), "Customers");
+        contentCards.add(createCustomersPage(), "Customers");
         contentCards.add(createOperationalPage(
                 "Billing",
                 "Invoices, payments and transaction monitoring.",
@@ -246,11 +254,26 @@ public final class ManagerDashboard extends JFrame {
             top.add(Box.createVerticalStrut(4));
         }
 
+        JPanel sidebarBottom = new JPanel();
+        sidebarBottom.setOpaque(false);
+        sidebarBottom.setLayout(new BoxLayout(sidebarBottom, BoxLayout.Y_AXIS));
+
+        SidebarCarPanel sidebarCar = new SidebarCarPanel();
+        sidebarCar.setAlignmentX(Component.CENTER_ALIGNMENT);
+        sidebarCar.setPreferredSize(new Dimension(198, 165));
+        sidebarCar.setMaximumSize(new Dimension(198, 165));
+        sidebarBottom.add(sidebarCar);
+        sidebarBottom.add(Box.createVerticalStrut(12));
+
         GoldOutlineButton logout = new GoldOutlineButton("LOGOUT");
+        logout.setAlignmentX(Component.CENTER_ALIGNMENT);
         logout.setPreferredSize(new Dimension(198, 45));
+        logout.setMaximumSize(new Dimension(198, 45));
         logout.addActionListener(e -> handleLogout());
+        sidebarBottom.add(logout);
+
         shell.add(top, BorderLayout.NORTH);
-        shell.add(logout, BorderLayout.SOUTH);
+        shell.add(sidebarBottom, BorderLayout.SOUTH);
         panel.add(shell, BorderLayout.CENTER);
 
         SwingUtilities.invokeLater(() -> setActiveMenu("Dashboard"));
@@ -307,7 +330,23 @@ public final class ManagerDashboard extends JFrame {
 
         searchField = new SearchField();
         searchField.setPreferredSize(new Dimension(355, 40));
-        searchField.addActionListener(e -> searchVehicles());
+        searchField.addActionListener(e -> searchCurrentSection());
+        searchField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                filterVisibleTable();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                filterVisibleTable();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                filterVisibleTable();
+            }
+        });
 
         JPanel searchHolder = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
         searchHolder.setOpaque(false);
@@ -612,6 +651,416 @@ public final class ManagerDashboard extends JFrame {
         return page;
     }
 
+    private JComponent createCustomersPage() {
+        JPanel page = new JPanel(new BorderLayout(0, 14));
+        page.setOpaque(false);
+        page.setBorder(new EmptyBorder(8, 12, 24, 18));
+
+        JPanel heading = new JPanel(new BorderLayout());
+        heading.setOpaque(false);
+        heading.add(sectionHeading(
+                "Customers",
+                "Manage and view all your customers"
+        ), BorderLayout.WEST);
+        JButton addCustomer = actionButton("+  Add Customer", e -> addCustomer());
+        addCustomer.setPreferredSize(new Dimension(150, 40));
+        heading.add(addCustomer, BorderLayout.EAST);
+        page.add(heading, BorderLayout.NORTH);
+
+        JPanel center = new JPanel(new BorderLayout(14, 0));
+        center.setOpaque(false);
+
+        JPanel left = new JPanel(new BorderLayout(0, 14));
+        left.setOpaque(false);
+
+        JPanel metricGrid = new JPanel(new GridLayout(1, 4, 12, 0));
+        metricGrid.setOpaque(false);
+        totalCustomersMetric = label("0", 22, Font.PLAIN, TEXT);
+        activeCustomersMetric = label("0", 22, Font.PLAIN, TEXT);
+        newCustomersMetric = label("0", 22, Font.PLAIN, TEXT);
+        loyalCustomersMetric = label("0", 22, Font.PLAIN, TEXT);
+        metricGrid.add(createCustomerStatCard("Users", totalCustomersMetric, "Total Customers"));
+        metricGrid.add(createCustomerStatCard("Active", activeCustomersMetric, "Active Customers"));
+        metricGrid.add(createCustomerStatCard("New", newCustomersMetric, "New This Month"));
+        metricGrid.add(createCustomerStatCard("Loyal", loyalCustomersMetric, "Loyal Customers"));
+        left.add(metricGrid, BorderLayout.NORTH);
+
+        RoundedPanel tableCard = cardPanel();
+        tableCard.setLayout(new BorderLayout());
+        tableCard.setBorder(new EmptyBorder(14, 14, 14, 14));
+
+        customerModel = new DefaultTableModel(
+                new String[]{"Photo", "Name", "Phone", "Email", "Loyalty", "Rentals", "Rating", "Actions"},
+                0
+        ) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        customerTable = new JTable(customerModel);
+        configureCustomerTable(customerTable);
+        customerSorter = new TableRowSorter<>(customerModel);
+        customerTable.setRowSorter(customerSorter);
+        customerTable.getSelectionModel().addListSelectionListener(event -> {
+            if (!event.getValueIsAdjusting()) {
+                showSelectedCustomerProfile();
+            }
+        });
+
+        JScrollPane tableScroll = new JScrollPane(customerTable);
+        tableScroll.setBorder(BorderFactory.createEmptyBorder());
+        tableScroll.getViewport().setBackground(new Color(4, 10, 16));
+        tableScroll.getVerticalScrollBar().setUI(new DarkScrollBarUI());
+        tableCard.add(tableScroll, BorderLayout.CENTER);
+        tableCard.add(createCustomerPager(), BorderLayout.SOUTH);
+        left.add(tableCard, BorderLayout.CENTER);
+
+        customerProfileHost = new JPanel(new BorderLayout());
+        customerProfileHost.setOpaque(false);
+        customerProfileHost.setPreferredSize(new Dimension(445, 680));
+
+        center.add(left, BorderLayout.CENTER);
+        center.add(customerProfileHost, BorderLayout.EAST);
+        page.add(center, BorderLayout.CENTER);
+        page.add(createDashboardFooter(), BorderLayout.SOUTH);
+        loadCustomerTable();
+        return page;
+    }
+
+    private JComponent createCustomerStatCard(String icon, JLabel valueLabel, String title) {
+        RoundedPanel card = new RoundedPanel(10, new Color(5, 11, 18, 238));
+        card.setLayout(new BorderLayout(14, 0));
+        card.setBorder(new EmptyBorder(18, 18, 16, 18));
+        card.setPreferredSize(new Dimension(188, 86));
+
+        CustomerStatIcon iconView = new CustomerStatIcon(icon);
+        iconView.setPreferredSize(new Dimension(52, 52));
+        card.add(iconView, BorderLayout.WEST);
+
+        JPanel textPanel = new JPanel();
+        textPanel.setOpaque(false);
+        textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
+        JLabel titleLabel = label(title, 11, Font.PLAIN, new Color(183, 190, 203));
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        valueLabel.setFont(new Font("Segoe UI", Font.PLAIN, 22));
+        valueLabel.setForeground(TEXT);
+        valueLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        textPanel.add(titleLabel);
+        textPanel.add(Box.createVerticalStrut(7));
+        textPanel.add(valueLabel);
+        card.add(textPanel, BorderLayout.CENTER);
+        return card;
+    }
+
+    private JComponent createCustomerPager() {
+        JPanel pager = new JPanel(new BorderLayout());
+        pager.setOpaque(false);
+        pager.setBorder(new EmptyBorder(12, 0, 0, 0));
+
+        customerPagerLabel = label("", 11, Font.PLAIN, MUTED);
+        pager.add(customerPagerLabel, BorderLayout.WEST);
+
+        JPanel pages = transparentFlow(FlowLayout.RIGHT);
+        pages.add(label("10 per page", 11, Font.PLAIN, TEXT));
+        pages.add(new GoldOutlineButton("1"));
+        pages.add(new GoldOutlineButton("2"));
+        pages.add(new GoldOutlineButton("3"));
+        pager.add(pages, BorderLayout.EAST);
+        return pager;
+    }
+
+    private void configureCustomerTable(JTable table) {
+        configureTable(table);
+        table.setRowHeight(58);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.getTableHeader().setPreferredSize(new Dimension(100, 46));
+        table.setShowVerticalLines(false);
+        table.setShowHorizontalLines(true);
+        table.setGridColor(new Color(255, 255, 255, 12));
+        table.setIntercellSpacing(new Dimension(0, 0));
+        table.setSelectionBackground(new Color(92, 62, 25, 210));
+        table.setDefaultRenderer(Object.class, new CustomerTextRenderer());
+        table.getColumnModel().getColumn(0).setCellRenderer(new CustomerAvatarRenderer());
+        table.getColumnModel().getColumn(4).setCellRenderer(new LoyaltyRenderer());
+        table.getColumnModel().getColumn(6).setCellRenderer(new StarRatingRenderer());
+
+        int[] widths = {66, 150, 140, 205, 95, 80, 120, 80};
+        for (int i = 0; i < widths.length; i++) {
+            table.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
+        }
+    }
+
+    private void loadCustomerTable() {
+        if (customerModel == null) {
+            return;
+        }
+
+        customerModel.setRowCount(0);
+        for (Customer customer : customerAccounts()) {
+            CustomerInsights insights = customerInsights(customer);
+            customerModel.addRow(new Object[]{
+                    customer,
+                    customer.getFullName(),
+                    blankFallback(customer.getPhone(), "+970 59 000 0000"),
+                    customer.getEmail(),
+                    insights.tier(),
+                    insights.rentals(),
+                    insights.rating(),
+                    "..."
+            });
+        }
+
+        refreshCustomerStats();
+        if (customerTable.getRowCount() > 0 && customerTable.getSelectedRow() < 0) {
+            customerTable.setRowSelectionInterval(0, 0);
+        } else {
+            showSelectedCustomerProfile();
+        }
+    }
+
+    private void refreshCustomerStats() {
+        if (totalCustomersMetric == null) {
+            return;
+        }
+
+        List<Customer> customers = customerAccounts();
+        long loyal = customers.stream()
+                .filter(customer -> "Gold".equals(customerInsights(customer).tier()))
+                .count();
+        int newThisMonth = customers.isEmpty() ? 0 : Math.max(1, Math.min(customers.size(), customers.size() / 3 + 1));
+
+        totalCustomersMetric.setText(formatNumber(customers.size()));
+        activeCustomersMetric.setText(formatNumber(customers.size()));
+        newCustomersMetric.setText(formatNumber(newThisMonth));
+        loyalCustomersMetric.setText(formatNumber((int) loyal));
+        if (customerPagerLabel != null) {
+            int visible = customerTable == null ? customers.size() : customerTable.getRowCount();
+            customerPagerLabel.setText("Showing 1 to " + visible + " of "
+                    + formatNumber(customers.size()) + " customers");
+        }
+    }
+
+    private void showSelectedCustomerProfile() {
+        if (customerProfileHost == null) {
+            return;
+        }
+
+        Customer selected = selectedCustomer();
+        customerProfileHost.removeAll();
+        customerProfileHost.add(createCustomerProfile(selected), BorderLayout.CENTER);
+        customerProfileHost.revalidate();
+        customerProfileHost.repaint();
+    }
+
+    private Customer selectedCustomer() {
+        if (customerTable == null || customerTable.getSelectedRow() < 0) {
+            return customerAccounts().stream().findFirst().orElse(null);
+        }
+
+        int modelRow = customerTable.convertRowIndexToModel(customerTable.getSelectedRow());
+        String email = String.valueOf(customerModel.getValueAt(modelRow, 3));
+        return customerAccounts().stream()
+                .filter(customer -> customer.getEmail().equals(email))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private JComponent createCustomerProfile(Customer customer) {
+        RoundedPanel profile = cardPanel();
+        profile.setLayout(new BoxLayout(profile, BoxLayout.Y_AXIS));
+        profile.setBorder(new EmptyBorder(22, 18, 18, 18));
+
+        JPanel titleRow = new JPanel(new BorderLayout());
+        titleRow.setOpaque(false);
+        titleRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        titleRow.add(label("Customer Profile", 18, Font.PLAIN, TEXT), BorderLayout.WEST);
+        JLabel close = label("X", 20, Font.PLAIN, TEXT);
+        close.setHorizontalAlignment(SwingConstants.RIGHT);
+        titleRow.add(close, BorderLayout.EAST);
+        profile.add(titleRow);
+        profile.add(Box.createVerticalStrut(20));
+
+        if (customer == null) {
+            JLabel empty = label("No customer accounts registered yet.", 14, Font.PLAIN, MUTED);
+            empty.setAlignmentX(Component.LEFT_ALIGNMENT);
+            profile.add(empty);
+            return profile;
+        }
+
+        CustomerInsights insights = customerInsights(customer);
+        JPanel identity = new JPanel(new BorderLayout(16, 0));
+        identity.setOpaque(false);
+        identity.setAlignmentX(Component.LEFT_ALIGNMENT);
+        CustomerPortrait avatar = new CustomerPortrait(customer, 118);
+        avatar.setPreferredSize(new Dimension(118, 118));
+        identity.add(avatar, BorderLayout.WEST);
+
+        JPanel details = new JPanel();
+        details.setOpaque(false);
+        details.setLayout(new BoxLayout(details, BoxLayout.Y_AXIS));
+        details.add(label(customer.getFullName(), 19, Font.PLAIN, TEXT));
+        details.add(Box.createVerticalStrut(8));
+        details.add(label(insights.tier() + " Member", 11, Font.BOLD, GOLD));
+        details.add(Box.createVerticalStrut(13));
+        details.add(label("Phone   " + blankFallback(customer.getPhone(), "+970 59 000 0000"), 12, Font.PLAIN, TEXT));
+        details.add(label("Email   " + customer.getEmail(), 12, Font.PLAIN, TEXT));
+        details.add(label("Location   Ramallah, Palestine", 12, Font.PLAIN, TEXT));
+        details.add(label("Customer since   " + insights.customerSince(), 12, Font.PLAIN, TEXT));
+        identity.add(details, BorderLayout.CENTER);
+        profile.add(identity);
+        profile.add(Box.createVerticalStrut(22));
+
+        profile.add(createProfileTabs());
+        profile.add(Box.createVerticalStrut(14));
+
+        JPanel cards = new JPanel(new GridLayout(2, 2, 12, 12));
+        cards.setOpaque(false);
+        cards.setAlignmentX(Component.LEFT_ALIGNMENT);
+        cards.setMaximumSize(new Dimension(Integer.MAX_VALUE, 355));
+        cards.add(createPersonalInfoCard(customer, insights));
+        cards.add(createLoyaltyCard(insights));
+        cards.add(createRentalCard(insights));
+        cards.add(createRatingCard(insights));
+        profile.add(cards);
+        profile.add(Box.createVerticalStrut(12));
+        profile.add(createQuickStats(insights));
+        return profile;
+    }
+
+    private JComponent createProfileTabs() {
+        JPanel tabs = new JPanel(new GridLayout(1, 5, 0, 0));
+        tabs.setOpaque(false);
+        tabs.setAlignmentX(Component.LEFT_ALIGNMENT);
+        tabs.setPreferredSize(new Dimension(410, 24));
+        tabs.setMaximumSize(new Dimension(Integer.MAX_VALUE, 24));
+        String[] labels = {"Overview", "Rented Cars", "Invoices", "Loyalty", "Reviews"};
+        for (int i = 0; i < labels.length; i++) {
+            JLabel tab = label(labels[i], 10, i == 0 ? Font.BOLD : Font.PLAIN, i == 0 ? GOLD : MUTED);
+            tab.setHorizontalAlignment(SwingConstants.CENTER);
+            tab.setOpaque(true);
+            tab.setBackground(i == 0 ? new Color(214, 160, 66, 20) : new Color(6, 13, 20, 145));
+            tab.setBorder(BorderFactory.createMatteBorder(0, 0, i == 0 ? 2 : 0, 1, new Color(214, 160, 66, 65)));
+            tabs.add(tab);
+        }
+        return tabs;
+    }
+
+    private JComponent createPersonalInfoCard(Customer customer, CustomerInsights insights) {
+        RoundedPanel card = profileCard();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBorder(new EmptyBorder(15, 15, 15, 15));
+        JLabel title = label("Personal Infor...", 14, Font.PLAIN, TEXT);
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        card.add(title);
+        card.add(Box.createVerticalStrut(16));
+        card.add(detailLine("Full Name", customer.getFullName()));
+        card.add(detailLine("Phone", blankFallback(customer.getPhone(), "Not provided")));
+        card.add(detailLine("Email", customer.getEmail()));
+        card.add(detailLine("Address", "Ramallah, Palestine"));
+        card.add(detailLine("Driver License", insights.licenseStatus()));
+        return card;
+    }
+
+    private JComponent createLoyaltyCard(CustomerInsights insights) {
+        RoundedPanel card = profileCard();
+        card.setLayout(new BorderLayout());
+        card.setBorder(new EmptyBorder(15, 15, 15, 15));
+        card.add(label("Loyalty Summary", 14, Font.PLAIN, TEXT), BorderLayout.NORTH);
+        JLabel points = label(
+                "<html><div style='text-align:center'><font size='5'>" + formatNumber(insights.points())
+                        + "</font><br><font size='2'>Points</font><br><br>Next Tier: Platinum<br>"
+                        + formatNumber(Math.max(0, 6000 - insights.points())) + " points to go</div></html>",
+                12,
+                Font.PLAIN,
+                TEXT
+        );
+        points.setHorizontalAlignment(SwingConstants.CENTER);
+        card.add(points, BorderLayout.CENTER);
+        return card;
+    }
+
+    private JComponent createRentalCard(CustomerInsights insights) {
+        RoundedPanel card = profileCard();
+        card.setLayout(new BorderLayout());
+        card.setBorder(new EmptyBorder(13, 14, 13, 14));
+        card.add(label("Total Rentals", 15, Font.PLAIN, TEXT), BorderLayout.NORTH);
+        JPanel content = new JPanel();
+        content.setOpaque(false);
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.add(label(insights.rentals() + " Rentals", 13, Font.PLAIN, TEXT));
+        content.add(label("Total Spent", 11, Font.PLAIN, MUTED));
+        content.add(label(formatCurrency(insights.totalSpent()), 15, Font.PLAIN, TEXT));
+        content.add(Box.createVerticalStrut(8));
+        content.add(new MiniSparkline());
+        card.add(content, BorderLayout.CENTER);
+        return card;
+    }
+
+    private JComponent createRatingCard(CustomerInsights insights) {
+        RoundedPanel card = profileCard();
+        card.setLayout(new BorderLayout());
+        card.setBorder(new EmptyBorder(13, 14, 13, 14));
+        card.add(label("Average Rating", 15, Font.PLAIN, TEXT), BorderLayout.NORTH);
+        JPanel content = new JPanel();
+        content.setOpaque(false);
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.add(label(String.format(Locale.US, "%.1f", insights.rating()) + " / 5", 18, Font.PLAIN, TEXT));
+        content.add(Box.createVerticalStrut(12));
+        StarRatingView stars = new StarRatingView(insights.rating());
+        stars.setAlignmentX(Component.LEFT_ALIGNMENT);
+        stars.setPreferredSize(new Dimension(130, 24));
+        stars.setMaximumSize(new Dimension(130, 24));
+        content.add(stars);
+        content.add(Box.createVerticalStrut(13));
+        content.add(label("(" + insights.reviewCount() + " Reviews)", 12, Font.PLAIN, MUTED));
+        card.add(content, BorderLayout.CENTER);
+        return card;
+    }
+
+    private JComponent createQuickStats(CustomerInsights insights) {
+        RoundedPanel card = profileCard();
+        card.setLayout(new GridLayout(1, 4, 10, 0));
+        card.setBorder(new EmptyBorder(14, 14, 14, 14));
+        card.setAlignmentX(Component.LEFT_ALIGNMENT);
+        card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
+        card.add(quickStat(String.valueOf(insights.rentals()), "Rentals"));
+        card.add(quickStat(formatCurrency(insights.totalSpent()), "Total Spent"));
+        card.add(quickStat(formatNumber(insights.points()), "Loyalty Points"));
+        card.add(quickStat(String.format(Locale.US, "%.1f", insights.rating()), "Rating"));
+        return card;
+    }
+
+    private RoundedPanel profileCard() {
+        return new RoundedPanel(8, new Color(5, 12, 18, 236));
+    }
+
+    private JComponent detailLine(String caption, String value) {
+        JPanel row = new JPanel(new BorderLayout(8, 0));
+        row.setOpaque(false);
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 23));
+        row.add(label(caption, 10, Font.PLAIN, MUTED), BorderLayout.WEST);
+        JLabel valueLabel = label(value, 10, Font.PLAIN, TEXT);
+        valueLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+        row.add(valueLabel, BorderLayout.EAST);
+        return row;
+    }
+
+    private JComponent quickStat(String value, String caption) {
+        JPanel stat = new JPanel();
+        stat.setOpaque(false);
+        stat.setLayout(new BoxLayout(stat, BoxLayout.Y_AXIS));
+        JLabel valueLabel = label(value, 17, Font.PLAIN, TEXT);
+        valueLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        JLabel captionLabel = label(caption, 11, Font.PLAIN, MUTED);
+        captionLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        stat.add(valueLabel);
+        stat.add(Box.createVerticalStrut(5));
+        stat.add(captionLabel);
+        return stat;
+    }
+
     private JComponent createOperationalPage(
             String title,
             String description,
@@ -773,10 +1222,15 @@ public final class ManagerDashboard extends JFrame {
     }
 
     private void showSection(String section) {
+        activeSection = section;
         contentLayout.show(contentCards, section);
         setActiveMenu(section);
         if ("Vehicles".equals(section)) {
             loadVehicleTable();
+            filterVisibleTable();
+        } else if ("Customers".equals(section)) {
+            loadCustomerTable();
+            filterVisibleTable();
         }
     }
 
@@ -785,10 +1239,10 @@ public final class ManagerDashboard extends JFrame {
     }
 
     private void searchVehicles() {
-        String query = searchField.getText().trim();
+        String query = currentSearchQuery();
         showSection("Vehicles");
 
-        if (query.isBlank() || "Search anything...".equals(query)) {
+        if (query.isBlank()) {
             vehicleSorter.setRowFilter(null);
         } else {
             vehicleSorter.setRowFilter(RowFilter.regexFilter(
@@ -797,9 +1251,61 @@ public final class ManagerDashboard extends JFrame {
         }
     }
 
+    private void searchCurrentSection() {
+        if ("Customers".equals(activeSection)) {
+            searchCustomers();
+        } else {
+            searchVehicles();
+        }
+    }
+
+    private void filterVisibleTable() {
+        if ("Customers".equals(activeSection)) {
+            searchCustomers();
+        } else if ("Vehicles".equals(activeSection) && vehicleSorter != null) {
+            String query = currentSearchQuery();
+            vehicleSorter.setRowFilter(query.isBlank()
+                    ? null
+                    : RowFilter.regexFilter("(?i)" + Pattern.quote(query)));
+        }
+    }
+
+    private void searchCustomers() {
+        if (customerSorter == null) {
+            return;
+        }
+
+        String query = currentSearchQuery();
+        customerSorter.setRowFilter(query.isBlank()
+                ? null
+                : RowFilter.regexFilter("(?i)" + Pattern.quote(query)));
+        if (customerPagerLabel != null) {
+            customerPagerLabel.setText("Showing 1 to " + customerTable.getRowCount() + " of "
+                    + formatNumber(customerAccounts().size()) + " customers");
+        }
+
+        if (customerTable.getRowCount() > 0) {
+            customerTable.setRowSelectionInterval(0, 0);
+        } else {
+            showSelectedCustomerProfile();
+        }
+    }
+
+    private String currentSearchQuery() {
+        if (searchField == null) {
+            return "";
+        }
+
+        String query = searchField.getText().trim();
+        return "Search anything...".equals(query) || "Search customers...".equals(query) ? "" : query;
+    }
+
     private void refreshAllData() {
         if (vehicleModel != null) {
             loadVehicleTable();
+        }
+        if (customerModel != null) {
+            loadCustomerTable();
         }
 
         List<Vehicle> vehicles = vehicleService.getAllVehicles();
@@ -1038,6 +1544,67 @@ public final class ManagerDashboard extends JFrame {
         return form;
     }
 
+    private void addCustomer() {
+        JTextField fullName = new JTextField();
+        JTextField email = new JTextField();
+        JTextField phone = new JTextField();
+        JPasswordField password = new JPasswordField();
+
+        JPanel form = formPanel(
+                "Full name", fullName,
+                "Email", email,
+                "Phone", phone,
+                "Password", password
+        );
+
+        int result = JOptionPane.showConfirmDialog(
+                this,
+                form,
+                "Add Customer",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE
+        );
+
+        if (result != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        try {
+            Customer customer = authenticationService.registerCustomer(
+                    fullName.getText(),
+                    email.getText(),
+                    phone.getText(),
+                    password.getPassword()
+            );
+            loadCustomerTable();
+            selectCustomerByEmail(customer.getEmail());
+            refreshAllDataMetricsOnly();
+            showInfo(
+                    "Customer Added",
+                    "Customer account saved to:\n" + authenticationService.getAccountsFile()
+            );
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            showError(ex.getMessage());
+        }
+    }
+
+    private void selectCustomerByEmail(String email) {
+        if (customerTable == null || customerModel == null) {
+            return;
+        }
+
+        for (int row = 0; row < customerModel.getRowCount(); row++) {
+            if (String.valueOf(customerModel.getValueAt(row, 3)).equals(email)) {
+                int viewRow = customerTable.convertRowIndexToView(row);
+                if (viewRow >= 0) {
+                    customerTable.setRowSelectionInterval(viewRow, viewRow);
+                    customerTable.scrollRectToVisible(customerTable.getCellRect(viewRow, 0, true));
+                }
+                return;
+            }
+        }
+    }
+
     private void operationalAction(String section) {
         String value = JOptionPane.showInputDialog(
                 this,
@@ -1051,15 +1618,11 @@ public final class ManagerDashboard extends JFrame {
     }
 
     private int customerCount() {
-        return (int) authenticationService.getAllAccounts().stream()
-                .filter(account -> account.getRole() == Customer.Role.CUSTOMER)
-                .count();
+        return customerAccounts().size();
     }
 
     private String[] customerActivity() {
-        List<Customer> customers = authenticationService.getAllAccounts().stream()
-                .filter(account -> account.getRole() == Customer.Role.CUSTOMER)
-                .toList();
+        List<Customer> customers = customerAccounts();
         if (customers.isEmpty()) {
             return new String[]{"No customer accounts registered yet."};
         }
@@ -1067,6 +1630,56 @@ public final class ManagerDashboard extends JFrame {
                 .limit(5)
                 .map(customer -> customer.getFullName() + " • " + customer.getEmail())
                 .toArray(String[]::new);
+    }
+
+    private List<Customer> customerAccounts() {
+        return authenticationService.getAllAccounts().stream()
+                .filter(account -> account.getRole() == Customer.Role.CUSTOMER)
+                .toList();
+    }
+
+    private CustomerInsights customerInsights(Customer customer) {
+        int hash = Math.floorMod((customer.getEmail() + customer.getFullName()).hashCode(), Integer.MAX_VALUE);
+        int rentals = 3 + hash % 13;
+        int points = rentals * 165 + hash % 720;
+        double fallbackRating = Math.min(5.0, 3.8 + (hash % 13) / 10.0);
+        double rating = ratingRepository.averageForEmail(customer.getEmail()).orElse(fallbackRating);
+        int totalSpent = rentals * (430 + hash % 570);
+        String tier = points >= 2450 ? "Gold" : points >= 1550 ? "Silver" : "Bronze";
+        String since = LocalDate.now()
+                .minusDays(30L + hash % 560)
+                .format(DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.US));
+        String license = hash % 6 == 0 ? "Pending Review" : "Yes (Valid)";
+        int savedReviews = ratingRepository.countForEmail(customer.getEmail());
+        int reviews = savedReviews > 0 ? savedReviews : Math.max(1, rentals + hash % 14);
+        return new CustomerInsights(rentals, points, rating, totalSpent, tier, since, license, reviews);
+    }
+
+    private String initials(String fullName) {
+        String[] parts = fullName == null ? new String[0] : fullName.trim().split("\\s+");
+        if (parts.length == 0 || parts[0].isBlank()) {
+            return "VM";
+        }
+        String first = parts[0].substring(0, 1);
+        String second = parts.length > 1 ? parts[parts.length - 1].substring(0, 1) : "";
+        return (first + second).toUpperCase(Locale.ROOT);
+    }
+
+    private String starText(double rating) {
+        int filled = Math.max(1, Math.min(5, (int) Math.round(rating)));
+        return "★★★★★".substring(0, filled) + "☆☆☆☆☆".substring(0, 5 - filled);
+    }
+
+    private String blankFallback(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
+    }
+
+    private String formatNumber(int value) {
+        return String.format(Locale.US, "%,d", value);
+    }
+
+    private String formatCurrency(int value) {
+        return "$" + formatNumber(value);
     }
 
     private void logout() {
@@ -1097,6 +1710,616 @@ public final class ManagerDashboard extends JFrame {
         label.setFont(new Font("Segoe UI", style, size));
         label.setForeground(color);
         return label;
+    }
+
+    private static Path2D starShape(double centerX, double centerY, double outerRadius, double innerRadius) {
+        Path2D star = new Path2D.Double();
+        for (int i = 0; i < 10; i++) {
+            double angle = -Math.PI / 2 + i * Math.PI / 5;
+            double radius = i % 2 == 0 ? outerRadius : innerRadius;
+            double x = centerX + Math.cos(angle) * radius;
+            double y = centerY + Math.sin(angle) * radius;
+            if (i == 0) {
+                star.moveTo(x, y);
+            } else {
+                star.lineTo(x, y);
+            }
+        }
+        star.closePath();
+        return star;
+    }
+
+    private static Color customerAccent(Customer customer) {
+        int hash = Math.floorMod((customer.getEmail() + customer.getFullName()).hashCode(), 3);
+        return switch (hash) {
+            case 0 -> new Color(35, 53, 64);
+            case 1 -> new Color(57, 38, 49);
+            default -> new Color(48, 48, 35);
+        };
+    }
+
+    private static final class SidebarCarPanel extends JComponent {
+
+        private final BufferedImage car = loadResourceImage("/images/SIDEBAR_CAR.png");
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            g.setColor(new Color(3, 9, 14, 230));
+            g.fillRoundRect(0, 0, getWidth(), getHeight(), 14, 14);
+
+            if (car != null) {
+                drawCover(g, car, 0, 0, getWidth(), getHeight());
+                g.setPaint(new GradientPaint(
+                        0, 0, new Color(0, 0, 0, 18),
+                        0, getHeight(), new Color(0, 0, 0, 130)
+                ));
+                g.fillRoundRect(0, 0, getWidth(), getHeight(), 14, 14);
+            } else {
+                g.setColor(new Color(214, 160, 66, 30));
+                g.fillRoundRect(18, 92, getWidth() - 36, 36, 36, 36);
+                g.setColor(GOLD);
+                g.setStroke(new BasicStroke(2f));
+                g.drawRoundRect(18, 94, getWidth() - 36, 34, 34, 34);
+                g.drawOval(42, 122, 19, 19);
+                g.drawOval(getWidth() - 62, 122, 19, 19);
+            }
+
+            g.setColor(new Color(214, 160, 66, 80));
+            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 14, 14);
+            g.dispose();
+        }
+    }
+
+    private static final class CustomerTextRenderer extends DefaultTableCellRenderer {
+
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table,
+                Object value,
+                boolean isSelected,
+                boolean hasFocus,
+                int row,
+                int column
+        ) {
+            JLabel label = (JLabel) super.getTableCellRendererComponent(
+                    table, value, isSelected, hasFocus, row, column
+            );
+            label.setHorizontalAlignment(column == 1 || column == 2 || column == 3 ? SwingConstants.LEFT : SwingConstants.CENTER);
+            label.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            label.setForeground(isSelected ? TEXT : new Color(224, 228, 234));
+            label.setBackground(isSelected ? new Color(92, 62, 25, 210) : new Color(4, 10, 16));
+            label.setBorder(new EmptyBorder(0, column == 1 || column == 2 || column == 3 ? 10 : 4, 0, 4));
+            return label;
+        }
+    }
+
+    private static final class LoyaltyRenderer extends DefaultTableCellRenderer {
+
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table,
+                Object value,
+                boolean isSelected,
+                boolean hasFocus,
+                int row,
+                int column
+        ) {
+            JLabel label = (JLabel) super.getTableCellRendererComponent(
+                    table, value, isSelected, hasFocus, row, column
+            );
+            String tier = String.valueOf(value);
+            label.setText(tier);
+            label.setHorizontalAlignment(SwingConstants.CENTER);
+            label.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            label.setForeground(switch (tier) {
+                case "Gold" -> GOLD;
+                case "Silver" -> new Color(211, 215, 221);
+                default -> new Color(199, 119, 70);
+            });
+            label.setBackground(isSelected ? new Color(92, 62, 25, 210) : new Color(4, 10, 16));
+            label.setBorder(new EmptyBorder(0, 0, 0, 0));
+            return label;
+        }
+    }
+
+    private static final class CustomerAvatarRenderer extends JComponent implements TableCellRenderer {
+
+        private Customer customer;
+        private boolean selected;
+
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table,
+                Object value,
+                boolean isSelected,
+                boolean hasFocus,
+                int row,
+                int column
+        ) {
+            this.customer = value instanceof Customer c ? c : null;
+            this.selected = isSelected;
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(selected ? new Color(92, 62, 25, 210) : new Color(4, 10, 16));
+            g.fillRect(0, 0, getWidth(), getHeight());
+
+            if (customer != null) {
+                paintPortrait(g, customer, (getWidth() - 34) / 2, (getHeight() - 34) / 2, 34);
+            }
+            g.dispose();
+        }
+    }
+
+    private static final class CustomerPortrait extends JComponent {
+
+        private final Customer customer;
+        private final int size;
+
+        CustomerPortrait(Customer customer, int size) {
+            this.customer = customer;
+            this.size = size;
+            setOpaque(false);
+            setPreferredSize(new Dimension(size, size));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            paintPortrait(g, customer, (getWidth() - size) / 2, (getHeight() - size) / 2, size);
+            g.dispose();
+        }
+    }
+
+    private static void paintPortrait(Graphics2D g, Customer customer, int x, int y, int size) {
+        Color accent = customerAccent(customer);
+        g.setPaint(new GradientPaint(x, y, brighten(accent, 18), x + size, y + size, new Color(9, 17, 26)));
+        g.fillOval(x, y, size, size);
+        g.setColor(PALE);
+        g.setStroke(new BasicStroke(Math.max(1.2f, size / 54f)));
+        g.drawOval(x, y, size - 1, size - 1);
+
+        int cx = x + size / 2;
+        int faceW = Math.max(10, size / 4);
+        int faceH = Math.max(12, size / 3);
+        boolean longHair = Math.floorMod(customer.getFullName().hashCode(), 4) == 1;
+
+        g.setColor(longHair ? new Color(35, 25, 22) : new Color(40, 28, 22));
+        g.fillArc(cx - faceW / 2 - 3, y + size / 5 - 4, faceW + 6, faceH / 2 + 10, 0, 180);
+        if (longHair) {
+            g.fillRoundRect(cx - faceW / 2 - 7, y + size / 4, faceW + 14, faceH + 8, 12, 12);
+        }
+
+        g.setColor(new Color(224, 172, 128));
+        g.fillOval(cx - faceW / 2, y + size / 4, faceW, faceH);
+
+        Path2D shirt = new Path2D.Double();
+        shirt.moveTo(x + size * 0.25, y + size * 0.88);
+        shirt.lineTo(x + size * 0.36, y + size * 0.58);
+        shirt.lineTo(cx, y + size * 0.72);
+        shirt.lineTo(x + size * 0.64, y + size * 0.58);
+        shirt.lineTo(x + size * 0.75, y + size * 0.88);
+        shirt.closePath();
+        g.setColor(new Color(18, 23, 30));
+        g.fill(shirt);
+
+        Path2D collar = new Path2D.Double();
+        collar.moveTo(x + size * 0.41, y + size * 0.60);
+        collar.lineTo(cx, y + size * 0.78);
+        collar.lineTo(x + size * 0.59, y + size * 0.60);
+        collar.closePath();
+        g.setColor(new Color(236, 238, 239));
+        g.fill(collar);
+
+        g.setColor(GOLD);
+        g.fillPolygon(
+                new int[]{cx, cx - Math.max(1, size / 38), cx, cx + Math.max(1, size / 38)},
+                new int[]{y + size * 62 / 100, y + size * 70 / 100, y + size * 78 / 100, y + size * 70 / 100},
+                4
+        );
+    }
+
+    private static final class StarRatingRenderer extends JComponent implements TableCellRenderer {
+
+        private double rating;
+        private boolean selected;
+
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table,
+                Object value,
+                boolean isSelected,
+                boolean hasFocus,
+                int row,
+                int column
+        ) {
+            this.rating = value instanceof Number n ? n.doubleValue() : 0;
+            this.selected = isSelected;
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(selected ? new Color(92, 62, 25, 210) : new Color(4, 10, 16));
+            g.fillRect(0, 0, getWidth(), getHeight());
+            int radius = 8;
+            int gap = 5;
+            int totalWidth = 5 * radius * 2 + 4 * gap;
+            paintStars(g, Math.max(6, (getWidth() - totalWidth) / 2), getHeight() / 2, rating, radius);
+            g.dispose();
+        }
+    }
+
+    private static final class StarRatingView extends JComponent {
+
+        private final double rating;
+
+        StarRatingView(double rating) {
+            this.rating = rating;
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            paintStars(g, 4, getHeight() / 2, rating, 9);
+            g.dispose();
+        }
+    }
+
+    private static void paintStars(Graphics2D g, int x, int centerY, double rating, int radius) {
+        int filled = Math.max(1, Math.min(5, (int) Math.round(rating)));
+        int gap = 5;
+        for (int i = 0; i < 5; i++) {
+            int cx = x + i * (radius * 2 + gap) + radius;
+            Path2D star = starShape(cx, centerY, radius, radius * 0.46);
+            g.setColor(i < filled ? GOLD : new Color(214, 160, 66, 36));
+            g.fill(star);
+            g.setColor(new Color(214, 160, 66, i < filled ? 140 : 95));
+            g.draw(star);
+        }
+    }
+
+    private static final class MiniSparkline extends JComponent {
+
+        MiniSparkline() {
+            setOpaque(false);
+            setPreferredSize(new Dimension(150, 35));
+            setMaximumSize(new Dimension(150, 35));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int[] values = {11, 15, 13, 22, 16, 19, 25, 21, 24};
+            int left = 2;
+            int bottom = getHeight() - 7;
+            int step = Math.max(10, (getWidth() - 18) / (values.length - 1));
+            Path2D line = new Path2D.Double();
+            for (int i = 0; i < values.length; i++) {
+                double x = left + i * step;
+                double y = bottom - values[i] * 0.75;
+                if (i == 0) {
+                    line.moveTo(x, y);
+                } else {
+                    line.lineTo(x, y);
+                }
+            }
+            g.setColor(GOLD);
+            g.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.draw(line);
+            for (int i = 0; i < values.length; i++) {
+                int x = left + i * step;
+                int y = (int) Math.round(bottom - values[i] * 0.75);
+                g.fillOval(x - 2, y - 2, 4, 4);
+            }
+            g.dispose();
+        }
+    }
+
+    private static final class CustomerStatIcon extends JComponent {
+
+        private final String kind;
+
+        CustomerStatIcon(String kind) {
+            this.kind = kind;
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            g.setColor(new Color(214, 160, 66, 13));
+            g.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+            g.setColor(new Color(214, 160, 66, 22));
+            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+
+            g.setColor(GOLD);
+            g.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            int cx = getWidth() / 2;
+            int cy = getHeight() / 2;
+
+            switch (kind) {
+                case "New" -> drawShield(g, cx, cy);
+                case "Loyal" -> drawCrown(g, cx, cy);
+                default -> drawUsers(g, cx, cy, "Active".equals(kind));
+            }
+
+            g.dispose();
+        }
+
+        private void drawUsers(Graphics2D g, int cx, int cy, boolean doubleUser) {
+            if (doubleUser) {
+                g.drawOval(cx - 14, cy - 11, 10, 10);
+                g.drawArc(cx - 18, cy + 1, 18, 15, 20, 140);
+                g.drawOval(cx + 4, cy - 11, 10, 10);
+                g.drawArc(cx, cy + 1, 18, 15, 20, 140);
+            } else {
+                g.drawOval(cx - 6, cy - 13, 12, 12);
+                g.drawArc(cx - 13, cy + 2, 26, 18, 20, 140);
+                g.drawOval(cx + 9, cy - 8, 8, 8);
+                g.drawArc(cx + 5, cy + 3, 16, 13, 20, 120);
+            }
+        }
+
+        private void drawShield(Graphics2D g, int cx, int cy) {
+            Path2D shield = new Path2D.Double();
+            shield.moveTo(cx, cy - 17);
+            shield.lineTo(cx + 14, cy - 11);
+            shield.lineTo(cx + 11, cy + 7);
+            shield.lineTo(cx, cy + 18);
+            shield.lineTo(cx - 11, cy + 7);
+            shield.lineTo(cx - 14, cy - 11);
+            shield.closePath();
+            g.draw(shield);
+            g.drawLine(cx, cy - 8, cx, cy + 7);
+            g.drawLine(cx - 5, cy - 2, cx, cy + 3);
+            g.drawLine(cx + 6, cy - 5, cx, cy + 3);
+        }
+
+        private void drawCrown(Graphics2D g, int cx, int cy) {
+            Path2D crown = new Path2D.Double();
+            crown.moveTo(cx - 17, cy + 9);
+            crown.lineTo(cx - 14, cy - 10);
+            crown.lineTo(cx - 5, cy + 1);
+            crown.lineTo(cx, cy - 14);
+            crown.lineTo(cx + 5, cy + 1);
+            crown.lineTo(cx + 14, cy - 10);
+            crown.lineTo(cx + 17, cy + 9);
+            crown.closePath();
+            g.draw(crown);
+            g.drawLine(cx - 14, cy + 12, cx + 14, cy + 12);
+            g.fillOval(cx - 16, cy - 12, 4, 4);
+            g.fillOval(cx - 2, cy - 17, 4, 4);
+            g.fillOval(cx + 12, cy - 12, 4, 4);
+        }
+    }
+
+    private static final class ProfileTab extends JComponent {
+
+        private final String text;
+        private final String icon;
+        private final boolean active;
+
+        ProfileTab(String text, String icon, boolean active) {
+            this.text = text;
+            this.icon = icon;
+            this.active = active;
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+            g.setColor(active ? new Color(214, 160, 66, 18) : new Color(6, 13, 20, 150));
+            g.fillRect(0, 0, getWidth(), getHeight());
+            g.setColor(new Color(214, 160, 66, active ? 120 : 45));
+            g.drawLine(getWidth() - 1, 8, getWidth() - 1, getHeight() - 8);
+            if (active) {
+                g.fillRect(0, getHeight() - 3, getWidth(), 3);
+            }
+
+            Color color = active ? GOLD : new Color(178, 184, 195);
+            drawProfileIcon(g, icon, getWidth() / 2 - 8, 8, 16, color);
+
+            g.setFont(new Font("Segoe UI", active ? Font.BOLD : Font.PLAIN, 9));
+            g.setColor(color);
+            FontMetrics fm = g.getFontMetrics();
+            g.drawString(text, (getWidth() - fm.stringWidth(text)) / 2, Math.min(getHeight() - 9, 40));
+            g.dispose();
+        }
+    }
+
+    private static final class ProfileCardPanel extends JPanel {
+
+        ProfileCardPanel() {
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            RoundRectangle2D shape = new RoundRectangle2D.Double(
+                    .5, .5, getWidth() - 1, getHeight() - 1, 8, 8
+            );
+            g.setPaint(new GradientPaint(
+                    0, 0, new Color(9, 16, 23, 238),
+                    getWidth(), getHeight(), new Color(4, 10, 16, 238)
+            ));
+            g.fill(shape);
+            g.setColor(new Color(214, 160, 66, 28));
+            g.draw(shape);
+            g.setColor(new Color(255, 255, 255, 9));
+            g.drawRoundRect(2, 2, getWidth() - 5, getHeight() - 5, 7, 7);
+            g.dispose();
+            super.paintComponent(raw);
+        }
+    }
+
+    private static final class ProfileMiniIcon extends JComponent {
+
+        private final String icon;
+        private final int size;
+
+        ProfileMiniIcon(String icon, int size) {
+            this.icon = icon;
+            this.size = size;
+            setOpaque(false);
+            setPreferredSize(new Dimension(size, size));
+            setMaximumSize(new Dimension(size, size));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            drawProfileIcon(g, icon, (getWidth() - 22) / 2, (getHeight() - 22) / 2, 22, GOLD);
+            g.dispose();
+        }
+    }
+
+    private static final class LoyaltyRingPanel extends JComponent {
+
+        private final int points;
+
+        LoyaltyRingPanel(int points) {
+            this.points = points;
+            setOpaque(false);
+            setPreferredSize(new Dimension(160, 130));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+            int size = Math.min(88, Math.min(getWidth() - 34, getHeight() - 38));
+            int x = (getWidth() - size) / 2;
+            int y = 8;
+            int arc = Math.min(315, Math.max(28, (int) Math.round((points / 6000.0) * 315)));
+
+            g.setStroke(new BasicStroke(6.5f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.setColor(new Color(214, 160, 66, 34));
+            g.drawArc(x, y, size, size, 218, -315);
+            g.setPaint(new GradientPaint(x, y, new Color(238, 201, 139), x + size, y + size, new Color(154, 98, 31)));
+            g.drawArc(x, y, size, size, 218, -arc);
+
+            g.setColor(TEXT);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 19));
+            String pointsText = String.format(Locale.US, "%,d", points);
+            FontMetrics fm = g.getFontMetrics();
+            g.drawString(pointsText, x + (size - fm.stringWidth(pointsText)) / 2, y + size / 2 + 1);
+
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+            g.setColor(MUTED);
+            String label = "Points";
+            fm = g.getFontMetrics();
+            g.drawString(label, x + (size - fm.stringWidth(label)) / 2, y + size / 2 + 17);
+
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+            g.setColor(GOLD);
+            String next = "Next Tier: Platinum";
+            fm = g.getFontMetrics();
+            g.drawString(next, (getWidth() - fm.stringWidth(next)) / 2, getHeight() - 25);
+
+            g.setColor(new Color(216, 218, 223));
+            String remaining = String.format(Locale.US, "%,d points to go", Math.max(0, 6000 - points));
+            fm = g.getFontMetrics();
+            g.drawString(remaining, (getWidth() - fm.stringWidth(remaining)) / 2, getHeight() - 10);
+            g.dispose();
+        }
+    }
+
+    private static void drawProfileIcon(Graphics2D g, String icon, int x, int y, int size, Color color) {
+        g.setColor(color);
+        g.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+        int cx = x + size / 2;
+        int cy = y + size / 2;
+
+        switch (icon) {
+            case "USERS" -> {
+                g.drawOval(cx - 8, cy - 8, 7, 7);
+                g.drawArc(cx - 12, cy - 1, 15, 12, 18, 144);
+                g.drawOval(cx + 2, cy - 8, 7, 7);
+                g.drawArc(cx - 2, cy - 1, 15, 12, 18, 144);
+            }
+            case "CAR" -> {
+                int bodyY = y + size / 2;
+                g.drawRoundRect(x + 2, bodyY - 3, size - 4, 8, 7, 7);
+                g.drawLine(x + 6, bodyY - 3, x + 9, y + 5);
+                g.drawLine(x + size - 6, bodyY - 3, x + size - 9, y + 5);
+                g.drawLine(x + 9, y + 5, x + size - 9, y + 5);
+                g.fillOval(x + 5, bodyY + 4, 4, 4);
+                g.fillOval(x + size - 9, bodyY + 4, 4, 4);
+            }
+            case "FILE" -> {
+                g.drawRoundRect(x + 4, y + 3, size - 8, size - 6, 3, 3);
+                g.drawLine(x + 8, y + 8, x + size - 8, y + 8);
+                g.drawLine(x + 8, y + 12, x + size - 8, y + 12);
+                g.drawLine(x + 8, y + 16, x + size - 11, y + 16);
+                g.drawOval(cx - 3, y + size - 8, 6, 4);
+            }
+            case "CROWN" -> {
+                Path2D crown = new Path2D.Double();
+                crown.moveTo(x + 3, y + size - 6);
+                crown.lineTo(x + 5, y + 7);
+                crown.lineTo(cx - 4, y + 13);
+                crown.lineTo(cx, y + 4);
+                crown.lineTo(cx + 4, y + 13);
+                crown.lineTo(x + size - 5, y + 7);
+                crown.lineTo(x + size - 3, y + size - 6);
+                crown.closePath();
+                g.draw(crown);
+                g.drawLine(x + 5, y + size - 3, x + size - 5, y + size - 3);
+            }
+            case "SHIELD" -> {
+                Path2D shield = new Path2D.Double();
+                shield.moveTo(cx, y + 2);
+                shield.lineTo(x + size - 3, y + 7);
+                shield.lineTo(x + size - 5, y + size - 6);
+                shield.lineTo(cx, y + size - 2);
+                shield.lineTo(x + 5, y + size - 6);
+                shield.lineTo(x + 3, y + 7);
+                shield.closePath();
+                g.draw(shield);
+                g.drawLine(cx, y + 7, cx, y + size - 8);
+            }
+            default -> {
+                Path2D star = starShape(cx, cy, size / 2.2, size / 4.8);
+                g.draw(star);
+            }
+        }
+    }
+
+    private record CustomerInsights(
+            int rentals,
+            int points,
+            double rating,
+            int totalSpent,
+            String tier,
+            String customerSince,
+            String licenseStatus,
+            int reviewCount
+    ) {
     }
 
     private static final class DashboardBackground extends JPanel {
@@ -1795,7 +3018,7 @@ public final class ManagerDashboard extends JFrame {
         private boolean showingPlaceholder = true;
 
         SearchField() {
-            super("Search anything...");
+            super("Search customers...");
             setOpaque(false);
             setForeground(MUTED);
             setCaretColor(PALE);
@@ -1815,7 +3038,7 @@ public final class ManagerDashboard extends JFrame {
                 @Override
                 public void focusLost(java.awt.event.FocusEvent e) {
                     if (getText().isBlank()) {
-                        setText("Search anything...");
+                        setText("Search customers...");
                         setForeground(MUTED);
                         showingPlaceholder = true;
                     }

@@ -4,3 +4,4 @@ manager%40velora.com	Main+Manager		MANAGER	Manager%40123
 admin%40velora.com	System+Admin		MANAGER	Admin%40123
 ahmad%40gmail.com	Ahmad+Ali		CUSTOMER	Ahmad%40123
 sara%40gmail.com	Sara	0599326499	CUSTOMER	Sara%40123
+hmada%40gmail.com	hmada	0599326455	CUSTOMER	1234567

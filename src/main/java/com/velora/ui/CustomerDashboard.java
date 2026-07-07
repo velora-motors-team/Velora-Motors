@@ -2,6 +2,7 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
+import com.velora.repository.RatingRepository;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -23,13 +24,13 @@ public class CustomerDashboard extends JFrame {
     private static final Color LINE = new Color(214, 168, 91, 75);
 
     private final Customer customer;
+    private final RatingRepository ratingRepository = new RatingRepository();
 
     private final BufferedImage iconImage;
     private final BufferedImage heroImage;
     private final BufferedImage rentalCard1;
     private final BufferedImage rentalCard2;
     private final BufferedImage rentalCard3;
-    private final BufferedImage sidebarCar;
     private final BufferedImage footerDriveImage;
 
     private JLabel totalRentalsValueLabel;
@@ -47,7 +48,6 @@ public class CustomerDashboard extends JFrame {
         rentalCard1 = loadImage("/images/customer-rental-x7-v2.png");
         rentalCard2 = loadImage("/images/customer-rental-m8-v2.png");
         rentalCard3 = loadImage("/images/customer-featured-i7-v2.png");
-        sidebarCar = loadImage("/images/SIDEBAR_CAR.png");
         footerDriveImage = loadImage("/images/customer-footer-drive.png");
 
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
@@ -136,7 +136,7 @@ public class CustomerDashboard extends JFrame {
         menu.add(menuButton(MenuIconType.CALENDAR, "My Rentals", false, () -> showMessage("My Rentals will be implemented later.")));
         menu.add(menuButton(MenuIconType.FILE, "Billing & Invoices", false, () -> showMessage("Billing & Invoices will be implemented later.")));
         menu.add(menuButton(MenuIconType.DIAMOND, "Loyalty Points", false, () -> showMessage("Loyalty Points will be implemented later.")));
-        menu.add(menuButton(MenuIconType.STAR, "Reviews", false, () -> showMessage("Reviews will be implemented later.")));
+        menu.add(menuButton(MenuIconType.STAR, "Reviews", false, this::submitRating));
         menu.add(menuButton(MenuIconType.USER, "Profile", false, () -> showMessage("Profile will be implemented later.")));
         menu.add(menuButton(MenuIconType.HEADSET, "Support", false, () -> showMessage("Support will be implemented later.")));
 
@@ -153,26 +153,7 @@ public class CustomerDashboard extends JFrame {
         JButton logout = outlineButton("Logout");
         logout.addActionListener(e -> logout());
 
-        ImageCard sidebarPromo = new ImageCard(sidebarCar, true);
-        sidebarPromo.setPreferredSize(new Dimension(202, 230));
-        sidebarPromo.setLayout(null);
-        RoundedButton sidebarExplore = new RoundedButton("Explore BMW Collection    →", 8);
-        sidebarExplore.setForeground(GOLD_LIGHT);
-        sidebarExplore.setBackground(new Color(8, 12, 17, 228));
-        sidebarExplore.setFont(new Font("Segoe UI", Font.PLAIN, 9));
-        sidebarExplore.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        sidebarExplore.addActionListener(e -> searchVehicles("BMW"));
-        sidebarPromo.add(sidebarExplore);
-        sidebarPromo.addComponentListener(new java.awt.event.ComponentAdapter() {
-            @Override
-            public void componentResized(java.awt.event.ComponentEvent e) {
-                int buttonY = Math.max(82, Math.round(sidebarPromo.getHeight() * .39f));
-                sidebarExplore.setBounds(11, buttonY, Math.max(0, sidebarPromo.getWidth() - 22), 26);
-            }
-        });
-
         bottom.add(logout, BorderLayout.NORTH);
-        bottom.add(sidebarPromo, BorderLayout.CENTER);
 
         sidebar.add(top, BorderLayout.CENTER);
         sidebar.add(bottom, BorderLayout.SOUTH);
@@ -475,7 +456,7 @@ public class CustomerDashboard extends JFrame {
         grid.add(quickAccessButton(MenuIconType.FILE, "Billing & Invoices",
                 () -> showMessage("Billing and invoices will open here.")));
         grid.add(quickAccessButton(MenuIconType.DIAMOND, "Loyalty Points",
-                () -> showMessage("You have 2,450 loyalty points.")));
+                () -> showMessage("You have " + formatNumber(getLoyaltyPointsCount()) + " loyalty points.")));
         grid.add(quickAccessButton(MenuIconType.CALENDAR, "My Rentals",
                 () -> showMessage("Your rentals will open here.")));
         grid.add(quickAccessButton(MenuIconType.USER, "Profile",
@@ -657,12 +638,8 @@ public class CustomerDashboard extends JFrame {
     }
 
     private void refreshDashboardStats() {
-        updateDashboardStats(
-                getTotalRentalsCount(),
-                getActiveRentalsCount(),
-                getLoyaltyPointsCount(),
-                getTotalSpentAmount()
-        );
+        CustomerStats stats = customerStats();
+        updateDashboardStats(stats.totalRentals(), stats.activeRentals(), stats.loyaltyPoints(), stats.totalSpent());
     }
 
     public void updateDashboardStats(int totalRentals, int activeRentals, int loyaltyPoints, int totalSpent) {
@@ -702,23 +679,80 @@ public class CustomerDashboard extends JFrame {
     }
 
     private int getTotalRentalsCount() {
-        return 12;
+        return customerStats().totalRentals();
     }
 
     private int getActiveRentalsCount() {
-        return 2;
+        return customerStats().activeRentals();
     }
 
     private int getLoyaltyPointsCount() {
-        return 2450;
+        return customerStats().loyaltyPoints();
     }
 
     private int getTotalSpentAmount() {
-        return 24560;
+        return customerStats().totalSpent();
+    }
+
+    private CustomerStats customerStats() {
+        String seed = (customer == null ? "" : customer.getEmail())
+                + "|"
+                + getCustomerName()
+                + "|"
+                + (customer == null ? "" : customer.getPhone());
+        int hash = Math.floorMod(seed.hashCode(), Integer.MAX_VALUE);
+
+        int totalRentals = 3 + hash % 13;
+        int activeRentals = Math.min(totalRentals, 1 + hash % 3);
+        int loyaltyPoints = totalRentals * 165 + hash % 720;
+        int totalSpent = totalRentals * (430 + hash % 570);
+
+        return new CustomerStats(totalRentals, activeRentals, loyaltyPoints, totalSpent);
     }
 
     private static String formatNumber(int value) {
         return String.format("%,d", value);
+    }
+
+    private void submitRating() {
+        RatingPicker picker = new RatingPicker();
+        JTextArea comment = new JTextArea(4, 24);
+        comment.setLineWrap(true);
+        comment.setWrapStyleWord(true);
+        comment.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+
+        JPanel form = new JPanel();
+        form.setLayout(new BoxLayout(form, BoxLayout.Y_AXIS));
+        form.setBorder(new EmptyBorder(8, 8, 8, 8));
+
+        JLabel title = new JLabel("How was your Velora experience?");
+        title.setFont(new Font("Segoe UI", Font.BOLD, 15));
+        form.add(title);
+        form.add(Box.createVerticalStrut(10));
+        form.add(picker);
+        form.add(Box.createVerticalStrut(10));
+        form.add(new JLabel("Comment"));
+        form.add(new JScrollPane(comment));
+
+        int result = JOptionPane.showConfirmDialog(
+                this,
+                form,
+                "Rate Velora Motors",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE
+        );
+
+        if (result != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        try {
+            ratingRepository.saveRating(customer, picker.getRating(), comment.getText());
+            showMessage("Thank you. Your " + picker.getRating()
+                    + "-star rating has been saved.");
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            showMessage(ex.getMessage());
+        }
     }
 
     private void logout() {
@@ -812,6 +846,78 @@ public class CustomerDashboard extends JFrame {
         g.drawString(text, centerX - metrics.stringWidth(text) / 2, baseline);
     }
 
+    private static final class RatingPicker extends JComponent {
+
+        private int rating = 5;
+
+        RatingPicker() {
+            setPreferredSize(new Dimension(190, 38));
+            setMaximumSize(new Dimension(190, 38));
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+            addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    setRatingFromMouse(e.getX());
+                }
+            });
+
+            addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+                @Override
+                public void mouseDragged(MouseEvent e) {
+                    setRatingFromMouse(e.getX());
+                }
+            });
+        }
+
+        int getRating() {
+            return rating;
+        }
+
+        private void setRatingFromMouse(int mouseX) {
+            int starWidth = Math.max(1, getWidth() / 5);
+            rating = Math.max(1, Math.min(5, mouseX / starWidth + 1));
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            for (int i = 0; i < 5; i++) {
+                int cx = 18 + i * 31;
+                Path2D star = starShape(cx, 18, 12, 5.6);
+                g.setColor(i < rating ? GOLD : new Color(214, 168, 91, 42));
+                g.fill(star);
+                g.setColor(new Color(214, 168, 91, 155));
+                g.draw(star);
+            }
+
+            g.setColor(new Color(95, 100, 108));
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            g.drawString(rating + " / 5", 158, 22);
+            g.dispose();
+        }
+    }
+
+    private static Path2D starShape(double centerX, double centerY, double outerRadius, double innerRadius) {
+        Path2D star = new Path2D.Double();
+        for (int i = 0; i < 10; i++) {
+            double angle = -Math.PI / 2 + i * Math.PI / 5;
+            double radius = i % 2 == 0 ? outerRadius : innerRadius;
+            double x = centerX + Math.cos(angle) * radius;
+            double y = centerY + Math.sin(angle) * radius;
+            if (i == 0) {
+                star.moveTo(x, y);
+            } else {
+                star.lineTo(x, y);
+            }
+        }
+        star.closePath();
+        return star;
+    }
+
     private enum MenuIconType {
         HOME, CAR, CALENDAR, FILE, DIAMOND, STAR, USER, HEADSET
     }
@@ -822,6 +928,14 @@ public class CustomerDashboard extends JFrame {
 
     private enum StatSlot {
         TOTAL_RENTALS, ACTIVE_RENTALS, LOYALTY_POINTS, TOTAL_SPENT
+    }
+
+    private record CustomerStats(
+            int totalRentals,
+            int activeRentals,
+            int loyaltyPoints,
+            int totalSpent
+    ) {
     }
 
     private static final class GradientRoot extends JPanel {
@@ -1054,7 +1168,7 @@ public class CustomerDashboard extends JFrame {
             int ih = (int) Math.round(img.getHeight() * s);
 
             int ix = x + (w - iw) / 2;
-            int iy = y + (h - ih) / 2;
+            int iy = cover && ih > h ? y : y + (h - ih) / 2;
 
             g.drawImage(img, ix, iy, iw, ih, null);
         }
