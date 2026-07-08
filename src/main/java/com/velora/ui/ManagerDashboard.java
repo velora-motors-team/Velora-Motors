@@ -134,84 +134,31 @@ public final class ManagerDashboard extends JFrame {
         refreshAllData();
     }
 
-    private JComponent buildInterface() {
-        root.setLayout(new BorderLayout());
+   private JComponent buildInterface() {
+    root.setLayout(new BorderLayout());
 
-        sidebar = createSidebar();
-        root.add(sidebar, BorderLayout.WEST);
+    sidebar = createSidebar();
+    root.add(sidebar, BorderLayout.WEST);
 
-        JPanel workspace = new JPanel(new BorderLayout());
-        workspace.setOpaque(false);
-        workspace.add(createTopBar(), BorderLayout.NORTH);
+    JPanel workspace = new JPanel(new BorderLayout());
+    workspace.setOpaque(false);
+    workspace.add(createTopBar(), BorderLayout.NORTH);
 
-        contentCards.setOpaque(false);
-        contentCards.add(createDashboardPage(), "Dashboard");
-        contentCards.add(createVehiclesPage(), "Vehicles");
-        contentCards.add(createOperationalPage(
-                "Rentals",
-                "Manage reservations, active rentals and returns.",
-                new String[][]{
-                        {"15", "Total Rentals"},
-                        {"8", "Active Now"},
-                        {"7", "Returned Today"}
-                },
-                new String[]{
-                        "BMW X7 • John Doe • Active until 08 Jul",
-                        "BMW 430i • Sarah Johnson • Returned 15 min ago",
-                        "BMW M5 • Omar Ali • Pickup scheduled at 18:30"
-                },
-                "NEW RENTAL"
-        ), "Rentals");
-        contentCards.add(createCustomersPage(), "Customers");
-        contentCards.add(createOperationalPage(
-                "Billing",
-                "Invoices, payments and transaction monitoring.",
-                new String[][]{
-                        {"$18.4K", "Monthly Revenue"},
-                        {"27", "Paid Invoices"},
-                        {"3", "Pending"}
-                },
-                new String[]{
-                        "Invoice #V-1042 • BMW X7 • $840 • Paid",
-                        "Invoice #V-1041 • BMW M5 • $1,120 • Paid",
-                        "Invoice #V-1040 • BMW 430i • $630 • Pending"
-                },
-                "CREATE INVOICE"
-        ), "Billing");
-        contentCards.add(new RentalReturnPanel(manager), "Rentals");
-        contentCards.add(createOperationalPage(
-                "Customers",
-                "View registered customers and account activity.",
-                new String[][]{
-                        {String.valueOf(customerCount()), "Registered"},
-                        {"8", "New This Month"},
-                        {"4.9", "Average Rating"}
-                },
-                customerActivity(),
-                "ADD CUSTOMER"
-        ), "Customers");
-        contentCards.add(new BillingPanel(manager), "Billing");
-        contentCards.add(createOperationalPage(
-                "Maintenance",
-                "Schedule service and track fleet health.",
-                new String[][]{
-                        {"4", "Due Soon"},
-                        {"1", "In Service"},
-                        {"96%", "Fleet Health"}
-                },
-                new String[]{
-                        "BMW M5 • Oil service • Today 14:00",
-                        "Ford Transit • Brake inspection • In service",
-                        "BMW i8 • Battery diagnostic • 08 Jul"
-                },
-                "SCHEDULE SERVICE"
-        ), "Maintenance");
-        contentCards.add(createAnalyticsPage(), "Analytics");
+    contentCards.setOpaque(false);
 
-        workspace.add(contentCards, BorderLayout.CENTER);
-        root.add(workspace, BorderLayout.CENTER);
-        return root;
-    }
+    contentCards.add(createDashboardPage(), "Dashboard");
+    contentCards.add(createVehiclesPage(), "Vehicles");
+    contentCards.add(new RentalReturnPanel(manager), "Rentals");
+    contentCards.add(createCustomersPage(), "Customers");
+    contentCards.add(new BillingPanel(manager), "Billing");
+    contentCards.add(new MaintenancePanel(manager), "Maintenance");
+    contentCards.add(createAnalyticsPage(), "Analytics");
+
+    workspace.add(contentCards, BorderLayout.CENTER);
+    root.add(workspace, BorderLayout.CENTER);
+
+    return root;
+}
 
     private JPanel createSidebar() {
         JPanel panel = new JPanel(new BorderLayout());
@@ -267,27 +214,19 @@ public final class ManagerDashboard extends JFrame {
             top.add(Box.createVerticalStrut(4));
         }
 
-        JPanel sidebarBottom = new JPanel();
-        sidebarBottom.setOpaque(false);
-        sidebarBottom.setLayout(new BoxLayout(sidebarBottom, BoxLayout.Y_AXIS));
-
-        SidebarCarPanel sidebarCar = new SidebarCarPanel();
-        sidebarCar.setAlignmentX(Component.CENTER_ALIGNMENT);
-        sidebarCar.setPreferredSize(new Dimension(198, 165));
-        sidebarCar.setMaximumSize(new Dimension(198, 165));
-        sidebarBottom.add(sidebarCar);
-        sidebarBottom.add(Box.createVerticalStrut(12));
+        
 
         GoldOutlineButton logout = new GoldOutlineButton("LOGOUT");
-        logout.setAlignmentX(Component.CENTER_ALIGNMENT);
-        logout.setPreferredSize(new Dimension(198, 45));
-        logout.setMaximumSize(new Dimension(198, 45));
-        logout.addActionListener(e -> handleLogout());
-        sidebarBottom.add(logout);
+logout.setAlignmentX(Component.CENTER_ALIGNMENT);
+logout.setMaximumSize(new Dimension(198, 45));
+logout.setPreferredSize(new Dimension(198, 45));
+logout.addActionListener(e -> handleLogout());
 
-        shell.add(top, BorderLayout.NORTH);
-        shell.add(sidebarBottom, BorderLayout.SOUTH);
-        panel.add(shell, BorderLayout.CENTER);
+top.add(Box.createVerticalStrut(14));
+top.add(logout);
+
+shell.add(top, BorderLayout.NORTH);
+panel.add(shell, BorderLayout.CENTER);
 
         SwingUtilities.invokeLater(() -> setActiveMenu("Dashboard"));
         return panel;
