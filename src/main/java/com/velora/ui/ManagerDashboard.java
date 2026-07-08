@@ -129,21 +129,7 @@ public final class ManagerDashboard extends JFrame {
         contentCards.setOpaque(false);
         contentCards.add(createDashboardPage(), "Dashboard");
         contentCards.add(createVehiclesPage(), "Vehicles");
-        contentCards.add(createOperationalPage(
-                "Rentals",
-                "Manage reservations, active rentals and returns.",
-                new String[][]{
-                        {"15", "Total Rentals"},
-                        {"8", "Active Now"},
-                        {"7", "Returned Today"}
-                },
-                new String[]{
-                        "BMW X7 • John Doe • Active until 08 Jul",
-                        "BMW 430i • Sarah Johnson • Returned 15 min ago",
-                        "BMW M5 • Omar Ali • Pickup scheduled at 18:30"
-                },
-                "NEW RENTAL"
-        ), "Rentals");
+        contentCards.add(new RentalReturnPanel(manager), "Rentals");
         contentCards.add(createOperationalPage(
                 "Customers",
                 "View registered customers and account activity.",
@@ -155,21 +141,7 @@ public final class ManagerDashboard extends JFrame {
                 customerActivity(),
                 "ADD CUSTOMER"
         ), "Customers");
-        contentCards.add(createOperationalPage(
-                "Billing",
-                "Invoices, payments and transaction monitoring.",
-                new String[][]{
-                        {"$18.4K", "Monthly Revenue"},
-                        {"27", "Paid Invoices"},
-                        {"3", "Pending"}
-                },
-                new String[]{
-                        "Invoice #V-1042 • BMW X7 • $840 • Paid",
-                        "Invoice #V-1041 • BMW M5 • $1,120 • Paid",
-                        "Invoice #V-1040 • BMW 430i • $630 • Pending"
-                },
-                "CREATE INVOICE"
-        ), "Billing");
+        contentCards.add(new BillingPanel(manager), "Billing");
         contentCards.add(createOperationalPage(
                 "Maintenance",
                 "Schedule service and track fleet health.",
@@ -666,32 +638,9 @@ public final class ManagerDashboard extends JFrame {
         return page;
     }
 
-    private JComponent createAnalyticsPage() {
-        JPanel page = new JPanel(new BorderLayout(0, 16));
-        page.setOpaque(false);
-        page.setBorder(new EmptyBorder(8, 12, 24, 22));
-
-        JPanel heading = new JPanel(new BorderLayout());
-        heading.setOpaque(false);
-        heading.add(sectionHeading(
-                "Analytics",
-                "Fleet performance, revenue and customer insights."
-        ), BorderLayout.WEST);
-        heading.add(actionButton("REFRESH REPORT", e -> {
-            refreshAllData();
-            showInfo("Analytics", "Dashboard statistics have been refreshed.");
-        }), BorderLayout.EAST);
-        page.add(heading, BorderLayout.NORTH);
-
-        JPanel center = new JPanel(new GridLayout(2, 2, 14, 14));
-        center.setOpaque(false);
-        center.add(createLargeMetricCard(String.valueOf(vehicleService.getAllVehicles().size()), "Total Fleet"));
-        center.add(createLargeMetricCard(String.valueOf(vehicleService.countAvailableVehicles()), "Available Now"));
-        center.add(createLargeMetricCard("$18,420", "Monthly Revenue"));
-        center.add(createLargeMetricCard("4.9 / 5", "Customer Rating"));
-        page.add(center, BorderLayout.CENTER);
-        return page;
-    }
+   private JComponent createAnalyticsPage() {
+    return new AnalyticsPanel(vehicleService, authenticationService);
+}
 
     private JComponent sectionHeading(String title, String description) {
         JPanel panel = new JPanel();

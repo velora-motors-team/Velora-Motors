@@ -1,0 +1,16 @@
+VELORA MOTORS - INVOICE
+========================
+
+Invoice ID: INV-1006
+Customer: Olivia Martinez
+Vehicle: Audi R8
+Rental Period: 02 Jul 2026 10:00 AM -> 09 Jul 2026 10:00 AM
+Rental Days: 7
+
+Base Rental: $2,800.00
+Late Fee: $150.00
+Tax (5%): $147.50
+Total Amount: $3,097.50
+
+Status: Pending
+Payment Method: Card

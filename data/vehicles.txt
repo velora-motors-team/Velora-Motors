@@ -1,0 +1,7 @@
+# ID|Brand|Model|Type|Status|DailyPrice|Battery|Feature1|Feature2|ImagePath
+V001|BMW|X7 xDrive40i|CAR|AVAILABLE|95|N/A|7 Seats|3.0L Turbo|data/vehicle-images/bmw_x7.png
+V002|Toyota|Prius|HYBRID_CAR|AVAILABLE|45|N/A|5 Seats|4.4 L/100km|data/vehicle-images/toyota_prius.png
+V003|BMW|i7 M70|ELECTRIC_VEHICLE|AVAILABLE|120|100|5 Seats|Electric AWD|data/vehicle-images/bmw_i7.png
+V004|Xiaomi|Electric Bike Pro|ELECTRIC_BIKE|AVAILABLE|18|70|45 km Range|25 km/h|data/vehicle-images/electric_bike.png
+V005|Yamaha|MT-07|MOTORCYCLE|AVAILABLE|42|N/A|689cc|73 HP|data/vehicle-images/yamaha_mt07.png
+V006|Tesla|Model 3|ELECTRIC_VEHICLE|MAINTENANCE|85|50|5 Seats|491 km Range|data/vehicle-images/tesla_model3.png

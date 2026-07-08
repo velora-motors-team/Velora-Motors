@@ -1,0 +1,16 @@
+VELORA MOTORS - INVOICE
+========================
+
+Invoice ID: INV-1001
+Customer: Noah Anderson
+Vehicle: Toyota Land Cruiser
+Rental Period: 01 Jul 2026 10:00 AM -> 06 Jul 2026 10:00 AM
+Rental Days: 5
+
+Base Rental: $1,750.00
+Late Fee: $0.00
+Tax (5%): $87.50
+Total Amount: $1,837.50
+
+Status: Paid
+Payment Method: Card
