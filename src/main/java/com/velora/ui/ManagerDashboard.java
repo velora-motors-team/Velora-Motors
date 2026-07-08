@@ -67,7 +67,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
-
+import javax.swing.JViewport;
 public final class ManagerDashboard extends JFrame {
 
     private static final Color BACKGROUND = new Color(2, 7, 12);
@@ -147,12 +147,12 @@ public final class ManagerDashboard extends JFrame {
     contentCards.setOpaque(false);
 
     contentCards.add(createDashboardPage(), "Dashboard");
-    contentCards.add(createVehiclesPage(), "Vehicles");
-    contentCards.add(new RentalReturnPanel(manager), "Rentals");
-    contentCards.add(createCustomersPage(), "Customers");
-    contentCards.add(new BillingPanel(manager), "Billing");
-    contentCards.add(new MaintenancePanel(manager), "Maintenance");
-    contentCards.add(createAnalyticsPage(), "Analytics");
+    contentCards.add(wrapPage(createVehiclesPage()), "Vehicles");
+    contentCards.add(wrapPage(new RentalReturnPanel(manager)), "Rentals");
+    contentCards.add(wrapPage(createCustomersPage()), "Customers");
+    contentCards.add(wrapPage(new BillingPanel(manager)), "Billing");
+    contentCards.add(wrapPage(new MaintenancePanel(manager)), "Maintenance");
+    contentCards.add(wrapPage(createAnalyticsPage()), "Analytics");
 
     workspace.add(contentCards, BorderLayout.CENTER);
     root.add(workspace, BorderLayout.CENTER);
@@ -385,8 +385,8 @@ panel.add(shell, BorderLayout.CENTER);
 
         HeroPanel hero = new HeroPanel(manager.getFullName());
         hero.setAlignmentX(Component.LEFT_ALIGNMENT);
-        hero.setPreferredSize(new Dimension(1200, 320));
-        hero.setMaximumSize(new Dimension(Integer.MAX_VALUE, 320));
+        hero.setPreferredSize(new Dimension(1200, 360));
+hero.setMaximumSize(new Dimension(Integer.MAX_VALUE, 360));
         hero.getStatisticsButton().addActionListener(e -> showSection("Analytics"));
         page.add(hero);
         page.add(Box.createVerticalStrut(9));
@@ -406,8 +406,8 @@ panel.add(shell, BorderLayout.CENTER);
         JPanel navigationBand = new JPanel(new BorderLayout(13, 0));
         navigationBand.setOpaque(false);
         navigationBand.setAlignmentX(Component.LEFT_ALIGNMENT);
-        navigationBand.setMaximumSize(new Dimension(Integer.MAX_VALUE, 190));
-        navigationBand.setPreferredSize(new Dimension(1100, 190));
+        navigationBand.setMaximumSize(new Dimension(Integer.MAX_VALUE, 215));
+navigationBand.setPreferredSize(new Dimension(1100, 215));
 
         JPanel quickGrid = new JPanel(new GridLayout(2, 4, 11, 11));
         quickGrid.setOpaque(false);
@@ -431,14 +431,17 @@ panel.add(shell, BorderLayout.CENTER);
         JPanel overview = new JPanel(new GridLayout(1, 3, 12, 0));
         overview.setOpaque(false);
         overview.setAlignmentX(Component.LEFT_ALIGNMENT);
-        overview.setMaximumSize(new Dimension(Integer.MAX_VALUE, 165));
-        overview.setPreferredSize(new Dimension(1100, 165));
+        overview.setMaximumSize(new Dimension(Integer.MAX_VALUE, 205));
+overview.setPreferredSize(new Dimension(1100, 205));
         overview.add(createOverviewCard());
         overview.add(createActivityCard());
         overview.add(createOfferCard());
         page.add(overview);
-        page.add(Box.createVerticalStrut(9));
-        page.add(createDashboardFooter());
+page.add(Box.createVerticalGlue());
+
+JComponent footer = createDashboardFooter();
+footer.setAlignmentX(Component.LEFT_ALIGNMENT);
+page.add(footer);
 
         JScrollPane scroll = new JScrollPane(page);
         scroll.setBorder(BorderFactory.createEmptyBorder());
@@ -2303,9 +2306,12 @@ panel.add(shell, BorderLayout.CENTER);
         }
 
         @Override
-        public boolean getScrollableTracksViewportHeight() {
-            return false;
-        }
+public boolean getScrollableTracksViewportHeight() {
+    if (getParent() instanceof JViewport viewport) {
+        return viewport.getHeight() > getPreferredSize().height;
+    }
+    return false;
+}
     }
 
     private static final class DarkScrollBarUI extends BasicScrollBarUI {
@@ -3580,4 +3586,15 @@ panel.add(shell, BorderLayout.CENTER);
             farewellScreen.setVisible(true);
         }
     }
+    
+    private JScrollPane wrapPage(JComponent page) {
+    JScrollPane scroll = new JScrollPane(page);
+    scroll.setBorder(BorderFactory.createEmptyBorder());
+    scroll.setOpaque(false);
+    scroll.getViewport().setOpaque(false);
+    scroll.getVerticalScrollBar().setUnitIncrement(18);
+    scroll.getHorizontalScrollBar().setUnitIncrement(18);
+    scroll.getVerticalScrollBar().setUI(new DarkScrollBarUI());
+    return scroll;
+}
 }
