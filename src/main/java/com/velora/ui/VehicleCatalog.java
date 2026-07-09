@@ -2,6 +2,8 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
+import com.velora.service.VehicleService;
+import com.velora.vehicle.Vehicle;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -14,7 +16,6 @@ import java.awt.event.MouseEvent;
 import java.awt.geom.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.ArrayList;
 import java.util.Locale;
@@ -31,12 +32,10 @@ public class VehicleCatalog extends JFrame {
     private static final Color GREEN = new Color(67, 210, 103);
     private static final Color LINE = new Color(214, 168, 91, 75);
 
-    private static final Path DATA_FILE = Paths.get("data", "vehicles.txt");
-    private static final Path IMAGE_DIR = Paths.get("data", "vehicle-images");
-
     private static final int PAGE_SIZE = 8;
 
     private final Customer customer;
+    private final VehicleService vehicleService = new VehicleService();
     private final ArrayList<VehicleItem> allVehicles = new ArrayList<>();
     private final ArrayList<VehicleItem> filteredVehicles = new ArrayList<>();
     private final JPanel cardsGrid = new JPanel();
@@ -55,8 +54,7 @@ public class VehicleCatalog extends JFrame {
         super("Velora Motors - Vehicle Collection");
         this.customer = customer;
 
-        ensureDemoFile();
-        allVehicles.addAll(readVehiclesFromFile());
+        allVehicles.addAll(readVehiclesFromFleet());
 
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         setMinimumSize(new Dimension(1180, 720));
@@ -497,79 +495,23 @@ public class VehicleCatalog extends JFrame {
         );
     }
 
-    private ArrayList<VehicleItem> readVehiclesFromFile() {
+    private ArrayList<VehicleItem> readVehiclesFromFleet() {
         ArrayList<VehicleItem> list = new ArrayList<>();
-
-        if (!Files.exists(DATA_FILE)) {
-            return list;
+        for (Vehicle vehicle : vehicleService.getAllVehicles()) {
+            list.add(new VehicleItem(
+                    vehicle.getId(),
+                    vehicle.getBrand(),
+                    vehicle.getModel(),
+                    vehicle.getType().name(),
+                    vehicle.getStatus().name(),
+                    vehicle.getDailyPrice(),
+                    vehicle.getBatteryLevel() == null ? "N/A" : vehicle.getBatteryLevel() + "%",
+                    FleetUiData.color(vehicle),
+                    FleetUiData.plate(vehicle),
+                    FleetUiData.imagePath(vehicle)
+            ));
         }
-
-        try {
-            java.util.List<String> lines = Files.readAllLines(DATA_FILE, StandardCharsets.UTF_8);
-
-            for (String line : lines) {
-                if (line == null || line.trim().isEmpty() || line.trim().startsWith("#")) {
-                    continue;
-                }
-
-                String[] p = line.split("\\|", -1);
-
-                if (p.length < 10) {
-                    continue;
-                }
-
-                list.add(new VehicleItem(
-                        p[0].trim(),
-                        p[1].trim(),
-                        p[2].trim(),
-                        p[3].trim(),
-                        p[4].trim(),
-                        parseDouble(p[5]),
-                        p[6].trim(),
-                        p[7].trim(),
-                        p[8].trim(),
-                        p[9].trim()
-                ));
-            }
-
-        } catch (IOException ex) {
-            JOptionPane.showMessageDialog(this, "Could not read vehicles.txt:\\n" + ex.getMessage());
-        }
-
         return list;
-    }
-
-    private void ensureDemoFile() {
-        try {
-            Files.createDirectories(IMAGE_DIR);
-
-            if (Files.exists(DATA_FILE)) {
-                return;
-            }
-
-            Files.createDirectories(DATA_FILE.getParent());
-
-            ArrayList<String> demo = new ArrayList<>();
-            demo.add("# ID|Brand|Model|Type|Status|DailyPrice|Battery|Feature1|Feature2|ImagePath");
-            demo.add("V001|BMW|X7 xDrive40i|CAR|AVAILABLE|95|N/A|7 Seats|3.0L Turbo|data/vehicle-images/bmw_x7.png");
-            demo.add("V002|Toyota|Prius|HYBRID_CAR|AVAILABLE|45|N/A|5 Seats|4.4 L/100km|data/vehicle-images/toyota_prius.png");
-            demo.add("V003|BMW|i7 M70|ELECTRIC_VEHICLE|AVAILABLE|120|100|5 Seats|Electric AWD|data/vehicle-images/bmw_i7.png");
-            demo.add("V004|Xiaomi|Electric Bike Pro|ELECTRIC_BIKE|AVAILABLE|18|70|45 km Range|25 km/h|data/vehicle-images/electric_bike.png");
-            demo.add("V005|Yamaha|MT-07|MOTORCYCLE|AVAILABLE|42|N/A|689cc|73 HP|data/vehicle-images/yamaha_mt07.png");
-            demo.add("V006|Tesla|Model 3|ELECTRIC_VEHICLE|MAINTENANCE|85|50|5 Seats|491 km Range|data/vehicle-images/tesla_model3.png");
-
-            Files.write(DATA_FILE, demo, StandardCharsets.UTF_8, StandardOpenOption.CREATE_NEW);
-
-        } catch (IOException ignored) {
-        }
-    }
-
-    private static double parseDouble(String s) {
-        try {
-            return Double.parseDouble(s.trim());
-        } catch (Exception ex) {
-            return 0.0;
-        }
     }
 
     private static String prettyType(String type) {

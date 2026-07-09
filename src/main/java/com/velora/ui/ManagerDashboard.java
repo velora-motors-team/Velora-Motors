@@ -93,9 +93,18 @@ public final class ManagerDashboard extends JFrame {
 
     private JPanel sidebar;
     private JTextField searchField;
+    private JTextField vehiclePageSearchField;
+    private JComboBox<String> vehicleCategoryFilter;
+    private JComboBox<String> vehicleStatusFilter;
     private DefaultTableModel vehicleModel;
     private JTable vehicleTable;
     private TableRowSorter<DefaultTableModel> vehicleSorter;
+    private JPanel vehicleDetailsHost;
+    private JLabel vehicleFleetMetric;
+    private JLabel vehicleAvailableMetric;
+    private JLabel vehicleRentedMetric;
+    private JLabel vehicleMaintenanceMetric;
+    private JLabel vehicleShowingLabel;
     private JLabel fleetMetric;
     private JLabel availableMetric;
     private JLabel customerMetric;
@@ -156,6 +165,7 @@ public final class ManagerDashboard extends JFrame {
 
     workspace.add(contentCards, BorderLayout.CENTER);
     root.add(workspace, BorderLayout.CENTER);
+    root.add(new AdminFooter(), BorderLayout.SOUTH);
 
     return root;
 }
@@ -316,7 +326,7 @@ panel.add(shell, BorderLayout.CENTER);
         notifications.setToolTipText("Notifications");
         notifications.addActionListener(e -> showInfo(
                 "Notifications",
-                "4 new notifications:\n• New rental created\n• BMW M5 maintenance due\n"
+                "4 new notifications:\n• New rental created\n• " + fleetName(13) + " maintenance due\n"
                 + "• New customer registered\n• Monthly report is ready"
         ));
 
@@ -431,17 +441,13 @@ navigationBand.setPreferredSize(new Dimension(1100, 215));
         JPanel overview = new JPanel(new GridLayout(1, 3, 12, 0));
         overview.setOpaque(false);
         overview.setAlignmentX(Component.LEFT_ALIGNMENT);
-        overview.setMaximumSize(new Dimension(Integer.MAX_VALUE, 205));
-overview.setPreferredSize(new Dimension(1100, 205));
+        overview.setMaximumSize(new Dimension(Integer.MAX_VALUE, 330));
+        overview.setPreferredSize(new Dimension(1100, 330));
         overview.add(createOverviewCard());
         overview.add(createActivityCard());
         overview.add(createOfferCard());
         page.add(overview);
 page.add(Box.createVerticalGlue());
-
-JComponent footer = createDashboardFooter();
-footer.setAlignmentX(Component.LEFT_ALIGNMENT);
-page.add(footer);
 
         JScrollPane scroll = new JScrollPane(page);
         scroll.setBorder(BorderFactory.createEmptyBorder());
@@ -538,12 +544,20 @@ page.add(footer);
 
         JPanel rows = new JPanel(new GridLayout(4, 1, 0, 4));
         rows.setOpaque(false);
-        rows.add(new ActivityRow("New rental created for BMW X7", "by John Doe", "2 min ago", "CAL"));
-        rows.add(new ActivityRow("Vehicle returned: BMW 430i", "by Sarah Johnson", "15 min ago", "CAR"));
-        rows.add(new ActivityRow("Maintenance scheduled for BMW M5", "Oil Change", "1 hour ago", "TOOLS"));
+        rows.add(new ActivityRow("New rental created for " + fleetName(0), "by John Doe", "2 min ago", "CAL"));
+        rows.add(new ActivityRow("Vehicle returned: " + fleetName(7), "by Sarah Johnson", "15 min ago", "CAR"));
+        rows.add(new ActivityRow("Maintenance scheduled for " + fleetName(13), "Oil Change", "1 hour ago", "TOOLS"));
         rows.add(new ActivityRow("New customer registered", "Michael Brown", "2 hours ago", "USERS"));
         card.add(rows, BorderLayout.CENTER);
         return card;
+    }
+
+    private String fleetName(int index) {
+        List<Vehicle> vehicles = vehicleService.getAllVehicles();
+        if (vehicles.isEmpty()) {
+            return "BMW Vehicle";
+        }
+        return FleetUiData.displayName(vehicles.get(Math.min(Math.max(index, 0), vehicles.size() - 1)));
     }
 
     private JComponent createOfferCard() {
@@ -556,35 +570,57 @@ page.add(footer);
     }
 
     private JComponent createVehiclesPage() {
-        JPanel page = new JPanel(new BorderLayout(0, 14));
+        JPanel page = new JPanel(new BorderLayout(0, 13));
         page.setOpaque(false);
-        page.setBorder(new EmptyBorder(8, 12, 24, 22));
+        page.setBorder(new EmptyBorder(8, 12, 14, 18));
+
+        JPanel top = new JPanel();
+        top.setOpaque(false);
+        top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
 
         JPanel heading = new JPanel(new BorderLayout());
         heading.setOpaque(false);
+        heading.setAlignmentX(Component.LEFT_ALIGNMENT);
         heading.add(sectionHeading(
-                "Vehicles",
-                "Manage the complete Velora fleet and vehicle availability."
+                "Vehicles Dashboard",
+                "Manage your fleet and vehicle inventory."
         ), BorderLayout.WEST);
+        JButton addVehicle = actionButton("+  Add Vehicle", e -> addVehicle());
+        addVehicle.setPreferredSize(new Dimension(148, 40));
+        heading.add(addVehicle, BorderLayout.EAST);
+        top.add(heading);
+        top.add(Box.createVerticalStrut(13));
 
-        JPanel actions = transparentFlow(FlowLayout.RIGHT);
-        actions.add(actionButton("ADD VEHICLE", e -> addVehicle()));
-        actions.add(actionButton("EDIT", e -> editSelectedVehicle()));
-        actions.add(actionButton("STATUS", e -> changeSelectedStatus()));
-        actions.add(actionButton("BATTERY", e -> setSelectedBattery()));
-        GoldOutlineButton delete = new GoldOutlineButton("DELETE");
-        delete.setForeground(RED);
-        delete.addActionListener(e -> deleteSelectedVehicle());
-        actions.add(delete);
-        heading.add(actions, BorderLayout.EAST);
-        page.add(heading, BorderLayout.NORTH);
+        JPanel metricRow = new JPanel(new GridLayout(1, 4, 12, 0));
+        metricRow.setOpaque(false);
+        metricRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        metricRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 102));
+        metricRow.setPreferredSize(new Dimension(980, 102));
 
-        RoundedPanel tableCard = cardPanel();
+        vehicleFleetMetric = label("0", 24, Font.BOLD, TEXT);
+        vehicleAvailableMetric = label("0", 24, Font.BOLD, TEXT);
+        vehicleRentedMetric = label("0", 24, Font.BOLD, TEXT);
+        vehicleMaintenanceMetric = label("0", 24, Font.BOLD, TEXT);
+        metricRow.add(createVehicleMetricCard("TOTAL FLEET", vehicleFleetMetric, "All vehicles in your fleet", "CAR"));
+        metricRow.add(createVehicleMetricCard("AVAILABLE VEHICLES", vehicleAvailableMetric, "Ready for rent", "CHECK"));
+        metricRow.add(createVehicleMetricCard("RENTED VEHICLES", vehicleRentedMetric, "Currently rented", "KEY"));
+        metricRow.add(createVehicleMetricCard("IN MAINTENANCE", vehicleMaintenanceMetric, "Under maintenance", "TOOLS"));
+        top.add(metricRow);
+        page.add(top, BorderLayout.NORTH);
+
+        JPanel content = new JPanel(new BorderLayout(13, 0));
+        content.setOpaque(false);
+
+        JPanel left = new JPanel(new BorderLayout(0, 12));
+        left.setOpaque(false);
+        left.add(createVehicleFilters(), BorderLayout.NORTH);
+
+        RoundedPanel tableCard = new RoundedPanel(14, new Color(4, 10, 16, 238));
         tableCard.setLayout(new BorderLayout());
-        tableCard.setBorder(new EmptyBorder(14, 14, 14, 14));
+        tableCard.setBorder(new EmptyBorder(0, 0, 0, 0));
 
         vehicleModel = new DefaultTableModel(
-                new String[]{"ID", "Brand", "Model", "Type", "Status", "Daily Price", "Battery"},
+                new String[]{"VEHICLE ID", "", "MODEL", "CATEGORY", "YEAR", "DAILY RATE", "STATUS", "FUEL / TRANS", "ACTIONS"},
                 0
         ) {
             @Override
@@ -594,16 +630,374 @@ page.add(footer);
         };
 
         vehicleTable = new JTable(vehicleModel);
-        configureTable(vehicleTable);
+        configureVehicleDashboardTable(vehicleTable);
         vehicleSorter = new TableRowSorter<>(vehicleModel);
         vehicleTable.setRowSorter(vehicleSorter);
+        vehicleTable.getSelectionModel().addListSelectionListener(event -> {
+            if (!event.getValueIsAdjusting()) {
+                updateVehicleDetails();
+            }
+        });
 
         JScrollPane tableScroll = new JScrollPane(vehicleTable);
-        tableScroll.setBorder(BorderFactory.createLineBorder(new Color(214, 160, 66, 48)));
+        tableScroll.setBorder(BorderFactory.createEmptyBorder());
+        tableScroll.setOpaque(false);
         tableScroll.getViewport().setBackground(new Color(4, 10, 16));
+        tableScroll.getVerticalScrollBar().setPreferredSize(new Dimension(7, 0));
+        tableScroll.getVerticalScrollBar().setUI(new DarkScrollBarUI());
         tableCard.add(tableScroll, BorderLayout.CENTER);
-        page.add(tableCard, BorderLayout.CENTER);
+
+        JPanel pager = new JPanel(new BorderLayout());
+        pager.setOpaque(false);
+        pager.setBorder(new EmptyBorder(10, 16, 12, 16));
+        vehicleShowingLabel = label("Showing 0 vehicles", 11, Font.PLAIN, MUTED);
+        pager.add(vehicleShowingLabel, BorderLayout.WEST);
+        JPanel pages = transparentFlow(FlowLayout.RIGHT);
+        pages.add(new GoldOutlineButton("1"));
+        pages.add(label("2", 11, Font.PLAIN, MUTED));
+        pages.add(label("3", 11, Font.PLAIN, MUTED));
+        pages.add(label("...", 11, Font.PLAIN, MUTED));
+        pages.add(label("6", 11, Font.PLAIN, MUTED));
+        pager.add(pages, BorderLayout.EAST);
+        tableCard.add(pager, BorderLayout.SOUTH);
+
+        left.add(tableCard, BorderLayout.CENTER);
+        content.add(left, BorderLayout.CENTER);
+
+        vehicleDetailsHost = new JPanel(new BorderLayout());
+        vehicleDetailsHost.setOpaque(false);
+        vehicleDetailsHost.setPreferredSize(new Dimension(360, 620));
+        content.add(vehicleDetailsHost, BorderLayout.EAST);
+
+        page.add(content, BorderLayout.CENTER);
+        loadVehicleTable();
         return page;
+    }
+
+    private JComponent createVehicleFilters() {
+        RoundedPanel filters = new RoundedPanel(14, new Color(4, 10, 16, 238));
+        filters.setLayout(new BorderLayout(12, 0));
+        filters.setBorder(new EmptyBorder(12, 14, 12, 14));
+        filters.setPreferredSize(new Dimension(900, 62));
+
+        vehiclePageSearchField = new VehicleSearchBox("Search by model, plate, VIN...");
+        vehiclePageSearchField.setPreferredSize(new Dimension(315, 38));
+        vehiclePageSearchField.addKeyListener(new java.awt.event.KeyAdapter() {
+            @Override
+            public void keyReleased(java.awt.event.KeyEvent e) {
+                applyVehicleFilters();
+            }
+        });
+
+        vehicleCategoryFilter = vehicleFilterCombo(
+                "All Categories",
+                "Car",
+                "SUV",
+                "Electric",
+                "Hybrid",
+                "Motorcycle",
+                "Truck"
+        );
+        vehicleStatusFilter = vehicleFilterCombo("All Statuses", "Available", "Rented", "Maintenance");
+
+        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
+        left.setOpaque(false);
+        left.add(vehiclePageSearchField);
+        left.add(vehicleCategoryFilter);
+        left.add(vehicleStatusFilter);
+
+        JButton add = actionButton("+  Add Vehicle", e -> addVehicle());
+        add.setPreferredSize(new Dimension(134, 38));
+
+        filters.add(left, BorderLayout.CENTER);
+        filters.add(add, BorderLayout.EAST);
+        return filters;
+    }
+
+    private JComboBox<String> vehicleFilterCombo(String... items) {
+        JComboBox<String> combo = new JComboBox<>(items);
+        combo.setPreferredSize(new Dimension(180, 38));
+        combo.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        combo.setForeground(TEXT);
+        combo.setBackground(new Color(4, 10, 16));
+        combo.setFocusable(false);
+        combo.addActionListener(e -> applyVehicleFilters());
+        return combo;
+    }
+
+    private JComponent createVehicleMetricCard(String title, JLabel value, String sub, String icon) {
+        RoundedPanel card = new RoundedPanel(13, new Color(6, 12, 18, 238));
+        card.setLayout(new BorderLayout(14, 0));
+        card.setBorder(new EmptyBorder(16, 18, 15, 18));
+
+        VehicleMetricIcon badge = new VehicleMetricIcon(icon);
+        badge.setPreferredSize(new Dimension(54, 54));
+        card.add(badge, BorderLayout.WEST);
+
+        JPanel text = new JPanel();
+        text.setOpaque(false);
+        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+        text.add(Box.createVerticalGlue());
+        text.add(label(title, 10, Font.BOLD, new Color(204, 211, 220)));
+        text.add(Box.createVerticalStrut(6));
+        value.setForeground(TEXT);
+        text.add(value);
+        text.add(Box.createVerticalStrut(3));
+        text.add(label(sub, 10, Font.PLAIN, MUTED));
+        text.add(Box.createVerticalGlue());
+        card.add(text, BorderLayout.CENTER);
+        return card;
+    }
+
+    private void configureVehicleDashboardTable(JTable table) {
+        table.setRowHeight(60);
+        table.setShowVerticalLines(false);
+        table.setShowHorizontalLines(true);
+        table.setGridColor(new Color(255, 255, 255, 13));
+        table.setBackground(new Color(4, 10, 16));
+        table.setForeground(TEXT);
+        table.setSelectionBackground(new Color(114, 78, 28, 135));
+        table.setSelectionForeground(TEXT);
+        table.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        table.setFillsViewportHeight(true);
+        table.setIntercellSpacing(new Dimension(0, 0));
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+
+        JTableHeader header = table.getTableHeader();
+        header.setBackground(new Color(7, 14, 20));
+        header.setForeground(PALE);
+        header.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        header.setPreferredSize(new Dimension(100, 42));
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(214, 160, 66, 58)));
+
+        DefaultTableCellRenderer headerRenderer = new DefaultTableCellRenderer();
+        headerRenderer.setHorizontalAlignment(SwingConstants.LEFT);
+        headerRenderer.setBackground(new Color(7, 14, 20));
+        headerRenderer.setForeground(PALE);
+        headerRenderer.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        headerRenderer.setBorder(new EmptyBorder(0, 12, 0, 0));
+        header.setDefaultRenderer(headerRenderer);
+
+        VehicleCellRenderer renderer = new VehicleCellRenderer();
+        for (int i = 0; i < table.getColumnCount(); i++) {
+            table.getColumnModel().getColumn(i).setCellRenderer(renderer);
+        }
+        table.getColumnModel().getColumn(1).setCellRenderer(new VehicleThumbnailRenderer());
+        table.getColumnModel().getColumn(6).setCellRenderer(new VehicleStatusRenderer());
+        table.getColumnModel().getColumn(8).setCellRenderer(new VehicleActionsRenderer());
+
+        int[] widths = {86, 82, 170, 112, 72, 92, 126, 145, 92};
+        for (int i = 0; i < widths.length; i++) {
+            table.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
+        }
+    }
+
+    private void refreshVehicleDashboardStats() {
+        List<Vehicle> vehicles = vehicleService.getAllVehicles();
+        if (vehicleFleetMetric != null) {
+            vehicleFleetMetric.setText(formatNumber(vehicles.size()));
+            vehicleAvailableMetric.setText(formatNumber((int) vehicles.stream()
+                    .filter(v -> v.getStatus() == VehicleStatus.AVAILABLE)
+                    .count()));
+            vehicleRentedMetric.setText(formatNumber((int) vehicles.stream()
+                    .filter(v -> v.getStatus() == VehicleStatus.RENTED)
+                    .count()));
+            vehicleMaintenanceMetric.setText(formatNumber((int) vehicles.stream()
+                    .filter(v -> v.getStatus() == VehicleStatus.MAINTENANCE)
+                    .count()));
+        }
+        if (vehicleShowingLabel != null) {
+            int visible = vehicleTable == null ? vehicles.size() : vehicleTable.getRowCount();
+            vehicleShowingLabel.setText("Showing 1 to " + visible + " of "
+                    + formatNumber(vehicles.size()) + " vehicles");
+        }
+    }
+
+    private void applyVehicleFilters() {
+        if (vehicleSorter == null) {
+            return;
+        }
+
+        String globalQuery = currentSearchQuery();
+        String localQuery = vehiclePageSearchQuery();
+        String category = vehicleCategoryFilter == null ? "All Categories" : String.valueOf(vehicleCategoryFilter.getSelectedItem());
+        String status = vehicleStatusFilter == null ? "All Statuses" : String.valueOf(vehicleStatusFilter.getSelectedItem());
+
+        vehicleSorter.setRowFilter(new RowFilter<>() {
+            @Override
+            public boolean include(Entry<? extends DefaultTableModel, ? extends Integer> entry) {
+                Vehicle vehicle = vehicleById(String.valueOf(entry.getValue(0)));
+                if (vehicle == null) {
+                    return false;
+                }
+
+                String haystack = (vehicle.getId() + " " + vehicle.getDisplayName() + " "
+                        + vehicleCategoryLabel(vehicle) + " " + vehicleStatusLabel(vehicle.getStatus()) + " "
+                        + vehicleVin(vehicle)).toLowerCase(Locale.ROOT);
+                boolean matchesGlobal = globalQuery.isBlank()
+                        || haystack.contains(globalQuery.toLowerCase(Locale.ROOT));
+                boolean matchesLocal = localQuery.isBlank()
+                        || haystack.contains(localQuery.toLowerCase(Locale.ROOT));
+                boolean matchesCategory = "All Categories".equals(category)
+                        || vehicleCategoryLabel(vehicle).toLowerCase(Locale.ROOT)
+                        .contains(category.toLowerCase(Locale.ROOT));
+                boolean matchesStatus = "All Statuses".equals(status)
+                        || vehicleStatusLabel(vehicle.getStatus()).equals(status);
+                return matchesGlobal && matchesLocal && matchesCategory && matchesStatus;
+            }
+        });
+
+        if (vehicleTable != null && vehicleTable.getRowCount() > 0 && vehicleTable.getSelectedRow() < 0) {
+            vehicleTable.setRowSelectionInterval(0, 0);
+        }
+        refreshVehicleDashboardStats();
+        updateVehicleDetails();
+    }
+
+    private String vehiclePageSearchQuery() {
+        if (vehiclePageSearchField == null) {
+            return "";
+        }
+        String query = vehiclePageSearchField.getText().trim();
+        return "Search by model, plate, VIN...".equals(query) ? "" : query;
+    }
+
+    private void updateVehicleDetails() {
+        if (vehicleDetailsHost == null) {
+            return;
+        }
+        vehicleDetailsHost.removeAll();
+        vehicleDetailsHost.add(createVehicleDetailPanel(selectedVehicleSilently()), BorderLayout.CENTER);
+        vehicleDetailsHost.revalidate();
+        vehicleDetailsHost.repaint();
+    }
+
+    private JComponent createVehicleDetailPanel(Vehicle vehicle) {
+        RoundedPanel panel = new RoundedPanel(15, new Color(4, 10, 16, 242));
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setBorder(new EmptyBorder(17, 17, 16, 17));
+
+        JPanel titleRow = new JPanel(new BorderLayout());
+        titleRow.setOpaque(false);
+        titleRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        titleRow.add(label("SELECTED VEHICLE", 10, Font.BOLD, new Color(207, 214, 224)), BorderLayout.WEST);
+        titleRow.add(label("X", 17, Font.PLAIN, MUTED), BorderLayout.EAST);
+        panel.add(titleRow);
+        panel.add(Box.createVerticalStrut(16));
+
+        if (vehicle == null) {
+            JLabel empty = label("Select a vehicle to preview its profile.", 13, Font.PLAIN, MUTED);
+            empty.setAlignmentX(Component.LEFT_ALIGNMENT);
+            panel.add(empty);
+            return panel;
+        }
+
+        VehicleHeroPreview hero = new VehicleHeroPreview(vehicle);
+        hero.setAlignmentX(Component.LEFT_ALIGNMENT);
+        hero.setPreferredSize(new Dimension(326, 190));
+        hero.setMaximumSize(new Dimension(Integer.MAX_VALUE, 190));
+        panel.add(hero);
+        panel.add(Box.createVerticalStrut(15));
+
+        JPanel identity = new JPanel(new BorderLayout());
+        identity.setOpaque(false);
+        identity.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel name = label(vehicle.getDisplayName(), 20, Font.BOLD, TEXT);
+        identity.add(name, BorderLayout.WEST);
+        identity.add(new StatusPill(vehicleStatusLabel(vehicle.getStatus()), statusColor(vehicle.getStatus())),
+                BorderLayout.EAST);
+        panel.add(identity);
+        panel.add(Box.createVerticalStrut(11));
+
+        JPanel ids = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        ids.setOpaque(false);
+        ids.setAlignmentX(Component.LEFT_ALIGNMENT);
+        ids.add(new DetailChip(vehicle.getId()));
+        ids.add(label("VIN: " + vehicleVin(vehicle), 10, Font.PLAIN, MUTED));
+        panel.add(ids);
+        panel.add(Box.createVerticalStrut(16));
+
+        JPanel specs = new JPanel(new GridLayout(3, 3, 10, 12));
+        specs.setOpaque(false);
+        specs.setAlignmentX(Component.LEFT_ALIGNMENT);
+        specs.setMaximumSize(new Dimension(Integer.MAX_VALUE, 176));
+        specs.add(vehicleDetailItem("Category", vehicleCategoryLabel(vehicle), "CAR"));
+        specs.add(vehicleDetailItem("Year", String.valueOf(vehicleYear(vehicle)), "CAL"));
+        specs.add(vehicleDetailItem("Fuel Type", vehicleFuel(vehicle), "BILL"));
+        specs.add(vehicleDetailItem("Transmission", "Automatic", "TOOLS"));
+        specs.add(vehicleDetailItem("Engine", vehicleEngine(vehicle), "KEY"));
+        specs.add(vehicleDetailItem("Seating", vehicleSeats(vehicle), "USERS"));
+        specs.add(vehicleDetailItem("Mileage", vehicleMileage(vehicle), "CHART"));
+        specs.add(vehicleDetailItem("Color", vehicleColor(vehicle), "CHECK"));
+        specs.add(vehicleDetailItem("Drive", vehicleDrive(vehicle), "CAR"));
+        panel.add(specs);
+        panel.add(Box.createVerticalStrut(17));
+
+        RoundedPanel rate = new RoundedPanel(12, new Color(6, 13, 20, 232));
+        rate.setLayout(new GridLayout(1, 2, 0, 0));
+        rate.setBorder(new EmptyBorder(12, 14, 12, 14));
+        rate.setAlignmentX(Component.LEFT_ALIGNMENT);
+        rate.setMaximumSize(new Dimension(Integer.MAX_VALUE, 72));
+        rate.add(vehicleRateBlock("DAILY RATE", String.format(Locale.US, "$%.0f / day", vehicle.getDailyPrice())));
+        rate.add(vehicleRateBlock("AVAILABILITY", vehicle.getStatus() == VehicleStatus.AVAILABLE
+                ? "Available Now"
+                : vehicleStatusLabel(vehicle.getStatus())));
+        panel.add(rate);
+        panel.add(Box.createVerticalStrut(12));
+
+        JButton edit = actionButton("EDIT VEHICLE", e -> editSelectedVehicle());
+        edit.setAlignmentX(Component.LEFT_ALIGNMENT);
+        edit.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        panel.add(edit);
+        panel.add(Box.createVerticalStrut(9));
+
+        GoldOutlineButton status = new GoldOutlineButton("CHANGE STATUS");
+        status.setAlignmentX(Component.LEFT_ALIGNMENT);
+        status.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        status.addActionListener(e -> changeSelectedStatus());
+        panel.add(status);
+        panel.add(Box.createVerticalStrut(9));
+
+        JPanel bottomActions = new JPanel(new GridLayout(1, 2, 9, 0));
+        bottomActions.setOpaque(false);
+        bottomActions.setAlignmentX(Component.LEFT_ALIGNMENT);
+        bottomActions.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        GoldOutlineButton battery = new GoldOutlineButton("BATTERY");
+        battery.addActionListener(e -> setSelectedBattery());
+        GoldOutlineButton delete = new GoldOutlineButton("DELETE");
+        delete.setForeground(RED);
+        delete.addActionListener(e -> deleteSelectedVehicle());
+        bottomActions.add(battery);
+        bottomActions.add(delete);
+        panel.add(bottomActions);
+        return panel;
+    }
+
+    private JComponent vehicleDetailItem(String title, String value, String icon) {
+        JPanel item = new JPanel(new BorderLayout(8, 0));
+        item.setOpaque(false);
+        VehicleTinyIcon iconView = new VehicleTinyIcon(icon);
+        iconView.setPreferredSize(new Dimension(24, 30));
+        item.add(iconView, BorderLayout.WEST);
+
+        JPanel text = new JPanel();
+        text.setOpaque(false);
+        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+        text.add(label(title, 9, Font.PLAIN, MUTED));
+        text.add(Box.createVerticalStrut(2));
+        text.add(label(value, 11, Font.BOLD, TEXT));
+        item.add(text, BorderLayout.CENTER);
+        return item;
+    }
+
+    private JComponent vehicleRateBlock(String title, String value) {
+        JPanel block = new JPanel();
+        block.setOpaque(false);
+        block.setLayout(new BoxLayout(block, BoxLayout.Y_AXIS));
+        block.add(label(title, 10, Font.BOLD, MUTED));
+        block.add(Box.createVerticalStrut(5));
+        block.add(label(value, 15, Font.BOLD, TEXT));
+        return block;
     }
 
     private JComponent createCustomersPage() {
@@ -679,7 +1073,6 @@ page.add(footer);
         center.add(left, BorderLayout.CENTER);
         center.add(customerProfileHost, BorderLayout.EAST);
         page.add(center, BorderLayout.CENTER);
-        page.add(createDashboardFooter(), BorderLayout.SOUTH);
         loadCustomerTable();
         return page;
     }
@@ -1171,16 +1564,8 @@ page.add(footer);
     }
 
     private void searchVehicles() {
-        String query = currentSearchQuery();
         showSection("Vehicles");
-
-        if (query.isBlank()) {
-            vehicleSorter.setRowFilter(null);
-        } else {
-            vehicleSorter.setRowFilter(RowFilter.regexFilter(
-                    "(?i)" + Pattern.quote(query)
-            ));
-        }
+        applyVehicleFilters();
     }
 
     private void searchCurrentSection() {
@@ -1195,10 +1580,7 @@ page.add(footer);
         if ("Customers".equals(activeSection)) {
             searchCustomers();
         } else if ("Vehicles".equals(activeSection) && vehicleSorter != null) {
-            String query = currentSearchQuery();
-            vehicleSorter.setRowFilter(query.isBlank()
-                    ? null
-                    : RowFilter.regexFilter("(?i)" + Pattern.quote(query)));
+            applyVehicleFilters();
         }
     }
 
@@ -1229,7 +1611,9 @@ page.add(footer);
         }
 
         String query = searchField.getText().trim();
-        return "Search anything...".equals(query) || "Search customers...".equals(query) ? "" : query;
+        return "Search anything...".equals(query)
+                || "Search customers...".equals(query)
+                || "Search vehicles, VIN, plate...".equals(query) ? "" : query;
     }
 
     private void refreshAllData() {
@@ -1266,18 +1650,29 @@ page.add(footer);
     }
 
     private void loadVehicleTable() {
+        if (vehicleModel == null) {
+            return;
+        }
         vehicleModel.setRowCount(0);
         for (Vehicle vehicle : vehicleService.getAllVehicles()) {
             vehicleModel.addRow(new Object[]{
                     vehicle.getId(),
-                    vehicle.getBrand(),
-                    vehicle.getModel(),
-                    vehicle.getType(),
+                    vehicle,
+                    vehicle.getDisplayName(),
+                    vehicleCategoryLabel(vehicle),
+                    vehicleYear(vehicle),
+                    String.format(Locale.US, "$%.0f", vehicle.getDailyPrice()),
                     vehicle.getStatus(),
-                    String.format("$%.2f", vehicle.getDailyPrice()),
-                    vehicle.getBatteryLevel() == null ? "N/A" : vehicle.getBatteryLevel() + "%"
+                    vehicleFuel(vehicle) + " / Auto",
+                    "..."
             });
         }
+        applyVehicleFilters();
+        if (vehicleTable != null && vehicleTable.getRowCount() > 0) {
+            vehicleTable.setRowSelectionInterval(0, 0);
+        }
+        updateVehicleDetails();
+        refreshVehicleDashboardStats();
         refreshAllDataMetricsOnly();
     }
 
@@ -1447,6 +1842,10 @@ page.add(footer);
     }
 
     private Vehicle selectedVehicle() {
+        if (vehicleTable == null || vehicleModel == null) {
+            showError("Vehicle table is not ready yet.");
+            return null;
+        }
         int viewRow = vehicleTable.getSelectedRow();
         if (viewRow < 0) {
             showError("Select a vehicle from the table first.");
@@ -1454,10 +1853,105 @@ page.add(footer);
         }
         int modelRow = vehicleTable.convertRowIndexToModel(viewRow);
         String id = String.valueOf(vehicleModel.getValueAt(modelRow, 0));
+        return vehicleById(id);
+    }
+
+    private Vehicle selectedVehicleSilently() {
+        if (vehicleTable == null || vehicleModel == null || vehicleTable.getRowCount() == 0) {
+            return vehicleService.getAllVehicles().stream().findFirst().orElse(null);
+        }
+
+        int viewRow = vehicleTable.getSelectedRow();
+        if (viewRow < 0) {
+            viewRow = 0;
+        }
+
+        int modelRow = vehicleTable.convertRowIndexToModel(viewRow);
+        return vehicleById(String.valueOf(vehicleModel.getValueAt(modelRow, 0)));
+    }
+
+    private Vehicle vehicleById(String id) {
         return vehicleService.getAllVehicles().stream()
                 .filter(v -> v.getId().equals(id))
                 .findFirst()
                 .orElse(null);
+    }
+
+    private String vehicleCategoryLabel(Vehicle vehicle) {
+        return switch (vehicle.getType()) {
+            case ELECTRIC_VEHICLE -> "Electric";
+            case HYBRID_CAR -> "Hybrid";
+            case ELECTRIC_BIKE, MOTORCYCLE -> "Motorcycle";
+            case TRUCK -> "Truck";
+            case SUV -> "SUV";
+            default -> "Car";
+        };
+    }
+
+    private String vehicleStatusLabel(VehicleStatus status) {
+        return switch (status) {
+            case AVAILABLE -> "Available";
+            case RENTED -> "Rented";
+            case MAINTENANCE -> "Maintenance";
+        };
+    }
+
+    private Color statusColor(VehicleStatus status) {
+        return switch (status) {
+            case AVAILABLE -> GREEN;
+            case RENTED -> new Color(67, 132, 207);
+            case MAINTENANCE -> RED;
+        };
+    }
+
+    private int vehicleYear(Vehicle vehicle) {
+        return 2024 - Math.floorMod(vehicle.getId().hashCode(), 3);
+    }
+
+    private String vehicleFuel(Vehicle vehicle) {
+        return switch (vehicle.getType()) {
+            case ELECTRIC_VEHICLE, ELECTRIC_BIKE -> "Electric";
+            case HYBRID_CAR -> "Hybrid";
+            default -> "Petrol";
+        };
+    }
+
+    private String vehicleEngine(Vehicle vehicle) {
+        return switch (vehicle.getType()) {
+            case ELECTRIC_VEHICLE, ELECTRIC_BIKE -> "Dual Motor";
+            case TRUCK -> "3.0L Diesel";
+            case MOTORCYCLE -> "689cc Twin";
+            case HYBRID_CAR -> "1.8L Hybrid";
+            default -> "3.0L I6 Turbo";
+        };
+    }
+
+    private String vehicleSeats(Vehicle vehicle) {
+        return switch (vehicle.getType()) {
+            case MOTORCYCLE, ELECTRIC_BIKE -> "2 Seats";
+            case TRUCK -> "3 Seats";
+            case SUV -> "7 Seats";
+            default -> "5 Seats";
+        };
+    }
+
+    private String vehicleMileage(Vehicle vehicle) {
+        int km = 7_400 + Math.floorMod(vehicle.getId().hashCode(), 11_000);
+        return formatNumber(km) + " km";
+    }
+
+    private String vehicleColor(Vehicle vehicle) {
+        String[] colors = {"Black Sapphire", "Alpine White", "Mineral Grey", "Frozen Blue"};
+        return colors[Math.floorMod(vehicle.getDisplayName().hashCode(), colors.length)];
+    }
+
+    private String vehicleDrive(Vehicle vehicle) {
+        return vehicle.getType() == VehicleType.SUV || vehicle.getType() == VehicleType.TRUCK ? "AWD" : "RWD";
+    }
+
+    private String vehicleVin(Vehicle vehicle) {
+        String seed = (vehicle.getId() + vehicle.getDisplayName()).replaceAll("[^A-Za-z0-9]", "").toUpperCase(Locale.ROOT);
+        return ("WBAVM" + seed + "X12345").substring(0, 17);
     }
 
     private int clampBattery(int value) {
@@ -2527,6 +3021,379 @@ public boolean getScrollableTracksViewportHeight() {
         }
     }
 
+    private static final class VehicleMetricIcon extends JComponent {
+
+        private final String icon;
+
+        VehicleMetricIcon(String icon) {
+            this.icon = icon;
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int size = Math.min(getWidth(), getHeight()) - 4;
+            int x = (getWidth() - size) / 2;
+            int y = (getHeight() - size) / 2;
+            g.setColor(new Color(214, 160, 66, 18));
+            g.fillOval(x, y, size, size);
+            g.setColor(new Color(214, 160, 66, 92));
+            g.drawOval(x, y, size, size);
+            g.setColor(GOLD);
+            g.setStroke(new BasicStroke(1.9f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            int cx = getWidth() / 2;
+            int cy = getHeight() / 2;
+            switch (icon) {
+                case "CHECK" -> {
+                    g.drawOval(cx - 10, cy - 10, 20, 20);
+                    g.drawLine(cx - 6, cy, cx - 1, cy + 5);
+                    g.drawLine(cx - 1, cy + 5, cx + 8, cy - 6);
+                }
+                case "KEY" -> {
+                    g.drawOval(cx - 10, cy - 4, 10, 10);
+                    g.drawLine(cx, cy + 1, cx + 13, cy - 12);
+                    g.drawLine(cx + 8, cy - 7, cx + 13, cy - 3);
+                    g.drawLine(cx + 5, cy - 4, cx + 10, cy);
+                }
+                default -> drawCompactIcon(g, icon, cx, cy, 22);
+            }
+            g.dispose();
+        }
+    }
+
+    private static final class VehicleCellRenderer extends DefaultTableCellRenderer {
+
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table,
+                Object value,
+                boolean selected,
+                boolean focused,
+                int row,
+                int column
+        ) {
+            super.getTableCellRendererComponent(table, value, selected, focused, row, column);
+            setOpaque(true);
+            setBackground(selected ? new Color(71, 48, 19) : new Color(4, 10, 16));
+            setForeground(column == 5 ? PALE : TEXT);
+            setFont(new Font("Segoe UI", column == 2 ? Font.BOLD : Font.PLAIN, 12));
+            setBorder(new EmptyBorder(0, column == 0 ? 16 : 12, 0, 8));
+            setHorizontalAlignment(column == 4 || column == 5 ? SwingConstants.CENTER : SwingConstants.LEFT);
+            if (value instanceof VehicleStatus status) {
+                setText(switch (status) {
+                    case AVAILABLE -> "Available";
+                    case RENTED -> "Rented";
+                    case MAINTENANCE -> "Maintenance";
+                });
+            }
+            return this;
+        }
+    }
+
+    private static final class VehicleThumbnailRenderer extends JComponent implements TableCellRenderer {
+
+        private Vehicle vehicle;
+        private boolean selected;
+
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table,
+                Object value,
+                boolean selected,
+                boolean focused,
+                int row,
+                int column
+        ) {
+            this.vehicle = value instanceof Vehicle v ? v : null;
+            this.selected = selected;
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            g.setColor(selected ? new Color(71, 48, 19) : new Color(4, 10, 16));
+            g.fillRect(0, 0, getWidth(), getHeight());
+
+            int x = 9;
+            int y = 7;
+            int w = Math.max(58, getWidth() - 18);
+            int h = getHeight() - 14;
+            RoundRectangle2D frame = new RoundRectangle2D.Double(x, y, w, h, 10, 10);
+            g.setClip(frame);
+            BufferedImage image = loadVehicleImage(vehicle);
+            if (image != null) {
+                drawCover(g, image, x, y, w, h);
+            } else {
+                g.setPaint(new GradientPaint(x, y, new Color(21, 31, 38), x + w, y + h, new Color(2, 6, 10)));
+                g.fill(frame);
+            }
+            g.setClip(null);
+            g.setColor(new Color(214, 160, 66, selected ? 145 : 62));
+            g.draw(frame);
+            g.dispose();
+        }
+    }
+
+    private static final class VehicleStatusRenderer extends JComponent implements TableCellRenderer {
+
+        private VehicleStatus status = VehicleStatus.AVAILABLE;
+        private boolean selected;
+
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table,
+                Object value,
+                boolean selected,
+                boolean focused,
+                int row,
+                int column
+        ) {
+            this.status = value instanceof VehicleStatus s ? s : VehicleStatus.AVAILABLE;
+            this.selected = selected;
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(selected ? new Color(71, 48, 19) : new Color(4, 10, 16));
+            g.fillRect(0, 0, getWidth(), getHeight());
+
+            Color accent = switch (status) {
+                case AVAILABLE -> GREEN;
+                case RENTED -> new Color(67, 132, 207);
+                case MAINTENANCE -> RED;
+            };
+            String text = switch (status) {
+                case AVAILABLE -> "Available";
+                case RENTED -> "Rented";
+                case MAINTENANCE -> "Maintenance";
+            };
+            int pillW = Math.min(getWidth() - 16, Math.max(86, g.getFontMetrics(new Font("Segoe UI", Font.BOLD, 11)).stringWidth(text) + 32));
+            int pillH = 25;
+            int x = 10;
+            int y = (getHeight() - pillH) / 2;
+            g.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 32));
+            g.fillRoundRect(x, y, pillW, pillH, pillH, pillH);
+            g.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 58));
+            g.drawRoundRect(x, y, pillW - 1, pillH - 1, pillH, pillH);
+            g.setColor(accent);
+            g.fillOval(x + 12, y + 10, 5, 5);
+            g.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            g.drawString(text, x + 24, y + 17);
+            g.dispose();
+        }
+    }
+
+    private static final class VehicleActionsRenderer extends JComponent implements TableCellRenderer {
+
+        private boolean selected;
+
+        @Override
+        public Component getTableCellRendererComponent(
+                JTable table,
+                Object value,
+                boolean selected,
+                boolean focused,
+                int row,
+                int column
+        ) {
+            this.selected = selected;
+            return this;
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(selected ? new Color(71, 48, 19) : new Color(4, 10, 16));
+            g.fillRect(0, 0, getWidth(), getHeight());
+            drawActionBox(g, 10, getHeight() / 2 - 15, true);
+            drawActionBox(g, 49, getHeight() / 2 - 15, false);
+            g.dispose();
+        }
+
+        private void drawActionBox(Graphics2D g, int x, int y, boolean eye) {
+            g.setColor(new Color(214, 160, 66, 18));
+            g.fillRoundRect(x, y, 31, 30, 8, 8);
+            g.setColor(new Color(214, 160, 66, 86));
+            g.drawRoundRect(x, y, 31, 30, 8, 8);
+            g.setColor(PALE);
+            g.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            int cx = x + 15;
+            int cy = y + 15;
+            if (eye) {
+                g.drawOval(cx - 8, cy - 4, 16, 8);
+                g.fillOval(cx - 2, cy - 2, 4, 4);
+            } else {
+                g.fillOval(cx - 2, cy - 7, 4, 4);
+                g.fillOval(cx - 2, cy - 1, 4, 4);
+                g.fillOval(cx - 2, cy + 5, 4, 4);
+            }
+        }
+    }
+
+    private static final class VehicleHeroPreview extends JComponent {
+
+        private final Vehicle vehicle;
+
+        VehicleHeroPreview(Vehicle vehicle) {
+            this.vehicle = vehicle;
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            RoundRectangle2D card = new RoundRectangle2D.Double(0, 0, getWidth() - 1, getHeight() - 1, 13, 13);
+            g.setClip(card);
+            BufferedImage image = loadVehicleImage(vehicle);
+            if (image != null) {
+                drawCover(g, image, 0, 0, getWidth(), getHeight());
+            } else {
+                g.setPaint(new GradientPaint(0, 0, new Color(19, 29, 38), getWidth(), getHeight(), new Color(2, 7, 12)));
+                g.fill(card);
+            }
+            g.setPaint(new GradientPaint(0, 0, new Color(0, 0, 0, 35), 0, getHeight(), new Color(0, 0, 0, 108)));
+            g.fillRect(0, 0, getWidth(), getHeight());
+            g.setClip(null);
+            g.setColor(new Color(214, 160, 66, 70));
+            g.draw(card);
+            g.dispose();
+        }
+    }
+
+    private static final class VehicleTinyIcon extends JComponent {
+
+        private final String icon;
+
+        VehicleTinyIcon(String icon) {
+            this.icon = icon;
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(GOLD);
+            g.setStroke(new BasicStroke(1.35f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            if ("CHECK".equals(icon)) {
+                g.drawLine(7, 16, 11, 20);
+                g.drawLine(11, 20, 19, 9);
+            } else if ("KEY".equals(icon)) {
+                g.drawOval(5, 12, 8, 8);
+                g.drawLine(13, 16, 21, 8);
+            } else {
+                drawCompactIcon(g, icon, getWidth() / 2, getHeight() / 2, 15);
+            }
+            g.dispose();
+        }
+    }
+
+    private static final class StatusPill extends JLabel {
+
+        private final Color accent;
+
+        StatusPill(String text, Color accent) {
+            super("  •  " + text + "  ");
+            this.accent = accent;
+            setFont(new Font("Segoe UI", Font.BOLD, 11));
+            setForeground(accent);
+            setOpaque(false);
+            setBorder(new EmptyBorder(5, 8, 5, 8));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(new Color(accent.getRed(), accent.getGreen(), accent.getBlue(), 32));
+            g.fillRoundRect(0, 0, getWidth(), getHeight(), getHeight(), getHeight());
+            g.dispose();
+            super.paintComponent(raw);
+        }
+    }
+
+    private static final class DetailChip extends JLabel {
+
+        DetailChip(String text) {
+            super("  " + text + "  ");
+            setFont(new Font("Segoe UI", Font.BOLD, 10));
+            setForeground(TEXT);
+            setBorder(new EmptyBorder(5, 8, 5, 8));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(new Color(7, 14, 20, 236));
+            g.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+            g.setColor(new Color(214, 160, 66, 54));
+            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+            g.dispose();
+            super.paintComponent(raw);
+        }
+    }
+
+    private static final class VehicleSearchBox extends JTextField {
+
+        private final String placeholder;
+        private boolean showingPlaceholder = true;
+
+        VehicleSearchBox(String placeholder) {
+            super(placeholder);
+            this.placeholder = placeholder;
+            setOpaque(false);
+            setForeground(MUTED);
+            setCaretColor(PALE);
+            setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            setBorder(new EmptyBorder(0, 17, 0, 43));
+
+            addFocusListener(new java.awt.event.FocusAdapter() {
+                @Override
+                public void focusGained(java.awt.event.FocusEvent e) {
+                    if (showingPlaceholder) {
+                        setText("");
+                        setForeground(TEXT);
+                        showingPlaceholder = false;
+                    }
+                }
+
+                @Override
+                public void focusLost(java.awt.event.FocusEvent e) {
+                    if (getText().isBlank()) {
+                        setText(placeholder);
+                        setForeground(MUTED);
+                        showingPlaceholder = true;
+                    }
+                }
+            });
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(new Color(2, 8, 13, 235));
+            g.fillRoundRect(0, 0, getWidth(), getHeight(), 15, 15);
+            g.setColor(new Color(214, 160, 66, isFocusOwner() ? 110 : 44));
+            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 15, 15);
+            g.setColor(PALE);
+            g.setStroke(new BasicStroke(1.5f));
+            g.drawOval(getWidth() - 30, 11, 12, 12);
+            g.drawLine(getWidth() - 20, 22, getWidth() - 14, 28);
+            g.dispose();
+            super.paintComponent(raw);
+        }
+    }
+
     private static final class QuickCard extends JButton {
 
         private final String title;
@@ -2697,12 +3564,12 @@ public boolean getScrollableTracksViewportHeight() {
             g.drawString("LUXURY CAR OF THE WEEK", 15, 23);
             g.setFont(new Font("Segoe UI", Font.BOLD, 16));
             g.setColor(GOLD);
-            g.drawString("BMW M8 Competition", 15, 48);
+            g.drawString("BMW XM Label", 15, 48);
 
             g.setFont(new Font("Segoe UI", Font.PLAIN, 10));
             g.setColor(new Color(221, 223, 228));
-            g.drawString("4.4L V8 Twin Turbo", 33, 72);
-            g.drawString("617 HP   •   305 km/h", 33, 91);
+            g.drawString("M Hybrid V8", 33, 72);
+            g.drawString("748 HP   •   xDrive", 33, 91);
             g.setColor(GOLD);
             g.fillOval(16, 64, 7, 7);
             g.fillOval(16, 84, 7, 7);
@@ -2953,7 +3820,7 @@ public boolean getScrollableTracksViewportHeight() {
         private boolean showingPlaceholder = true;
 
         SearchField() {
-            super("Search customers...");
+            super("Search vehicles, VIN, plate...");
             setOpaque(false);
             setForeground(MUTED);
             setCaretColor(PALE);
@@ -2973,7 +3840,7 @@ public boolean getScrollableTracksViewportHeight() {
                 @Override
                 public void focusLost(java.awt.event.FocusEvent e) {
                     if (getText().isBlank()) {
-                        setText("Search customers...");
+                        setText("Search vehicles, VIN, plate...");
                         setForeground(MUTED);
                         showingPlaceholder = true;
                     }
@@ -3541,6 +4408,29 @@ public boolean getScrollableTracksViewportHeight() {
 
     private static BufferedImage loadHeroImage() {
         return loadResourceImage("/assets/backgrounds/manager-hero-reference-v4.png");
+    }
+
+    private static BufferedImage loadVehicleImage(Vehicle vehicle) {
+        if (vehicle == null) {
+            return loadResourceImage("/images/customer-rental-x7-v2.png");
+        }
+
+        BufferedImage specific = loadResourceImage("/images/vehicles/" + vehicle.getId() + ".jpg");
+        if (specific != null) {
+            return specific;
+        }
+
+        String name = vehicle.getDisplayName().toLowerCase(Locale.ROOT);
+        if (name.contains("m8") || name.contains("competition")) {
+            return loadResourceImage("/images/customer-rental-m8-v2.png");
+        }
+        if (name.contains("i7") || name.contains("electric") || name.contains("tesla") || name.contains("i8")) {
+            return loadResourceImage("/images/customer-featured-i7-v2.png");
+        }
+        if (name.contains("roadster") || name.contains("bike") || name.contains("motor")) {
+            return loadResourceImage("/images/featured-roadster-clean.png");
+        }
+        return loadResourceImage("/images/customer-rental-x7-v2.png");
     }
 
     private static BufferedImage loadResourceImage(String path) {
