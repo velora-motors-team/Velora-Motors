@@ -192,7 +192,7 @@ public class CustomerDashboard extends JFrame {
         content.add(Box.createVerticalStrut(10));
         content.add(cards);
         content.add(Box.createVerticalStrut(18));
-        content.add(footer);
+        content.add(createFooter());
         content.add(Box.createVerticalStrut(10));
 
         return content;
@@ -375,7 +375,7 @@ public class CustomerDashboard extends JFrame {
         return strip;
     }
 
-    private JPanel statCard(MenuIconType iconType, String label, String value) {
+    private JPanel statCard(MenuIconType iconType, String label, JLabel valueText) {
         JPanel card = new JPanel(new BorderLayout(14, 0));
         card.setOpaque(false);
         card.setBorder(new EmptyBorder(4, 18, 4, 18));
@@ -390,11 +390,6 @@ public class CustomerDashboard extends JFrame {
         labelText.setForeground(new Color(185, 190, 198));
         labelText.setFont(new Font("Segoe UI", Font.BOLD, 10));
         labelText.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JLabel valueText = new JLabel(value);
-        valueText.setForeground(TEXT);
-        valueText.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 21));
-        valueText.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         textPanel.add(Box.createVerticalGlue());
         textPanel.add(labelText);

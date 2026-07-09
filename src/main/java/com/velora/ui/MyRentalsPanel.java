@@ -39,6 +39,7 @@ public final class MyRentalsPanel extends JPanel {
     public MyRentalsPanel(Customer customer) {
 
         this.customer = customer;
+        this.accountState = CustomerAccountState.forCustomer(customer);
 
         setOpaque(false);
         setLayout(new BorderLayout(0, 14));
@@ -348,9 +349,14 @@ public final class MyRentalsPanel extends JPanel {
 
         stats.setOpaque(false);
 
+        activeRentalsValue = valueLabel();
+        completedRentalsValue = valueLabel();
+        currentCostValue = valueLabel();
+        lateReturnsValue = valueLabel();
+
         stats.add(
                 statCard(
-                        "2",
+                        activeRentalsValue,
                         "Active Rentals",
                         "Currently rented",
                         StatIconType.CAR
@@ -359,7 +365,7 @@ public final class MyRentalsPanel extends JPanel {
 
         stats.add(
                 statCard(
-                        "5",
+                        completedRentalsValue,
                         "Completed",
                         "Rental history",
                         StatIconType.CHECK
@@ -368,7 +374,7 @@ public final class MyRentalsPanel extends JPanel {
 
         stats.add(
                 statCard(
-                        "$840",
+                        currentCostValue,
                         "Current Cost",
                         "Active rental fees",
                         StatIconType.MONEY
@@ -377,9 +383,9 @@ public final class MyRentalsPanel extends JPanel {
 
         stats.add(
                 statCard(
-                        "0",
+                        lateReturnsValue,
                         "Late Returns",
-                        "No overdue rentals",
+                        "Overdue rentals",
                         StatIconType.CLOCK
                 )
         );
@@ -388,7 +394,7 @@ public final class MyRentalsPanel extends JPanel {
     }
 
     private JComponent statCard(
-            String value,
+            JLabel valueLabel,
             String title,
             String desc,
             StatIconType iconType
@@ -442,13 +448,6 @@ public final class MyRentalsPanel extends JPanel {
                 13,
                 Font.BOLD,
                 TEXT
-        );
-
-        JLabel valueLabel = label(
-                value,
-                23,
-                Font.BOLD,
-                GOLD_LIGHT
         );
 
         JLabel descLabel = label(
@@ -1231,6 +1230,61 @@ public final class MyRentalsPanel extends JPanel {
         );
 
         return card;
+    }
+
+
+    private JLabel valueLabel() {
+        return label(
+                "0",
+                23,
+                Font.BOLD,
+                GOLD_LIGHT
+        );
+    }
+
+    private void refreshRentals() {
+
+        if (activeRentalsValue == null
+                || completedRentalsValue == null
+                || currentCostValue == null
+                || lateReturnsValue == null) {
+            return;
+        }
+
+        activeRentalsValue.setText(
+                String.format(
+                        Locale.US,
+                        "%,d",
+                        accountState.getActiveRentals()
+                )
+        );
+
+        int completedRentals = Math.max(
+                0,
+                accountState.getTotalRentals()
+                        - accountState.getActiveRentals()
+        );
+
+        completedRentalsValue.setText(
+                String.format(
+                        Locale.US,
+                        "%,d",
+                        completedRentals
+                )
+        );
+
+        currentCostValue.setText(
+                String.format(
+                        Locale.US,
+                        "$%,.0f",
+                        accountState.getTotalSpent()
+                )
+        );
+
+        lateReturnsValue.setText("0");
+
+        revalidate();
+        repaint();
     }
 
     /* =========================================================
