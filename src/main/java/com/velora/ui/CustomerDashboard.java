@@ -101,12 +101,12 @@ public class CustomerDashboard extends JFrame {
 
         menu.add(menuButton(MenuIconType.HOME, "Dashboard", true, () -> showSection("Dashboard")));
         menu.add(menuButton(MenuIconType.CAR, "Vehicles", false, () -> showMessage("Vehicles catalog will open here.")));
-menu.add(menuButton(MenuIconType.CALENDAR, "My Rentals", false, () -> showSection("My Rentals")));
-menu.add(menuButton(MenuIconType.FILE, "Billing & Invoices", false, () -> showMessage("Billing & Invoices will be implemented later.")));
-menu.add(menuButton(MenuIconType.DIAMOND, "Loyalty Points", false, () -> showSection("Loyalty Points")));
-menu.add(menuButton(MenuIconType.STAR, "Reviews", false, () -> showSection("Reviews")));
-menu.add(menuButton(MenuIconType.USER, "Profile", false, () -> showSection("Profile")));
-menu.add(menuButton(MenuIconType.HEADSET, "Support", false, () -> showSection("Support")));
+        menu.add(menuButton(MenuIconType.CALENDAR, "My Rentals", false, () -> showSection("My Rentals")));
+        menu.add(menuButton(MenuIconType.FILE, "Billing & Invoices", false, () -> showSection("Billing & Invoices")));
+        menu.add(menuButton(MenuIconType.DIAMOND, "Loyalty Points", false, () -> showSection("Loyalty Points")));
+        menu.add(menuButton(MenuIconType.STAR, "Reviews", false, () -> showSection("Reviews")));
+        menu.add(menuButton(MenuIconType.USER, "Profile", false, () -> showSection("Profile")));
+        menu.add(menuButton(MenuIconType.HEADSET, "Support", false, () -> showSection("Support")));
 
         top.add(brand, BorderLayout.NORTH);
         top.add(menu, BorderLayout.CENTER);
@@ -144,18 +144,19 @@ menu.add(menuButton(MenuIconType.HEADSET, "Support", false, () -> showSection("S
         main.add(createTopBar(), BorderLayout.NORTH);
 
         pageCards.setOpaque(false);
-pageCards.add(wrapPage(createDashboardContent()), "Dashboard");
-pageCards.add(wrapPage(new MyRentalsPanel(customer)), "My Rentals");
-pageCards.add(wrapPage(new SupportPanel(customer)), "Support");
-pageCards.add(wrapPage(new ReviewsPanel(customer)), "Reviews");
-pageCards.add(wrapPage(new LoyaltyPointsPanel(customer)), "Loyalty Points");
-pageCards.add(
-        wrapPage(new ProfilePanel(
-                customer,
-                () -> showSection("My Rentals")
-        )),
-        "Profile"
-);
+        pageCards.add(wrapPage(createDashboardContent()), "Dashboard");
+        pageCards.add(wrapPage(new MyRentalsPanel(customer)), "My Rentals");
+        pageCards.add(wrapPage(new BillingPanel(customer)), "Billing & Invoices");
+        pageCards.add(wrapPage(new SupportPanel(customer)), "Support");
+        pageCards.add(wrapPage(new ReviewsPanel(customer)), "Reviews");
+        pageCards.add(wrapPage(new LoyaltyPointsPanel(customer)), "Loyalty Points");
+        pageCards.add(
+                wrapPage(new ProfilePanel(
+                        customer,
+                        () -> showSection("My Rentals")
+                )),
+                "Profile"
+        );
 
         main.add(pageCards, BorderLayout.CENTER);
         return main;
