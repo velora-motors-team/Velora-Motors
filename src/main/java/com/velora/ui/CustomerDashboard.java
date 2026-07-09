@@ -146,7 +146,7 @@ public class CustomerDashboard extends JFrame {
         pageCards.setOpaque(false);
         pageCards.add(wrapPage(createDashboardContent()), "Dashboard");
         pageCards.add(wrapPage(new MyRentalsPanel(customer)), "My Rentals");
-        pageCards.add(wrapPage(new BillingPanel(customer)), "Billing & Invoices");
+        pageCards.add(wrapPage(new CustomerBillingPanel(customer)), "Billing & Invoices");
         pageCards.add(wrapPage(new SupportPanel(customer)), "Support");
         pageCards.add(wrapPage(new ReviewsPanel(customer)), "Reviews");
         pageCards.add(wrapPage(new LoyaltyPointsPanel(customer)), "Loyalty Points");
