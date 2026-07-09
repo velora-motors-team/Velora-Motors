@@ -71,6 +71,7 @@ public class VehicleCatalog extends JFrame {
         root.setBorder(new EmptyBorder(18, 18, 18, 18));
         root.add(createHeader(), BorderLayout.NORTH);
         root.add(createContent(), BorderLayout.CENTER);
+        root.add(new CustomerFooter(), BorderLayout.SOUTH);
         return root;
     }
 
@@ -162,7 +163,6 @@ public class VehicleCatalog extends JFrame {
 
         content.add(createFilterBar(), BorderLayout.NORTH);
         content.add(createVehicleScroll(), BorderLayout.CENTER);
-        content.add(createFooter(), BorderLayout.SOUTH);
 
         return content;
     }

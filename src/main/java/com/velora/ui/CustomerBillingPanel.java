@@ -2,7 +2,6 @@ package com.velora.ui;
 
 import com.velora.authentication.Customer;
 import com.velora.service.VehicleService;
-import com.velora.vehicle.Vehicle;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -44,8 +43,6 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
@@ -70,9 +67,9 @@ private static final int PAGE_SIZE = 8;
 
 private final Customer customer;
 private final VehicleService vehicleService = new VehicleService();
+private final CustomerAccountState accountState;
 
-private final List<Invoice> invoices = new ArrayList<>();
-private final List<Invoice> filteredInvoices = new ArrayList<>();
+private final List<CustomerAccountState.CustomerInvoice> filteredInvoices = new ArrayList<>();
 
 private JTextField searchField;
 private DarkComboButton statusFilter;
@@ -83,6 +80,10 @@ private JLabel totalRevenueValue;
 private JLabel paidInvoicesValue;
 private JLabel pendingPaymentsValue;
 private JLabel lateFeesValue;
+private JLabel totalSpentHint;
+private JLabel paidInvoicesHint;
+private JLabel pendingPaymentsHint;
+private JLabel lateFeesHint;
 
 private BillingTableModel tableModel;
 private JTable table;
@@ -97,12 +98,13 @@ private int totalPages = 1;
 
 public CustomerBillingPanel(Customer customer) {
     this.customer = customer;
+    this.accountState = CustomerAccountState.forCustomer(customer);
     setOpaque(false);
     setLayout(new BorderLayout());
     setBorder(new EmptyBorder(8, 12, 18, 22));
 
-    loadDemoInvoices();
-    filteredInvoices.addAll(invoices);
+    filteredInvoices.addAll(accountState.getInvoices());
+    accountState.addChangeListener(this::refreshAll);
 
     add(createContent(), BorderLayout.CENTER);
     refreshAll();
@@ -164,7 +166,7 @@ private JComponent createHeader() {
     cards.add(metricCard(
             "TOTAL SPENT",
             totalRevenueValue,
-            "+12.5% vs last 6 months",
+            totalSpentHint = label("", 8, Font.PLAIN, GREEN),
             "MONEY",
             GOLD
     ));
@@ -172,7 +174,7 @@ private JComponent createHeader() {
     cards.add(metricCard(
             "PAID INVOICES",
             paidInvoicesValue,
-            "$11,250.00 paid",
+            paidInvoicesHint = label("", 8, Font.PLAIN, GREEN),
             "DOC",
             GOLD
     ));
@@ -180,7 +182,7 @@ private JComponent createHeader() {
     cards.add(metricCard(
             "PENDING PAYMENTS",
             pendingPaymentsValue,
-            "$2,850.00 pending",
+            pendingPaymentsHint = label("", 8, Font.PLAIN, GOLD),
             "CLOCK",
             GOLD
     ));
@@ -188,7 +190,7 @@ private JComponent createHeader() {
     cards.add(metricCard(
             "LATE FEES",
             lateFeesValue,
-            "2 invoices overdue",
+            lateFeesHint = label("", 8, Font.PLAIN, RED),
             "WARN",
             RED
     ));
@@ -199,7 +201,7 @@ private JComponent createHeader() {
     return wrapper;
 }
 
-private JComponent metricCard(String title, JLabel value, String hint, String icon, Color iconColor) {
+private JComponent metricCard(String title, JLabel value, JLabel hintLabel, String icon, Color iconColor) {
     RoundedPanel card = new RoundedPanel(14, new Color(6, 13, 20, 238));
     card.setLayout(new BorderLayout(13, 0));
     card.setBorder(new EmptyBorder(8, 13, 8, 13));
@@ -219,17 +221,6 @@ private JComponent metricCard(String title, JLabel value, String hint, String ic
     text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
 
     JLabel titleLabel = label(title, 9, Font.PLAIN, new Color(210, 214, 220));
-
-    Color hintColor;
-    if ("TOTAL SPENT".equals(title) || "PAID INVOICES".equals(title)) {
-        hintColor = GREEN;
-    } else if ("LATE FEES".equals(title)) {
-        hintColor = RED;
-    } else {
-        hintColor = GOLD;
-    }
-
-    JLabel hintLabel = label(hint, 8, Font.PLAIN, hintColor);
 
     titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
     value.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -435,15 +426,19 @@ private void refreshAll() {
 }
 
 private void refreshMetrics() {
-    double totalRevenue = invoices.stream().mapToDouble(Invoice::totalAmount).sum();
-    long paid = invoices.stream().filter(i -> i.status.equals("Paid")).count();
-    long pending = invoices.stream().filter(i -> i.status.equals("Pending")).count();
-    double lateFees = invoices.stream().mapToDouble(i -> i.lateFee).sum();
+    double totalRevenue = accountState.getTotalSpent();
+    long paid = accountState.getPaidInvoices();
+    long pending = accountState.getPendingPayments();
+    double lateFees = accountState.getLateFees();
 
     totalRevenueValue.setText(formatMoney(totalRevenue));
     paidInvoicesValue.setText(String.valueOf(paid));
     pendingPaymentsValue.setText(String.valueOf(pending));
     lateFeesValue.setText(formatMoney(lateFees));
+    totalSpentHint.setText(formatMoney(accountState.getOutstandingBalance()) + " outstanding");
+    paidInvoicesHint.setText(formatMoney(totalRevenue) + " paid");
+    pendingPaymentsHint.setText(formatMoney(accountState.getOutstandingBalance()) + " pending");
+    lateFeesHint.setText(accountState.getLateReturns() + " invoices overdue");
 }
 
 private void applyFilters() {
@@ -453,7 +448,7 @@ private void applyFilters() {
 
     filteredInvoices.clear();
 
-    for (Invoice invoice : invoices) {
+    for (CustomerAccountState.CustomerInvoice invoice : accountState.getInvoices()) {
         boolean matchesSearch = query.isBlank()
                 || invoice.invoiceId.toLowerCase(Locale.ROOT).contains(query)
                 || invoice.customerName.toLowerCase(Locale.ROOT).contains(query)
@@ -478,7 +473,7 @@ private void refreshPage() {
     int fromIndex = Math.min((currentPage - 1) * PAGE_SIZE, filteredInvoices.size());
     int toIndex = Math.min(fromIndex + PAGE_SIZE, filteredInvoices.size());
 
-    List<Invoice> pageData = new ArrayList<>(filteredInvoices.subList(fromIndex, toIndex));
+    List<CustomerAccountState.CustomerInvoice> pageData = new ArrayList<>(filteredInvoices.subList(fromIndex, toIndex));
     tableModel.setRows(pageData);
 
     if (!pageData.isEmpty()) {
@@ -534,7 +529,7 @@ private void exportInvoices() {
         content.append("VELORA MOTORS - CUSTOMER BILLING EXPORT\n");
         content.append("================================\n\n");
 
-        for (Invoice invoice : filteredInvoices) {
+        for (CustomerAccountState.CustomerInvoice invoice : filteredInvoices) {
             content.append(invoice.invoiceId).append(" | ")
                     .append(invoice.customerName).append(" | ")
                     .append(invoice.vehicleName).append(" | ")
@@ -610,39 +605,31 @@ private void addDemoInvoice() {
     }
 
     try {
-        String customer = customerField.getText().trim();
+        String customerName = customerField.getText().trim();
         String vehicle = vehicleField.getText().trim();
         int days = Integer.parseInt(daysField.getText().trim());
         double base = Double.parseDouble(baseField.getText().trim());
         double late = Double.parseDouble(lateFeeField.getText().trim());
 
-        if (customer.isBlank() || vehicle.isBlank()) {
+        if (customerName.isBlank() || vehicle.isBlank()) {
             throw new IllegalArgumentException("Customer and vehicle are required.");
         }
         if (days <= 0 || base < 0 || late < 0) {
             throw new IllegalArgumentException("Days must be positive, and amounts cannot be negative.");
         }
 
-        int next = invoices.size() + 1;
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy hh:mm a", Locale.ENGLISH);
-        LocalDateTime start = LocalDateTime.now();
-        LocalDateTime end = start.plusDays(days);
-
-        Invoice invoice = new Invoice(
-                "INV-" + String.format("%04d", 1000 + next),
-                customer,
+        CustomerAccountState.CustomerInvoice invoice = CustomerAccountState.createInvoice(
+                this.customer,
+                accountState.getInvoices().size(),
                 vehicle,
                 days,
                 base,
                 late,
                 statusBox.getSelectedValue(),
-                methodBox.getSelectedValue(),
-                start.format(formatter),
-                end.format(formatter)
+                methodBox.getSelectedValue()
         );
 
-        invoices.add(invoice);
-        refreshAll();
+        accountState.addInvoice(invoice);
 
         int lastPage = Math.max(1, (int) Math.ceil(filteredInvoices.size() / (double) PAGE_SIZE));
         currentPage = lastPage;
@@ -668,7 +655,7 @@ private void addDemoInvoice() {
     }
 }
 
-private void recordPayment(Invoice invoice) {
+private void recordPayment(CustomerAccountState.CustomerInvoice invoice) {
     if (invoice == null) {
         return;
     }
@@ -693,8 +680,7 @@ private void recordPayment(Invoice invoice) {
         return;
     }
 
-    invoice.status = "Paid";
-    invoice.paymentMethod = "Card";
+    accountState.recordPayment(invoice, "Card");
 
     int pageBeforeRefresh = currentPage;
     refreshMetrics();
@@ -709,7 +695,7 @@ private void recordPayment(Invoice invoice) {
     );
 }
 
-private void downloadInvoice(Invoice invoice) {
+private void downloadInvoice(CustomerAccountState.CustomerInvoice invoice) {
     if (invoice == null) {
         return;
     }
@@ -751,71 +737,6 @@ private void downloadInvoice(Invoice invoice) {
     }
 }
 
-private void loadDemoInvoices() {
-    invoices.clear();
-
-    String currentCustomerName = resolveCustomerName(customer);
-    String[] statuses = {"Paid", "Pending", "Paid", "Overdue", "Paid", "Pending"};
-    String[] methods = {"Card", "Cash", "Bank Transfer"};
-
-    List<Vehicle> vehicles = vehicleService.getAllVehicles();
-
-    // Customer billing page: show invoices that belong only to the logged-in customer.
-    // We use up to 12 vehicles for demo data so the page stays realistic and uncluttered.
-    int invoiceCount = Math.min(12, vehicles.size());
-
-    for (int i = 0; i < invoiceCount; i++) {
-        Vehicle vehicle = vehicles.get(i);
-        int days = 2 + (i % 7);
-        double base = vehicle.getDailyPrice() * days;
-        String status = statuses[i % statuses.length];
-        double late = "Overdue".equals(status) ? 50 + (i % 4) * 35 : 0;
-        int startDay = 1 + (i % 9);
-        int endDay = startDay + days;
-
-        invoices.add(new Invoice(
-                "INV-" + String.format("%04d", 1001 + i),
-                currentCustomerName,
-                FleetUiData.displayName(vehicle),
-                days,
-                base,
-                late,
-                status,
-                methods[i % methods.length],
-                String.format("%02d Jul 2026 10:00 AM", startDay),
-                String.format("%02d Jul 2026 10:00 AM", endDay)
-        ));
-    }
-}
-
-private String resolveCustomerName(Customer currentCustomer) {
-    if (currentCustomer == null) {
-        return "Current Customer";
-    }
-
-    String[] getterNames = {
-            "getFullName",
-            "getName",
-            "getUsername",
-            "getEmail"
-    };
-
-    for (String getterName : getterNames) {
-        try {
-            java.lang.reflect.Method method = currentCustomer.getClass().getMethod(getterName);
-            Object value = method.invoke(currentCustomer);
-
-            if (value != null && !value.toString().isBlank()) {
-                return value.toString().trim();
-            }
-        } catch (ReflectiveOperationException ignored) {
-            // Try the next common getter name used by Customer classes.
-        }
-    }
-
-    return "Current Customer";
-}
-
 private JLabel label(String text, int size, int style, Color color) {
     JLabel label = new JLabel(text);
     label.setFont(new Font("Segoe UI", style, size));
@@ -827,55 +748,21 @@ private static String formatMoney(double value) {
     return "$" + String.format("%,.2f", value);
 }
 
-private static final class Invoice {
-    private final String invoiceId;
-    private final String customerName;
-    private final String vehicleName;
-    private final int rentalDays;
-    private final double baseAmount;
-    private final double lateFee;
-    private final double tax;
-    private String status;
-    private String paymentMethod;
-    private final String startDate;
-    private final String endDate;
-
-    Invoice(String invoiceId, String customerName, String vehicleName, int rentalDays,
-            double baseAmount, double lateFee, String status, String paymentMethod,
-            String startDate, String endDate) {
-        this.invoiceId = invoiceId;
-        this.customerName = customerName;
-        this.vehicleName = vehicleName;
-        this.rentalDays = rentalDays;
-        this.baseAmount = baseAmount;
-        this.lateFee = lateFee;
-        this.tax = (baseAmount + lateFee) * 0.10;
-        this.status = status;
-        this.paymentMethod = paymentMethod;
-        this.startDate = startDate;
-        this.endDate = endDate;
-    }
-
-    double totalAmount() {
-        return baseAmount + lateFee + tax;
-    }
-}
-
 private final class BillingTableModel extends AbstractTableModel {
 
     private final String[] columns = {
             "Invoice ID", "Customer", "Vehicle", "Days", "Base", "Late Fee", "Tax", "Total", "Status", "Actions"
     };
 
-    private final List<Invoice> rows = new ArrayList<>();
+    private final List<CustomerAccountState.CustomerInvoice> rows = new ArrayList<>();
 
-    void setRows(List<Invoice> invoices) {
+    void setRows(List<CustomerAccountState.CustomerInvoice> invoices) {
         rows.clear();
         rows.addAll(invoices);
         fireTableDataChanged();
     }
 
-    Invoice getInvoiceAt(int row) {
+    CustomerAccountState.CustomerInvoice getInvoiceAt(int row) {
         return rows.get(row);
     }
 
@@ -896,7 +783,7 @@ private final class BillingTableModel extends AbstractTableModel {
 
     @Override
     public Object getValueAt(int rowIndex, int columnIndex) {
-        Invoice invoice = rows.get(rowIndex);
+        CustomerAccountState.CustomerInvoice invoice = rows.get(rowIndex);
         return switch (columnIndex) {
             case 0 -> invoice.invoiceId;
             case 1 -> invoice.customerName;
@@ -1110,7 +997,7 @@ private static final class ActionIconsCell extends JComponent {
 
 private final class InvoiceSummaryPanel extends RoundedPanel {
 
-    private Invoice invoice;
+    private CustomerAccountState.CustomerInvoice invoice;
     private final JButton recordPaymentButton = new SummaryButton("Record Payment", true, "PAY");
     private final JButton downloadButton = new SummaryButton("Download Invoice", false, "DOWNLOAD");
 
@@ -1126,7 +1013,7 @@ private final class InvoiceSummaryPanel extends RoundedPanel {
         add(downloadButton);
     }
 
-    void setInvoice(Invoice invoice) {
+    void setInvoice(CustomerAccountState.CustomerInvoice invoice) {
         this.invoice = invoice;
 
         boolean hasInvoice = invoice != null;

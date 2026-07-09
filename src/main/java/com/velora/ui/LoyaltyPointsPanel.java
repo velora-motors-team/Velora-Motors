@@ -9,6 +9,7 @@ import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 
 public final class LoyaltyPointsPanel extends JPanel {
 
@@ -23,17 +24,24 @@ public final class LoyaltyPointsPanel extends JPanel {
     private static final Color BLUE = new Color(91, 137, 210);
 
     private final Customer customer;
+    private final CustomerAccountState accountState;
 
-    private int points = 850;
+    private int points;
 
     private JLabel pointsLabel;
     private JLabel tierLabel;
     private JLabel nextTierLabel;
+    private JLabel availablePointsValue;
+    private JLabel currentLevelValue;
+    private JLabel toNextTierValue;
+    private JLabel rewardsUsedValue;
     private TierProgress progress;
     private JPanel historyList;
 
     public LoyaltyPointsPanel(Customer customer) {
         this.customer = customer;
+        this.accountState = CustomerAccountState.forCustomer(customer);
+        this.points = accountState.getLoyaltyPoints();
 
         setOpaque(false);
         setLayout(new BorderLayout(0, 16));
@@ -41,6 +49,7 @@ public final class LoyaltyPointsPanel extends JPanel {
 
         add(createHeader(), BorderLayout.NORTH);
         add(createBody(), BorderLayout.CENTER);
+        accountState.addChangeListener(this::refreshTier);
 
         refreshTier();
     }
@@ -96,15 +105,20 @@ public final class LoyaltyPointsPanel extends JPanel {
         JPanel row = new JPanel(new GridLayout(1, 4, 14, 0));
         row.setOpaque(false);
 
-        row.add(statCard("850", "Available Points", "Ready to redeem", "POINTS"));
-        row.add(statCard("Silver", "Current Level", "Premium customer", "TIER"));
-        row.add(statCard("650", "To Gold Level", "Next upgrade", "NEXT"));
-        row.add(statCard("12", "Rewards Used", "Total redeemed", "USED"));
+        availablePointsValue = statValueLabel();
+        currentLevelValue = statValueLabel();
+        toNextTierValue = statValueLabel();
+        rewardsUsedValue = statValueLabel();
+
+        row.add(statCard(availablePointsValue, "Available Points", "Ready to redeem", "POINTS"));
+        row.add(statCard(currentLevelValue, "Current Level", "Premium customer", "TIER"));
+        row.add(statCard(toNextTierValue, "To Next Level", "Next upgrade", "NEXT"));
+        row.add(statCard(rewardsUsedValue, "Rewards Used", "Total redeemed", "USED"));
 
         return row;
     }
 
-    private JComponent statCard(String value, String title, String desc, String iconType) {
+    private JComponent statCard(JLabel value, String title, String desc, String iconType) {
         RoundedPanel card = new RoundedPanel(18, CARD);
         card.setLayout(new BorderLayout(14, 0));
         card.setBorder(new EmptyBorder(18, 18, 18, 18));
@@ -118,7 +132,7 @@ public final class LoyaltyPointsPanel extends JPanel {
 
         text.add(label(title, 12, Font.BOLD, TEXT));
         text.add(Box.createVerticalStrut(5));
-        text.add(label(value, 24, Font.BOLD, PALE));
+        text.add(value);
         text.add(Box.createVerticalStrut(4));
         text.add(label(desc, 11, Font.PLAIN, MUTED));
 
@@ -126,6 +140,10 @@ public final class LoyaltyPointsPanel extends JPanel {
         card.add(text, BorderLayout.CENTER);
 
         return card;
+    }
+
+    private JLabel statValueLabel() {
+        return label("", 24, Font.BOLD, PALE);
     }
 
     private JComponent createMainTierCard() {
@@ -356,7 +374,7 @@ public final class LoyaltyPointsPanel extends JPanel {
     }
 
     private void redeemReward(String rewardName, int cost) {
-        if (points < cost) {
+        if (accountState.getLoyaltyPoints() < cost) {
             JOptionPane.showMessageDialog(
                     this,
                     "You do not have enough points for this reward.",
@@ -378,14 +396,13 @@ public final class LoyaltyPointsPanel extends JPanel {
             return;
         }
 
-        points -= cost;
-        refreshTier();
+        accountState.redeemReward(cost);
 
         addHistory("-" + cost, "Redeemed " + rewardName, RED);
 
         JOptionPane.showMessageDialog(
                 this,
-                "Reward redeemed successfully.\nRemaining points: " + points,
+                "Reward redeemed successfully.\nRemaining points: " + accountState.getLoyaltyPoints(),
                 "Velora Loyalty",
                 JOptionPane.INFORMATION_MESSAGE
         );
@@ -407,6 +424,7 @@ public final class LoyaltyPointsPanel extends JPanel {
     }
 
     private void refreshTier() {
+        points = accountState.getLoyaltyPoints();
         String tier;
         int tierStart;
         int tierEnd;
@@ -422,20 +440,27 @@ public final class LoyaltyPointsPanel extends JPanel {
             tierStart = 500;
             tierEnd = 1500;
             nextText = (1500 - points) + " points left to reach Gold level";
-        } else {
+        } else if (points < 3000) {
             tier = "Gold Member";
             tierStart = 1500;
-            tierEnd = 2500;
-            nextText = "You are currently in the Gold level";
+            tierEnd = 3000;
+            nextText = (3000 - points) + " points left to reach Platinum level";
+        } else {
+            tier = "Platinum Member";
+            tierStart = 3000;
+            tierEnd = 6000;
+            nextText = "You are currently in the Platinum level";
         }
 
         if (pointsLabel != null) {
-            pointsLabel.setText(points + " Points");
+            pointsLabel.setText(formatNumber(points) + " Points");
         }
 
         if (tierLabel != null) {
             tierLabel.setText(tier);
-            tierLabel.setForeground(tier.startsWith("Gold") ? PALE : tier.startsWith("Silver") ? GREEN : GOLD);
+            tierLabel.setForeground(tier.startsWith("Gold") || tier.startsWith("Platinum")
+                    ? PALE
+                    : tier.startsWith("Silver") ? GREEN : GOLD);
         }
 
         if (nextTierLabel != null) {
@@ -445,6 +470,12 @@ public final class LoyaltyPointsPanel extends JPanel {
         if (progress != null) {
             int percentage = (int) (((points - tierStart) / (double) (tierEnd - tierStart)) * 100);
             progress.setProgress(Math.max(0, Math.min(100, percentage)));
+        }
+        if (availablePointsValue != null) {
+            availablePointsValue.setText(formatNumber(points));
+            currentLevelValue.setText(accountState.getTierName());
+            toNextTierValue.setText(formatNumber(accountState.getPointsToNextTier()));
+            rewardsUsedValue.setText(formatNumber(accountState.getRewardsUsed()));
         }
     }
 
@@ -463,6 +494,10 @@ public final class LoyaltyPointsPanel extends JPanel {
         label.setFont(new Font("Segoe UI", style, size));
         label.setForeground(color);
         return label;
+    }
+
+    private static String formatNumber(int value) {
+        return String.format(Locale.US, "%,d", value);
     }
 
     private static final class RoundedPanel extends JPanel {

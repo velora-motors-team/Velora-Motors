@@ -1180,47 +1180,47 @@ public final class LoginScreen extends JFrame {
             g.fillRect(0, y, w, fh);
 
             g.setColor(new Color(255, 215, 150, 35));
-            g.drawLine(0, y, w, y);
+            g.drawLine(sw(16), y, w - sw(16), y);
 
-            // Left footer brand - شعار Velora Motors تحت بدون رموز مربعة
-            int brandX = sw(52);
-            int brandY = y + sh(22);
+            int cy = y + fh / 2;
 
-            drawMiniVeloraMark(g, brandX, brandY, sw(18));
+            g.setColor(MUTED);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, sf(10)));
+            FontMetrics leftFm = g.getFontMetrics();
+            String copyright = "© 2026 Velora Motors. All rights reserved.";
+            g.drawString(copyright, sw(16), cy + leftFm.getAscent() / 2 - sh(2));
+
+            int markSize = Math.max(sw(58), sh(38));
+            int brandX = w / 2 - sw(86);
+            int markY = cy - markSize / 2;
+            drawMiniVeloraMark(g, brandX, markY, markSize);
+
+            int textX = brandX + markSize + sw(16);
+            g.setColor(WHITE);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, sf(18)));
+            g.drawString("VELORA MOTORS", textX, cy - sh(5));
+
+            g.setColor(MUTED);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, sf(7)));
+            g.drawString("PREMIUM BMW VEHICLE RENTAL", textX + sw(2), cy + sh(12));
+
+            String drive = "Drive Luxury. Drive ";
+            String bmw = "BMW.";
+            Font driveFont = new Font("Segoe UI", Font.PLAIN, sf(11));
+            Font bmwFont = new Font("Segoe UI", Font.BOLD, sf(11));
+            g.setFont(driveFont);
+            int driveW = g.getFontMetrics().stringWidth(drive);
+            g.setFont(bmwFont);
+            int bmwW = g.getFontMetrics().stringWidth(bmw);
+            int sloganX = w - sw(16) - driveW - bmwW;
+            int sloganY = cy + leftFm.getAscent() / 2 - sh(2);
 
             g.setColor(WHITE);
-            g.setFont(new Font("Segoe UI", Font.PLAIN, sf(16)));
-            g.drawString("V E L O R A   M O T O R S", brandX + sw(30), y + sh(31));
-
-            g.setColor(MUTED);
-            g.setFont(new Font("Segoe UI", Font.PLAIN, sf(11)));
-            g.drawString("Premium BMW Vehicle Rental System", brandX + sw(30), y + sh(55));
-
-            drawFitCentered(
-                    g,
-                    "© 2026 Velora Motors. All rights reserved.",
-                    w / 2,
-                    y + sh(46),
-                    (int) (w * .32),
-                    new Font("Segoe UI", Font.PLAIN, sf(13)),
-                    MUTED
-            );
-
-            // Social media area - مرسومة يدويًا حتى ما تطلع مربعات غريبة حسب الخط
-            int sx = (int) (w * .725);
-            int cy = y + fh / 2 + sh(1);
-
-            g.setColor(MUTED);
-            g.setFont(new Font("Segoe UI", Font.PLAIN, sf(13)));
-            g.drawString("F O L L O W   U S", sx, cy + sh(5));
-
-            int iconGap = sw(58);
-            int firstIconX = sx + sw(140);
-
-            drawSocialIcon(g, "facebook", firstIconX, cy, sw(18));
-            drawSocialIcon(g, "instagram", firstIconX + iconGap, cy, sw(18));
-            drawSocialIcon(g, "linkedin", firstIconX + iconGap * 2, cy, sw(18));
-            drawSocialIcon(g, "youtube", firstIconX + iconGap * 3, cy, sw(18));
+            g.setFont(driveFont);
+            g.drawString(drive, sloganX, sloganY);
+            g.setColor(GOLD);
+            g.setFont(bmwFont);
+            g.drawString(bmw, sloganX + driveW, sloganY);
         }
 
         private void drawMiniVeloraMark(Graphics2D g, int x, int y, int size) {

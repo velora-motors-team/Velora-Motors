@@ -6,6 +6,7 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.geom.RoundRectangle2D;
+import java.util.Locale;
 
 public final class MyRentalsPanel extends JPanel {
 
@@ -18,15 +19,25 @@ public final class MyRentalsPanel extends JPanel {
     private static final Color RED = new Color(235, 93, 98);
 
     private final Customer customer;
+    private final CustomerAccountState accountState;
+    private JLabel activeRentalsValue;
+    private JLabel completedRentalsValue;
+    private JLabel currentCostValue;
+    private JLabel lateReturnsValue;
+    private JPanel activeRentalsList;
+    private JPanel historyList;
 
     public MyRentalsPanel(Customer customer) {
         this.customer = customer;
+        this.accountState = CustomerAccountState.forCustomer(customer);
         setOpaque(false);
         setLayout(new BorderLayout(0, 16));
         setBorder(new EmptyBorder(18, 22, 18, 22));
 
         add(createHeader(), BorderLayout.NORTH);
         add(createBody(), BorderLayout.CENTER);
+        accountState.addChangeListener(this::refreshRentals);
+        refreshRentals();
     }
 
     private JComponent createHeader() {
@@ -64,10 +75,14 @@ public final class MyRentalsPanel extends JPanel {
 
         JPanel stats = new JPanel(new GridLayout(1, 4, 14, 0));
         stats.setOpaque(false);
-        stats.add(statCard("2", "Active Rentals", "Currently rented"));
-        stats.add(statCard("5", "Completed", "Rental history"));
-        stats.add(statCard("$840", "Current Cost", "Active rental fees"));
-        stats.add(statCard("0", "Late Returns", "No overdue rentals"));
+        activeRentalsValue = statValueLabel();
+        completedRentalsValue = statValueLabel();
+        currentCostValue = statValueLabel();
+        lateReturnsValue = statValueLabel();
+        stats.add(statCard(activeRentalsValue, "Active Rentals", "Currently rented"));
+        stats.add(statCard(completedRentalsValue, "Completed", "Rental history"));
+        stats.add(statCard(currentCostValue, "Current Cost", "Active rental fees"));
+        stats.add(statCard(lateReturnsValue, "Late Returns", "Overdue rentals"));
 
         body.add(stats, BorderLayout.NORTH);
 
@@ -82,7 +97,7 @@ public final class MyRentalsPanel extends JPanel {
         return body;
     }
 
-    private JComponent statCard(String value, String title, String desc) {
+    private JComponent statCard(JLabel value, String title, String desc) {
         RoundedPanel card = new RoundedPanel(18, CARD);
         card.setLayout(new BorderLayout(14, 0));
         card.setBorder(new EmptyBorder(18, 18, 18, 18));
@@ -96,7 +111,7 @@ public final class MyRentalsPanel extends JPanel {
 
         text.add(label(title, 12, Font.BOLD, TEXT));
         text.add(Box.createVerticalStrut(5));
-        text.add(label(value, 24, Font.BOLD, PALE));
+        text.add(value);
         text.add(Box.createVerticalStrut(4));
         text.add(label(desc, 11, Font.PLAIN, MUTED));
 
@@ -104,6 +119,10 @@ public final class MyRentalsPanel extends JPanel {
         card.add(text, BorderLayout.CENTER);
 
         return card;
+    }
+
+    private JLabel statValueLabel() {
+        return label("", 24, Font.BOLD, PALE);
     }
 
     private JComponent createActiveRentalCard() {
@@ -120,9 +139,11 @@ public final class MyRentalsPanel extends JPanel {
         content.add(title);
         content.add(Box.createVerticalStrut(16));
 
-        content.add(rentalRow("BMW X7 xDrive40i", "Return: 09 Jul 2026", "$475", "Active", GREEN));
-        content.add(Box.createVerticalStrut(12));
-        content.add(rentalRow("Xiaomi Electric Bike Pro", "Return: Today 08:00 PM", "$36", "Due Today", PALE));
+        activeRentalsList = new JPanel();
+        activeRentalsList.setOpaque(false);
+        activeRentalsList.setLayout(new BoxLayout(activeRentalsList, BoxLayout.Y_AXIS));
+        activeRentalsList.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(activeRentalsList);
 
         card.add(content, BorderLayout.CENTER);
         return card;
@@ -142,11 +163,11 @@ public final class MyRentalsPanel extends JPanel {
         content.add(title);
         content.add(Box.createVerticalStrut(16));
 
-        content.add(rentalRow("Toyota Prius Hybrid", "Completed: 01 Jul 2026", "$180", "Returned", GREEN));
-        content.add(Box.createVerticalStrut(12));
-        content.add(rentalRow("Yamaha MT-07", "Completed: 28 Jun 2026", "$126", "Returned", GREEN));
-        content.add(Box.createVerticalStrut(12));
-        content.add(rentalRow("Tesla Model 3", "Completed: 20 Jun 2026", "$320", "Returned Late", RED));
+        historyList = new JPanel();
+        historyList.setOpaque(false);
+        historyList.setLayout(new BoxLayout(historyList, BoxLayout.Y_AXIS));
+        historyList.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(historyList);
 
         card.add(content, BorderLayout.CENTER);
         return card;
@@ -185,11 +206,83 @@ public final class MyRentalsPanel extends JPanel {
         return row;
     }
 
+    private void refreshRentals() {
+        if (activeRentalsValue == null) {
+            return;
+        }
+
+        activeRentalsValue.setText(formatNumber(accountState.getActiveRentals()));
+        completedRentalsValue.setText(formatNumber(accountState.getCompletedRentals()));
+        currentCostValue.setText(formatMoney(accountState.getOutstandingBalance()));
+        lateReturnsValue.setText(formatNumber(accountState.getLateReturns()));
+
+        rebuildRentalList(activeRentalsList, false);
+        rebuildRentalList(historyList, true);
+    }
+
+    private void rebuildRentalList(JPanel list, boolean paidOnly) {
+        list.removeAll();
+        int shown = 0;
+
+        for (CustomerAccountState.CustomerInvoice invoice : accountState.getInvoices()) {
+            boolean paid = "Paid".equals(invoice.status);
+            if (paid != paidOnly) {
+                continue;
+            }
+
+            if (shown > 0) {
+                list.add(Box.createVerticalStrut(12));
+            }
+
+            String date = paid
+                    ? "Completed: " + shortDate(invoice.endDate)
+                    : "Return: " + shortDate(invoice.endDate);
+            String status = paid ? "Returned" : invoice.status;
+            Color color = paid ? GREEN : "Overdue".equals(invoice.status) ? RED : PALE;
+
+            list.add(rentalRow(
+                    invoice.vehicleName,
+                    date,
+                    formatMoney(invoice.totalAmount()),
+                    status,
+                    color
+            ));
+            shown++;
+
+            if (shown == 4) {
+                break;
+            }
+        }
+
+        if (shown == 0) {
+            list.add(label(paidOnly ? "No completed rentals yet." : "No active rentals right now.",
+                    13, Font.PLAIN, MUTED));
+        }
+
+        list.revalidate();
+        list.repaint();
+    }
+
+    private static String shortDate(String date) {
+        if (date == null || date.length() <= 11) {
+            return date == null ? "-" : date;
+        }
+        return date.substring(0, 11).trim();
+    }
+
     private JLabel label(String text, int size, int style, Color color) {
         JLabel label = new JLabel(text);
         label.setFont(new Font("Segoe UI", style, size));
         label.setForeground(color);
         return label;
+    }
+
+    private static String formatNumber(int value) {
+        return String.format(Locale.US, "%,d", value);
+    }
+
+    private static String formatMoney(double value) {
+        return String.format(Locale.US, "$%,.0f", value);
     }
 
     private static final class RoundedPanel extends JPanel {

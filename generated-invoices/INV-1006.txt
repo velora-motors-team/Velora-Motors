@@ -2,15 +2,15 @@ VELORA MOTORS - INVOICE
 ========================
 
 Invoice ID: INV-1006
-Customer: Olivia Martinez
-Vehicle: Audi R8
-Rental Period: 02 Jul 2026 10:00 AM -> 09 Jul 2026 10:00 AM
+Customer: Omar Al-Khatib
+Vehicle: BMW X5 M Competition
+Rental Period: 06 Jul 2026 10:00 AM -> 13 Jul 2026 10:00 AM
 Rental Days: 7
 
-Base Rental: $2,800.00
-Late Fee: $150.00
-Tax (5%): $147.50
-Total Amount: $3,097.50
+Base Rental: $3,080.00
+Late Fee: $0.00
+Tax (10%): $308.00
+Total Amount: $3,388.00
 
 Status: Pending
-Payment Method: Card
+Payment Method: Bank Transfer

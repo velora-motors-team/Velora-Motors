@@ -7,6 +7,7 @@ import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.geom.RoundRectangle2D;
 import com.velora.service.AuthenticationService;
+import java.util.Locale;
 public final class ProfilePanel extends JPanel {
 
     private final Runnable openRentalsAction;
@@ -19,10 +20,15 @@ private final AuthenticationService authenticationService = new AuthenticationSe
     private static final Color GREEN = new Color(86, 207, 114);
 
     private final Customer customer;
+    private final CustomerAccountState accountState;
 
     private JTextField nameField;
     private JTextField emailField;
     private JTextField phoneField;
+    private JLabel totalRentalsValue;
+    private JLabel activeRentalsValue;
+    private JLabel loyaltyPointsValue;
+    private JLabel totalSpentValue;
 
     public ProfilePanel(Customer customer) {
     this(customer, null);
@@ -31,6 +37,7 @@ private final AuthenticationService authenticationService = new AuthenticationSe
 public ProfilePanel(Customer customer, Runnable openRentalsAction) {
     this.customer = customer;
     this.openRentalsAction = openRentalsAction;
+    this.accountState = CustomerAccountState.forCustomer(customer);
 
     setOpaque(false);
     setLayout(new BorderLayout(0, 18));
@@ -38,6 +45,8 @@ public ProfilePanel(Customer customer, Runnable openRentalsAction) {
 
     add(createHeader(), BorderLayout.NORTH);
     add(createBody(), BorderLayout.CENTER);
+    accountState.addChangeListener(this::refreshStats);
+    refreshStats();
 }
     private JComponent createHeader() {
         JPanel header = new JPanel(new BorderLayout());
@@ -86,15 +95,20 @@ public ProfilePanel(Customer customer, Runnable openRentalsAction) {
         JPanel stats = new JPanel(new GridLayout(1, 4, 14, 0));
         stats.setOpaque(false);
 
-        stats.add(statCard("12", "Total Rentals", "Completed rental history"));
-        stats.add(statCard("2", "Active Rentals", "Currently ongoing"));
-        stats.add(statCard("2,450", "Loyalty Points", "Rewards balance"));
-        stats.add(statCard("$24,560", "Total Spent", "Lifetime spending"));
+        totalRentalsValue = statValueLabel();
+        activeRentalsValue = statValueLabel();
+        loyaltyPointsValue = statValueLabel();
+        totalSpentValue = statValueLabel();
+
+        stats.add(statCard(totalRentalsValue, "Total Rentals", "Completed rental history"));
+        stats.add(statCard(activeRentalsValue, "Active Rentals", "Currently ongoing"));
+        stats.add(statCard(loyaltyPointsValue, "Loyalty Points", "Rewards balance"));
+        stats.add(statCard(totalSpentValue, "Total Spent", "Lifetime spending"));
 
         return stats;
     }
 
-    private JComponent statCard(String value, String title, String desc) {
+    private JComponent statCard(JLabel value, String title, String desc) {
         RoundedPanel card = new RoundedPanel(18, CARD);
         card.setLayout(new BorderLayout(14, 0));
         card.setBorder(new EmptyBorder(18, 18, 18, 18));
@@ -108,7 +122,7 @@ public ProfilePanel(Customer customer, Runnable openRentalsAction) {
 
         text.add(label(title, 12, Font.BOLD, TEXT));
         text.add(Box.createVerticalStrut(5));
-        text.add(label(value, 24, Font.BOLD, PALE));
+        text.add(value);
         text.add(Box.createVerticalStrut(4));
         text.add(label(desc, 11, Font.PLAIN, MUTED));
 
@@ -116,6 +130,20 @@ public ProfilePanel(Customer customer, Runnable openRentalsAction) {
         card.add(text, BorderLayout.CENTER);
 
         return card;
+    }
+
+    private JLabel statValueLabel() {
+        return label("", 24, Font.BOLD, PALE);
+    }
+
+    private void refreshStats() {
+        if (totalRentalsValue == null) {
+            return;
+        }
+        totalRentalsValue.setText(formatNumber(accountState.getTotalRentals()));
+        activeRentalsValue.setText(formatNumber(accountState.getActiveRentals()));
+        loyaltyPointsValue.setText(formatNumber(accountState.getLoyaltyPoints()));
+        totalSpentValue.setText(formatMoney(accountState.getTotalSpent()));
     }
 
     private JComponent createProfileCard() {
@@ -394,6 +422,14 @@ private void openRentals() {
         label.setFont(new Font("Segoe UI", style, size));
         label.setForeground(color);
         return label;
+    }
+
+    private static String formatNumber(int value) {
+        return String.format(Locale.US, "%,d", value);
+    }
+
+    private static String formatMoney(double value) {
+        return String.format(Locale.US, "$%,.0f", value);
     }
 
     private static final class RoundedPanel extends JPanel {
