@@ -1,6 +1,8 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
+import com.velora.service.VehicleService;
+import com.velora.vehicle.Vehicle;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -32,6 +34,7 @@ public final class MaintenancePanel extends JPanel {
     private static final int PAGE_SIZE = 8;
 
     private final Customer manager;
+    private final VehicleService vehicleService = new VehicleService();
     private final List<ServiceJob> jobs = new ArrayList<>();
     private final List<ServiceJob> filteredJobs = new ArrayList<>();
 
@@ -78,7 +81,6 @@ public final class MaintenancePanel extends JPanel {
         center.add(summaryPanel, BorderLayout.EAST);
 
         page.add(center, BorderLayout.CENTER);
-        page.add(createFooter(), BorderLayout.SOUTH);
         return page;
     }
 
@@ -349,7 +351,9 @@ public final class MaintenancePanel extends JPanel {
     }
 
     private void scheduleService() {
-        JTextField vehicleField = new JTextField("BMW X7");
+        JTextField vehicleField = new JTextField(vehicleService.getAllVehicles().isEmpty()
+                ? "BMW Vehicle"
+                : FleetUiData.displayName(vehicleService.getAllVehicles().get(0)));
         JTextField technicianField = new JTextField("Adam Miller");
         JTextField costField = new JTextField("250");
         JTextField notesField = new JTextField("General service check");
@@ -422,16 +426,36 @@ public final class MaintenancePanel extends JPanel {
     }
 
     private void loadDemoJobs() {
-        jobs.add(new ServiceJob("SRV-1001", "BMW X7", "Oil Service", "Adam Miller", "07 Jul 2026 10:00 AM", "Medium", "Completed", 180, "Oil and filter changed."));
-        jobs.add(new ServiceJob("SRV-1002", "BMW i8 Roadster", "Battery Check", "Lucas Smith", "07 Jul 2026 01:30 PM", "High", "In Service", 240, "Battery diagnostic in progress."));
-        jobs.add(new ServiceJob("SRV-1003", "Tesla Model 3", "Battery Check", "Noah Brown", "08 Jul 2026 09:00 AM", "High", "Due Soon", 220, "Check battery health and charging port."));
-        jobs.add(new ServiceJob("SRV-1004", "Yamaha MT-07", "Full Inspection", "James Wilson", "08 Jul 2026 11:00 AM", "Medium", "Scheduled", 160, "Safety inspection before rental."));
-        jobs.add(new ServiceJob("SRV-1005", "Ford Transit", "Brake Inspection", "Michael Stone", "09 Jul 2026 12:00 PM", "High", "Delayed", 320, "Brake parts waiting."));
-        jobs.add(new ServiceJob("SRV-1006", "Toyota Prius", "Tire Service", "Daniel White", "10 Jul 2026 10:00 AM", "Low", "Scheduled", 90, "Replace front tires."));
-        jobs.add(new ServiceJob("SRV-1007", "Hyundai Tucson", "Oil Service", "Olivia Martin", "10 Jul 2026 02:00 PM", "Low", "Scheduled", 120, "Routine oil service."));
-        jobs.add(new ServiceJob("SRV-1008", "Xiaomi Electric Bike Pro", "Battery Check", "Ethan Davis", "11 Jul 2026 10:30 AM", "Medium", "Due Soon", 55, "Battery level and charger test."));
-        jobs.add(new ServiceJob("SRV-1009", "BMW M8 Competition", "Full Inspection", "Adam Miller", "12 Jul 2026 09:45 AM", "High", "Scheduled", 450, "Premium inspection."));
-        jobs.add(new ServiceJob("SRV-1010", "BMW M5", "Brake Inspection", "Lucas Smith", "12 Jul 2026 01:00 PM", "Medium", "Completed", 210, "Brake pads checked."));
+        jobs.clear();
+
+        String[] technicians = {
+                "Adam Miller", "Lucas Smith", "Noah Brown", "James Wilson", "Michael Stone",
+                "Daniel White", "Olivia Martin", "Ethan Davis"
+        };
+        String[] priorities = {"Medium", "High", "Low", "Medium", "High"};
+        String[] statuses = {"Completed", "In Service", "Due Soon", "Scheduled", "Delayed", "Scheduled"};
+
+        List<Vehicle> vehicles = vehicleService.getAllVehicles();
+        for (int i = 0; i < vehicles.size(); i++) {
+            Vehicle vehicle = vehicles.get(i);
+            String serviceType = FleetUiData.serviceType(vehicle, i);
+            String notes = serviceType.equals("Battery Check")
+                    ? "Battery diagnostic and charging system test."
+                    : serviceType.equals("Full Inspection")
+                    ? "Premium inspection for rental readiness."
+                    : serviceType + " scheduled for fleet readiness.";
+            jobs.add(new ServiceJob(
+                    "SRV-" + String.format("%04d", 1001 + i),
+                    FleetUiData.displayName(vehicle),
+                    serviceType,
+                    technicians[i % technicians.length],
+                    String.format("%02d Jul 2026 %02d:00 AM", 7 + (i % 14), 9 + (i % 3)),
+                    priorities[i % priorities.length],
+                    statuses[i % statuses.length],
+                    Math.max(90, vehicle.getDailyPrice() * (0.55 + (i % 4) * 0.18)),
+                    notes
+            ));
+        }
     }
 
     private JLabel label(String text, int size, int style, Color color) {

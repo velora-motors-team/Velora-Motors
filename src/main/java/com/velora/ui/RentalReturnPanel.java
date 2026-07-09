@@ -1,6 +1,8 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
+import com.velora.service.VehicleService;
+import com.velora.vehicle.Vehicle;
 
 import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
@@ -68,6 +70,7 @@ public final class RentalReturnPanel extends JPanel {
     private static final int PAGE_SIZE = 8;
 
     private final Customer manager;
+    private final VehicleService vehicleService = new VehicleService();
     private final List<RentalRecord> allRentals = new ArrayList<>();
     private final List<RentalRecord> filteredRentals = new ArrayList<>();
     private final List<RentalRecord> pageRentals = new ArrayList<>();
@@ -131,7 +134,6 @@ public final class RentalReturnPanel extends JPanel {
         center.add(summaryPanel, BorderLayout.EAST);
 
         main.add(center, BorderLayout.CENTER);
-        main.add(createFooter(), BorderLayout.SOUTH);
 
         root.add(main, BorderLayout.CENTER);
         return root;
@@ -193,7 +195,7 @@ public final class RentalReturnPanel extends JPanel {
         });
 
         statusFilter = new BlackDropDown(new String[]{"All Status", "Active", "Late", "Returned"});
-        vehicleFilter = new BlackDropDown(new String[]{"All Vehicles", "BMW X7", "BMW M8", "BMW M4", "BMW 5 Series", "BMW X5", "BMW M5"});
+        vehicleFilter = new BlackDropDown(vehicleFilterItems());
         dateFilter = new BlackDropDown(new String[]{"All Dates", "Today", "This Week", "This Month"});
 
         statusFilter.setChangeAction(this::applyFilters);
@@ -473,67 +475,59 @@ public final class RentalReturnPanel extends JPanel {
     private void loadDemoData() {
         allRentals.clear();
 
-        allRentals.add(new RentalRecord("RNT-1001", "John Doe", "BMW X7", "Black",
-                "05 Jul 2026\n10:00 AM", "05 Jul 2026\n9:45 AM", "-", 0, "Returned",
-                "john@example.com", "+970 59 111 2233", "/images/RENTAL_CARD_1.png",
-                "BMW X7 xDrive40i", "X7-2026-BLK-001", 4000, 0, 280));
+        String[] customers = {
+                "John Doe", "Michael Smith", "Sarah Johnson", "David Brown", "Emily Davis",
+                "James Wilson", "Olivia Martinez", "Daniel White", "Lina Khaled", "Adam Naser",
+                "Maya Saleh", "Rami Hasan", "Noah Anderson", "Ava Thompson", "Liam Johnson"
+        };
 
-        allRentals.add(new RentalRecord("RNT-1002", "Michael Smith", "BMW M8 Competition", "Black",
-                "06 Jul 2026\n10:00 AM", "06 Jul 2026\n12:30 PM", "2h 30m", 70, "Late",
-                "michael.smith@email.com", "+970 59 123 4567", "/images/RENTAL_CARD_2.png",
-                "BMW M8 Competition", "M8-COMP-VG04MCH01234", 4000, 300, 260));
-
-        allRentals.add(new RentalRecord("RNT-1003", "Sarah Johnson", "BMW M4", "Blue",
-                "07 Jul 2026\n10:00 AM", "-", "-", 0, "Active",
-                "sarah@email.com", "+970 59 222 9876", "/images/RENTAL_CARD_3.png",
-                "BMW M4", "M4-2026-BLU-908", 3200, 0, 224));
-
-        allRentals.add(new RentalRecord("RNT-1004", "David Brown", "BMW 5 Series", "Black",
-                "07 Jul 2026\n10:00 AM", "-", "-", 0, "Active",
-                "david@email.com", "+970 59 333 1299", "/images/CAR_PHOTO.png",
-                "BMW 5 Series", "B5-2026-BLK-447", 2700, 0, 189));
-
-        allRentals.add(new RentalRecord("RNT-1005", "Emily Davis", "BMW X5", "White",
-                "08 Jul 2026\n10:00 AM", "-", "-", 0, "Active",
-                "emily@email.com", "+970 59 444 1414", "/images/SIDEBAR_CAR.png",
-                "BMW X5", "X5-2026-WHT-443", 2600, 0, 182));
-
-        allRentals.add(new RentalRecord("RNT-1006", "James Wilson", "BMW X7", "Black",
-                "08 Jul 2026\n10:00 AM", "-", "-", 0, "Active",
-                "james@email.com", "+970 59 555 8787", "/images/RENTAL_CARD_1.png",
-                "BMW X7", "X7-2026-BLK-891", 4000, 0, 280));
-
-        allRentals.add(new RentalRecord("RNT-1007", "Olivia Martinez", "BMW M5", "Grey",
-                "09 Jul 2026\n10:00 AM", "-", "-", 0, "Active",
-                "olivia@email.com", "+970 59 666 1212", "/images/featured-roadster-clean.png",
-                "BMW M5", "M5-2026-GRY-777", 3800, 0, 266));
-
-        allRentals.add(new RentalRecord("RNT-1008", "Daniel White", "BMW X6", "Black",
-                "10 Jul 2026\n10:00 AM", "-", "-", 0, "Active",
-                "daniel@email.com", "+970 59 777 1000", "/images/RENTAL_CARD_1.png",
-                "BMW X6", "X6-2026-BLK-101", 3600, 0, 252));
-
-        allRentals.add(new RentalRecord("RNT-1009", "Lina Khaled", "BMW i7 M70", "Black",
-                "11 Jul 2026\n10:00 AM", "-", "-", 0, "Active",
-                "lina@email.com", "+970 59 888 1000", "/images/RENTAL_CARD_3.png",
-                "BMW i7 M70", "I7-2026-BLK-909", 4500, 0, 315));
-
-        allRentals.add(new RentalRecord("RNT-1010", "Adam Naser", "BMW M8 Competition", "Black",
-                "12 Jul 2026\n10:00 AM", "-", "-", 0, "Active",
-                "adam@email.com", "+970 59 999 1000", "/images/RENTAL_CARD_2.png",
-                "BMW M8 Competition", "M8-2026-BLK-100", 4000, 0, 280));
-
-        allRentals.add(new RentalRecord("RNT-1011", "Maya Saleh", "BMW X5", "White",
-                "13 Jul 2026\n10:00 AM", "-", "-", 0, "Active",
-                "maya@email.com", "+970 59 124 0000", "/images/SIDEBAR_CAR.png",
-                "BMW X5", "X5-2026-WHT-555", 2600, 0, 182));
-
-        allRentals.add(new RentalRecord("RNT-1012", "Rami Hasan", "BMW M4", "Blue",
-                "14 Jul 2026\n10:00 AM", "-", "-", 0, "Active",
-                "rami@email.com", "+970 59 125 0000", "/images/RENTAL_CARD_3.png",
-                "BMW M4", "M4-2026-BLU-919", 3200, 0, 224));
+        List<Vehicle> vehicles = vehicleService.getAllVehicles();
+        for (int i = 0; i < vehicles.size(); i++) {
+            Vehicle vehicle = vehicles.get(i);
+            String status = switch (i % 6) {
+                case 0 -> "Returned";
+                case 1 -> "Late";
+                default -> "Active";
+            };
+            String actual = "Returned".equals(status) ? "05 Jul 2026\n9:45 AM" : "-";
+            String lateDuration = "Late".equals(status) ? "2h 30m" : "-";
+            int lateFee = "Late".equals(status) ? 70 + (i % 4) * 25 : 0;
+            int day = 5 + (i % 10);
+            int dailyRate = (int) Math.round(vehicle.getDailyPrice());
+            int base = dailyRate * (2 + (i % 5));
+            String customer = customers[i % customers.length];
+            allRentals.add(new RentalRecord(
+                    "RNT-" + String.format("%04d", 1001 + i),
+                    customer,
+                    FleetUiData.displayName(vehicle),
+                    FleetUiData.color(vehicle),
+                    String.format("%02d Jul 2026\n10:00 AM", day),
+                    actual,
+                    lateDuration,
+                    lateFee,
+                    status,
+                    customer.toLowerCase().replace(" ", ".") + "@email.com",
+                    "+970 59 " + String.format("%03d %04d", 100 + i, 1000 + i),
+                    FleetUiData.imagePath(vehicle),
+                    FleetUiData.displayName(vehicle),
+                    FleetUiData.vin(vehicle),
+                    base,
+                    i % 3 == 0 ? 300 : 0,
+                    dailyRate
+            ));
+        }
 
         allRentals.sort(Comparator.comparing(r -> r.id));
+    }
+
+    private String[] vehicleFilterItems() {
+        List<Vehicle> vehicles = vehicleService.getAllVehicles();
+        String[] items = new String[vehicles.size() + 1];
+        items[0] = "All Vehicles";
+        for (int i = 0; i < vehicles.size(); i++) {
+            items[i + 1] = FleetUiData.displayName(vehicles.get(i));
+        }
+        return items;
     }
 
     private JLabel label(String text, int size, int style, Color color) {

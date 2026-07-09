@@ -104,8 +104,6 @@ public final class AnalyticsPanel extends JPanel {
         row3.add(rentalsByPeriodCard(rented));
         row3.add(customerGrowthCard(customers));
         body.add(row3);
-        body.add(Box.createVerticalStrut(14));
-        body.add(createAnalyticsFooter());
 
         JScrollPane scroll = new JScrollPane(body);
         scroll.setOpaque(false);

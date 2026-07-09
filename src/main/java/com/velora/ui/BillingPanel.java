@@ -1,6 +1,8 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
+import com.velora.service.VehicleService;
+import com.velora.vehicle.Vehicle;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -64,6 +66,7 @@ public final class BillingPanel extends JPanel {
     private static final int PAGE_SIZE = 8;
 
     private final Customer manager;
+    private final VehicleService vehicleService = new VehicleService();
 
     private final List<Invoice> invoices = new ArrayList<>();
     private final List<Invoice> filteredInvoices = new ArrayList<>();
@@ -117,7 +120,6 @@ public final class BillingPanel extends JPanel {
         center.add(summaryPanel, BorderLayout.EAST);
 
         page.add(center, BorderLayout.CENTER);
-        page.add(createFooter(), BorderLayout.SOUTH);
 
         return page;
     }
@@ -446,7 +448,9 @@ public final class BillingPanel extends JPanel {
 
     private void addDemoInvoice() {
         JTextField customerField = new JTextField("New Customer");
-        JTextField vehicleField = new JTextField("Velora Vehicle");
+        JTextField vehicleField = new JTextField(vehicleService.getAllVehicles().isEmpty()
+                ? "Velora Vehicle"
+                : FleetUiData.displayName(vehicleService.getAllVehicles().get(0)));
         JTextField daysField = new JTextField("4");
         JTextField baseField = new JTextField("1200");
         JTextField lateFeeField = new JTextField("0");
@@ -624,18 +628,37 @@ public final class BillingPanel extends JPanel {
     }
 
     private void loadDemoInvoices() {
-        invoices.add(new Invoice("INV-1001", "Noah Anderson", "Toyota Land Cruiser", 5, 1750, 0, "Paid", "Card", "01 Jul 2026 10:00 AM", "06 Jul 2026 10:00 AM"));
-        invoices.add(new Invoice("INV-1002", "Ava Thompson", "Lexus LX600", 8, 3200, 300, "Pending", "Cash", "01 Jul 2026 10:00 AM", "09 Jul 2026 10:00 AM"));
-        invoices.add(new Invoice("INV-1003", "Liam Johnson", "BMW M5", 2, 800, 0, "Paid", "Bank Transfer", "03 Jul 2026 10:00 AM", "05 Jul 2026 10:00 AM"));
-        invoices.add(new Invoice("INV-1004", "Sophia Brown", "Porsche 911", 6, 2400, 200, "Overdue", "Card", "02 Jul 2026 10:00 AM", "08 Jul 2026 10:00 AM"));
-        invoices.add(new Invoice("INV-1005", "Daniel White", "Range Rover", 4, 1600, 0, "Paid", "Cash", "04 Jul 2026 10:00 AM", "08 Jul 2026 10:00 AM"));
-        invoices.add(new Invoice("INV-1006", "Olivia Martinez", "Audi R8", 7, 2800, 150, "Pending", "Card", "02 Jul 2026 10:00 AM", "09 Jul 2026 10:00 AM"));
-        invoices.add(new Invoice("INV-1007", "James Wilson", "Mercedes G63", 3, 1200, 0, "Paid", "Bank Transfer", "05 Jul 2026 10:00 AM", "08 Jul 2026 10:00 AM"));
-        invoices.add(new Invoice("INV-1008", "Emily Davis", "BMW X7", 5, 1500, 0, "Paid", "Card", "03 Jul 2026 10:00 AM", "08 Jul 2026 10:00 AM"));
-        invoices.add(new Invoice("INV-1009", "Michael Smith", "BMW M8 Competition", 4, 4000, 70, "Overdue", "Card", "02 Jul 2026 10:00 AM", "06 Jul 2026 12:30 PM"));
-        invoices.add(new Invoice("INV-1010", "Sarah Johnson", "BMW M4", 2, 900, 0, "Pending", "Cash", "07 Jul 2026 10:00 AM", "09 Jul 2026 10:00 AM"));
-        invoices.add(new Invoice("INV-1011", "David Brown", "BMW 5 Series", 3, 1350, 0, "Paid", "Bank Transfer", "05 Jul 2026 10:00 AM", "08 Jul 2026 10:00 AM"));
-        invoices.add(new Invoice("INV-1012", "John Doe", "Tesla Model 3", 6, 2400, 120, "Pending", "Card", "01 Jul 2026 10:00 AM", "07 Jul 2026 10:00 AM"));
+        invoices.clear();
+
+        String[] customers = {
+                "Noah Anderson", "Ava Thompson", "Liam Johnson", "Sophia Brown", "Daniel White",
+                "Olivia Martinez", "James Wilson", "Emily Davis", "Michael Smith", "Sarah Johnson",
+                "David Brown", "John Doe", "Lina Khaled", "Adam Naser", "Maya Saleh", "Rami Hasan"
+        };
+        String[] statuses = {"Paid", "Pending", "Paid", "Overdue", "Paid", "Pending"};
+        String[] methods = {"Card", "Cash", "Bank Transfer"};
+
+        List<Vehicle> vehicles = vehicleService.getAllVehicles();
+        for (int i = 0; i < vehicles.size(); i++) {
+            Vehicle vehicle = vehicles.get(i);
+            int days = 2 + (i % 7);
+            double base = vehicle.getDailyPrice() * days;
+            double late = "Overdue".equals(statuses[i % statuses.length]) ? 50 + (i % 4) * 35 : 0;
+            int startDay = 1 + (i % 9);
+            int endDay = startDay + days;
+            invoices.add(new Invoice(
+                    "INV-" + String.format("%04d", 1001 + i),
+                    customers[i % customers.length],
+                    FleetUiData.displayName(vehicle),
+                    days,
+                    base,
+                    late,
+                    statuses[i % statuses.length],
+                    methods[i % methods.length],
+                    String.format("%02d Jul 2026 10:00 AM", startDay),
+                    String.format("%02d Jul 2026 10:00 AM", endDay)
+            ));
+        }
     }
 
     private JLabel label(String text, int size, int style, Color color) {
