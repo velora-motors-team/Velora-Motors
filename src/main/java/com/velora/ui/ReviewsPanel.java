@@ -4,15 +4,17 @@ import com.velora.authentication.Customer;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
+import javax.swing.plaf.basic.BasicComboBoxUI;
 import java.awt.*;
+import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.time.LocalDate;
-import javax.swing.plaf.basic.BasicComboBoxUI;
 import java.time.format.DateTimeFormatter;
-import java.awt.geom.Path2D;
+
 public final class ReviewsPanel extends JPanel {
 
     private static final Color CARD = new Color(6, 13, 20);
+    private static final Color CARD_SOFT = new Color(8, 17, 25);
     private static final Color GOLD = new Color(214, 160, 66);
     private static final Color PALE = new Color(238, 201, 139);
     private static final Color TEXT = new Color(243, 244, 247);
@@ -25,66 +27,96 @@ public final class ReviewsPanel extends JPanel {
     private JComboBox<String> ratingBox;
     private JTextArea reviewArea;
     private JPanel reviewsList;
+    private JLabel reviewCountLabel;
 
     public ReviewsPanel(Customer customer) {
         this.customer = customer;
+
         setOpaque(false);
-        setLayout(new BorderLayout(0, 16));
-        setBorder(new EmptyBorder(18, 22, 18, 22));
+        setLayout(new BorderLayout(0, 18));
+        setBorder(new EmptyBorder(16, 22, 18, 22));
 
         add(createHeader(), BorderLayout.NORTH);
         add(createBody(), BorderLayout.CENTER);
     }
 
     private JComponent createHeader() {
-        JPanel header = new JPanel(new BorderLayout());
+        JPanel header = new JPanel(new BorderLayout(16, 0));
         header.setOpaque(false);
 
         JPanel left = new JPanel();
         left.setOpaque(false);
         left.setLayout(new BoxLayout(left, BoxLayout.Y_AXIS));
 
-        JLabel title = label("Customer Reviews", 30, Font.BOLD, TEXT);
+        JLabel title = label("Customer Reviews", 27, Font.BOLD, TEXT);
         JLabel sub = label(
                 "Share your rental experience and help us improve Velora Motors service.",
-                13,
+                12,
                 Font.PLAIN,
                 MUTED
         );
 
         left.add(title);
-        left.add(Box.createVerticalStrut(5));
+        left.add(Box.createVerticalStrut(4));
         left.add(sub);
 
-        JLabel status = label("● Review System Active", 13, Font.BOLD, GREEN);
-        status.setHorizontalAlignment(SwingConstants.RIGHT);
+        RoundedPanel statusBadge = new RoundedPanel(16, new Color(10, 28, 20));
+        statusBadge.setLayout(new BorderLayout());
+        statusBadge.setBorder(new EmptyBorder(8, 13, 8, 13));
+        statusBadge.setPreferredSize(new Dimension(175, 36));
+
+        JLabel status = label("●  Review System Active", 11, Font.BOLD, GREEN);
+        status.setHorizontalAlignment(SwingConstants.CENTER);
+        statusBadge.add(status, BorderLayout.CENTER);
 
         header.add(left, BorderLayout.WEST);
-        header.add(status, BorderLayout.EAST);
+        header.add(statusBadge, BorderLayout.EAST);
 
         return header;
     }
 
     private JComponent createBody() {
-        JPanel body = new JPanel(new BorderLayout(16, 16));
+        JPanel body = new JPanel(new BorderLayout(0, 18));
         body.setOpaque(false);
 
         body.add(createStatsRow(), BorderLayout.NORTH);
 
-        JPanel center = new JPanel(new GridLayout(1, 2, 16, 0));
-        center.setOpaque(false);
+        JPanel contentStack = new JPanel();
+        contentStack.setOpaque(false);
+        contentStack.setLayout(new BoxLayout(contentStack, BoxLayout.Y_AXIS));
 
-        center.add(createAddReviewCard());
-        center.add(createReviewsCard());
+        JPanel mainRow = new JPanel(new GridLayout(1, 2, 20, 0));
+        mainRow.setOpaque(false);
+        mainRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        mainRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 440));
+        mainRow.setPreferredSize(new Dimension(1000, 440));
 
-        body.add(center, BorderLayout.CENTER);
+        mainRow.add(createAddReviewCard());
+        mainRow.add(createReviewsCard());
+
+        JPanel bottomRow = new JPanel(new GridLayout(1, 2, 20, 0));
+        bottomRow.setOpaque(false);
+        bottomRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        bottomRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 175));
+        bottomRow.setPreferredSize(new Dimension(1000, 175));
+
+        bottomRow.add(createActivityCard());
+        bottomRow.add(createTipsCard());
+
+        contentStack.add(mainRow);
+        contentStack.add(Box.createVerticalStrut(20));
+        contentStack.add(bottomRow);
+        contentStack.add(Box.createVerticalGlue());
+
+        body.add(contentStack, BorderLayout.CENTER);
 
         return body;
     }
 
     private JComponent createStatsRow() {
-        JPanel row = new JPanel(new GridLayout(1, 4, 14, 0));
+        JPanel row = new JPanel(new GridLayout(1, 4, 16, 0));
         row.setOpaque(false);
+        row.setPreferredSize(new Dimension(1000, 100));
 
         row.add(statCard("4.9", "Average Rating", "Excellent service score"));
         row.add(statCard("128", "Total Reviews", "Customer feedback"));
@@ -95,21 +127,21 @@ public final class ReviewsPanel extends JPanel {
     }
 
     private JComponent statCard(String value, String title, String desc) {
-        RoundedPanel card = new RoundedPanel(18, CARD);
+        RoundedPanel card = new RoundedPanel(16, CARD);
         card.setLayout(new BorderLayout(14, 0));
-        card.setBorder(new EmptyBorder(18, 18, 18, 18));
+        card.setBorder(new EmptyBorder(14, 16, 14, 16));
 
         ReviewIcon icon = new ReviewIcon();
-        icon.setPreferredSize(new Dimension(54, 54));
+        icon.setPreferredSize(new Dimension(48, 48));
 
         JPanel text = new JPanel();
         text.setOpaque(false);
         text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
 
-        text.add(label(title, 12, Font.BOLD, TEXT));
-        text.add(Box.createVerticalStrut(5));
-        text.add(label(value, 24, Font.BOLD, PALE));
+        text.add(label(title, 13, Font.BOLD, TEXT));
         text.add(Box.createVerticalStrut(4));
+        text.add(label(value, 24, Font.BOLD, PALE));
+        text.add(Box.createVerticalStrut(3));
         text.add(label(desc, 11, Font.PLAIN, MUTED));
 
         card.add(icon, BorderLayout.WEST);
@@ -121,7 +153,7 @@ public final class ReviewsPanel extends JPanel {
     private JComponent createAddReviewCard() {
         RoundedPanel card = new RoundedPanel(18, CARD);
         card.setLayout(new BorderLayout());
-        card.setBorder(new EmptyBorder(22, 22, 22, 22));
+        card.setBorder(new EmptyBorder(20, 22, 20, 22));
 
         JPanel content = new JPanel();
         content.setOpaque(false);
@@ -134,9 +166,9 @@ public final class ReviewsPanel extends JPanel {
         sub.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         content.add(title);
-        content.add(Box.createVerticalStrut(6));
+        content.add(Box.createVerticalStrut(4));
         content.add(sub);
-        content.add(Box.createVerticalStrut(20));
+        content.add(Box.createVerticalStrut(18));
 
         vehicleBox = new DarkComboBox<>(new String[]{
                 "BMW X7 xDrive40i",
@@ -160,10 +192,11 @@ public final class ReviewsPanel extends JPanel {
         reviewArea = new DarkTextArea("Write your review here...");
 
         JScrollPane reviewScroll = new JScrollPane(reviewArea);
-        reviewScroll.setBorder(BorderFactory.createLineBorder(new Color(214, 160, 66, 80)));
+        reviewScroll.setBorder(BorderFactory.createLineBorder(new Color(214, 160, 66, 90)));
         reviewScroll.setOpaque(false);
         reviewScroll.getViewport().setOpaque(false);
-        reviewScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 160));
+        reviewScroll.setPreferredSize(new Dimension(100, 128));
+        reviewScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 128));
         reviewScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         content.add(fieldTitle("Vehicle"));
@@ -176,16 +209,16 @@ public final class ReviewsPanel extends JPanel {
 
         content.add(fieldTitle("Review Message"));
         content.add(reviewScroll);
-        content.add(Box.createVerticalStrut(20));
+        content.add(Box.createVerticalStrut(18));
 
         JButton submit = new GoldButton("Submit Review");
-        submit.setPreferredSize(new Dimension(240, 46));
+        submit.setPreferredSize(new Dimension(205, 40));
         submit.addActionListener(e -> submitReview());
 
         JPanel holder = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
         holder.setOpaque(false);
         holder.setAlignmentX(Component.LEFT_ALIGNMENT);
-        holder.setMaximumSize(new Dimension(Integer.MAX_VALUE, 48));
+        holder.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
         holder.add(submit);
 
         content.add(holder);
@@ -196,21 +229,44 @@ public final class ReviewsPanel extends JPanel {
 
     private JComponent createReviewsCard() {
         RoundedPanel card = new RoundedPanel(18, CARD);
-        card.setLayout(new BorderLayout());
-        card.setBorder(new EmptyBorder(22, 22, 22, 22));
+        card.setLayout(new BorderLayout(0, 10));
+        card.setBorder(new EmptyBorder(20, 22, 20, 22));
+
+        JPanel top = new JPanel(new BorderLayout());
+        top.setOpaque(false);
 
         JLabel title = label("Recent Reviews", 22, Font.BOLD, TEXT);
-        title.setBorder(new EmptyBorder(0, 0, 16, 0));
+
+        reviewCountLabel = label("3 reviews", 11, Font.BOLD, PALE);
+        reviewCountLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+
+        top.add(title, BorderLayout.WEST);
+        top.add(reviewCountLabel, BorderLayout.EAST);
 
         reviewsList = new JPanel();
         reviewsList.setOpaque(false);
         reviewsList.setLayout(new BoxLayout(reviewsList, BoxLayout.Y_AXIS));
 
-        reviewsList.add(reviewRow("Omar Al-Khatib", "BMW X7 xDrive40i", "★★★★★", "Amazing luxury experience. The car was clean and powerful."));
+        reviewsList.add(reviewRow(
+                "Omar Al-Khatib",
+                "BMW X7 xDrive40i",
+                "★★★★★",
+                "Amazing luxury experience. The car was clean and powerful."
+        ));
         reviewsList.add(Box.createVerticalStrut(12));
-        reviewsList.add(reviewRow("Sara Johnson", "BMW M8 Competition", "★★★★★", "Fast pickup, premium service, and very professional team."));
+        reviewsList.add(reviewRow(
+                "Sara Johnson",
+                "BMW M8 Competition",
+                "★★★★★",
+                "Fast pickup, premium service, and very professional team."
+        ));
         reviewsList.add(Box.createVerticalStrut(12));
-        reviewsList.add(reviewRow("Ahmad Ali", "Xiaomi Electric Bike Pro", "★★★★☆", "Battery was good and the ride was smooth. Nice experience."));
+        reviewsList.add(reviewRow(
+                "Ahmad Ali",
+                "Xiaomi Electric Bike Pro",
+                "★★★★☆",
+                "Battery was good and the ride was smooth. Nice experience."
+        ));
 
         JScrollPane scroll = new JScrollPane(reviewsList);
         scroll.setBorder(BorderFactory.createEmptyBorder());
@@ -218,50 +274,154 @@ public final class ReviewsPanel extends JPanel {
         scroll.getViewport().setOpaque(false);
         scroll.getVerticalScrollBar().setUnitIncrement(18);
 
-        card.add(title, BorderLayout.NORTH);
+        card.add(top, BorderLayout.NORTH);
         card.add(scroll, BorderLayout.CENTER);
 
         return card;
     }
 
+    private JComponent createActivityCard() {
+        RoundedPanel card = new RoundedPanel(18, CARD_SOFT);
+        card.setLayout(new BorderLayout(0, 12));
+        card.setBorder(new EmptyBorder(16, 18, 16, 18));
+
+        JPanel titlePanel = new JPanel(new BorderLayout());
+        titlePanel.setOpaque(false);
+
+        JLabel title = label("Your Review Activity", 20, Font.BOLD, TEXT);
+        JLabel sub = label("Your contribution to the Velora community", 12, Font.PLAIN, MUTED);
+
+        JPanel titleText = new JPanel();
+        titleText.setOpaque(false);
+        titleText.setLayout(new BoxLayout(titleText, BoxLayout.Y_AXIS));
+        titleText.add(title);
+        titleText.add(Box.createVerticalStrut(3));
+        titleText.add(sub);
+
+        titlePanel.add(titleText, BorderLayout.WEST);
+
+        JPanel metrics = new JPanel(new GridLayout(1, 3, 18, 0));
+        metrics.setOpaque(false);
+
+        metrics.add(activityMetric("📝", "3", "Reviews Shared"));
+        metrics.add(activityMetric("⭐", "4.7", "Average Given"));
+        metrics.add(activityMetric("👍", "2", "Helpful Votes"));
+
+        card.add(titlePanel, BorderLayout.NORTH);
+        card.add(metrics, BorderLayout.CENTER);
+
+        return card;
+    }
+
+    private JComponent activityMetric(String emoji, String value, String text) {
+        JPanel panel = new JPanel();
+        panel.setOpaque(false);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+
+        JLabel emojiLabel = new JLabel(emoji);
+        emojiLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 24));
+        emojiLabel.setForeground(PALE);
+        emojiLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JLabel valueLabel = label(value, 26, Font.BOLD, PALE);
+        valueLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JLabel textLabel = label(text, 12, Font.PLAIN, MUTED);
+        textLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        panel.add(emojiLabel);
+        panel.add(Box.createVerticalStrut(3));
+        panel.add(valueLabel);
+        panel.add(Box.createVerticalStrut(2));
+        panel.add(textLabel);
+
+        return panel;
+    }
+
+    private JComponent createTipsCard() {
+        RoundedPanel card = new RoundedPanel(18, CARD_SOFT);
+        card.setLayout(new BorderLayout(0, 10));
+        card.setBorder(new EmptyBorder(16, 18, 16, 18));
+
+        JPanel head = new JPanel();
+        head.setOpaque(false);
+        head.setLayout(new BoxLayout(head, BoxLayout.Y_AXIS));
+
+        JLabel title = label("Review Tips", 20, Font.BOLD, TEXT);
+        JLabel sub = label("Make your feedback useful and trustworthy", 12, Font.PLAIN, MUTED);
+
+        head.add(title);
+        head.add(Box.createVerticalStrut(3));
+        head.add(sub);
+
+        JPanel tips = new JPanel();
+        tips.setOpaque(false);
+        tips.setLayout(new BoxLayout(tips, BoxLayout.Y_AXIS));
+
+        tips.add(tipLine("Mention vehicle condition, cleanliness, and pickup experience."));
+        tips.add(Box.createVerticalStrut(6));
+        tips.add(tipLine("Keep your feedback honest, clear, and specific."));
+        tips.add(Box.createVerticalStrut(6));
+        tips.add(tipLine("Avoid sharing phone numbers or private information."));
+
+        card.add(head, BorderLayout.NORTH);
+        card.add(tips, BorderLayout.CENTER);
+
+        return card;
+    }
+
+    private JComponent tipLine(String text) {
+        JPanel line = new JPanel(new BorderLayout(8, 0));
+        line.setOpaque(false);
+
+        JLabel dot = label("◆", 9, Font.BOLD, GOLD);
+        JLabel txt = label(text, 12, Font.PLAIN, MUTED);
+
+        line.add(dot, BorderLayout.WEST);
+        line.add(txt, BorderLayout.CENTER);
+
+        return line;
+    }
+
     private JComponent reviewRow(String name, String vehicle, String stars, String message) {
-    RoundedPanel row = new RoundedPanel(14, new Color(4, 10, 16));
-    row.setLayout(new BorderLayout(12, 0));
-    row.setBorder(new EmptyBorder(14, 14, 14, 14));
-    row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
+        RoundedPanel row = new RoundedPanel(14, new Color(4, 10, 16));
+        row.setLayout(new BorderLayout(10, 0));
+        row.setBorder(new EmptyBorder(11, 12, 11, 12));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 88));
+        row.setPreferredSize(new Dimension(100, 88));
 
-    ReviewAvatar avatar = new ReviewAvatar();
-    avatar.setPreferredSize(new Dimension(58, 58));
+        ReviewAvatar avatar = new ReviewAvatar();
+        avatar.setPreferredSize(new Dimension(50, 50));
 
-    JPanel text = new JPanel();
-    text.setOpaque(false);
-    text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+        JPanel text = new JPanel();
+        text.setOpaque(false);
+        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
 
-    JLabel top = label(name + "  •  " + vehicle, 13, Font.BOLD, TEXT);
+        JLabel top = label(name + "  •  " + vehicle, 13, Font.BOLD, TEXT);
 
-    StarRating rating = new StarRating(stars);
-    rating.setPreferredSize(new Dimension(115, 22));
-    rating.setMaximumSize(new Dimension(115, 22));
-    rating.setAlignmentX(Component.LEFT_ALIGNMENT);
+        StarRating rating = new StarRating(stars);
+        rating.setPreferredSize(new Dimension(102, 18));
+        rating.setMaximumSize(new Dimension(102, 18));
+        rating.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-    JLabel msg = label(
-            "<html><div style='width:360px'>" + message + "</div></html>",
-            12,
-            Font.PLAIN,
-            MUTED
-    );
+        JLabel msg = label(
+                "<html><div style='width:330px'>" + message + "</div></html>",
+                11,
+                Font.PLAIN,
+                MUTED
+        );
 
-    text.add(top);
-    text.add(Box.createVerticalStrut(4));
-    text.add(rating);
-    text.add(Box.createVerticalStrut(5));
-    text.add(msg);
+        text.add(top);
+        text.add(Box.createVerticalStrut(2));
+        text.add(rating);
+        text.add(Box.createVerticalStrut(2));
+        text.add(msg);
 
-    row.add(avatar, BorderLayout.WEST);
-    row.add(text, BorderLayout.CENTER);
+        row.add(avatar, BorderLayout.WEST);
+        row.add(text, BorderLayout.CENTER);
 
-    return row;
-}
+        return row;
+    }
 
     private void submitReview() {
         String message = reviewArea.getText().trim();
@@ -279,14 +439,18 @@ public final class ReviewsPanel extends JPanel {
         String customerName = customer == null ? "Customer" : customer.getFullName();
         String vehicle = String.valueOf(vehicleBox.getSelectedItem());
         String rating = String.valueOf(ratingBox.getSelectedItem());
-        String stars = rating.substring(0, 1).equals("5") ? "★★★★★"
-                : rating.substring(0, 1).equals("4") ? "★★★★☆"
-                : rating.substring(0, 1).equals("3") ? "★★★☆☆"
-                : rating.substring(0, 1).equals("2") ? "★★☆☆☆"
+
+        String stars = rating.startsWith("5") ? "★★★★★"
+                : rating.startsWith("4") ? "★★★★☆"
+                : rating.startsWith("3") ? "★★★☆☆"
+                : rating.startsWith("2") ? "★★☆☆☆"
                 : "★☆☆☆☆";
 
-        reviewsList.add(Box.createVerticalStrut(12), 0);
+        reviewsList.add(Box.createVerticalStrut(9), 0);
         reviewsList.add(reviewRow(customerName, vehicle, stars, message), 0);
+
+        reviewCountLabel.setText((countReviewRows()) + " reviews");
+
         reviewsList.revalidate();
         reviewsList.repaint();
 
@@ -301,65 +465,80 @@ public final class ReviewsPanel extends JPanel {
         reviewArea.setText("");
     }
 
+    private int countReviewRows() {
+        int count = 0;
+        for (Component component : reviewsList.getComponents()) {
+            if (component instanceof RoundedPanel) {
+                count++;
+            }
+        }
+        return count;
+    }
+
     private JLabel fieldTitle(String text) {
         JLabel label = label(text, 12, Font.BOLD, PALE);
-        label.setBorder(new EmptyBorder(0, 2, 6, 0));
+        label.setBorder(new EmptyBorder(0, 2, 5, 0));
         label.setAlignmentX(Component.LEFT_ALIGNMENT);
         return label;
     }
 
     private void styleCombo(JComboBox<String> combo) {
-    combo.setOpaque(false);
-    combo.setBackground(new Color(3, 9, 15));
-    combo.setForeground(TEXT);
-    combo.setFont(new Font("Segoe UI", Font.BOLD, 13));
-    combo.setFocusable(false);
-    combo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 44));
-    combo.setAlignmentX(Component.LEFT_ALIGNMENT);
-    combo.setBorder(BorderFactory.createEmptyBorder());
+        combo.setOpaque(false);
+        combo.setBackground(new Color(3, 9, 15));
+        combo.setForeground(TEXT);
+        combo.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        combo.setFocusable(false);
+        combo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+        combo.setPreferredSize(new Dimension(100, 42));
+        combo.setAlignmentX(Component.LEFT_ALIGNMENT);
+        combo.setBorder(BorderFactory.createEmptyBorder());
 
-    combo.setRenderer(new DefaultListCellRenderer() {
-        @Override
-        public Component getListCellRendererComponent(
-                JList<?> list,
-                Object value,
-                int index,
-                boolean isSelected,
-                boolean cellHasFocus
-        ) {
-            JLabel label = (JLabel) super.getListCellRendererComponent(
-                    list, value, index, isSelected, cellHasFocus
-            );
+        combo.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(
+                    JList<?> list,
+                    Object value,
+                    int index,
+                    boolean isSelected,
+                    boolean cellHasFocus
+            ) {
+                JLabel item = (JLabel) super.getListCellRendererComponent(
+                        list,
+                        value,
+                        index,
+                        isSelected,
+                        cellHasFocus
+                );
 
-            label.setFont(new Font("Segoe UI", Font.BOLD, 13));
-            label.setBorder(new EmptyBorder(9, 14, 9, 14));
+                item.setFont(new Font("Segoe UI", Font.BOLD, 13));
+                item.setBorder(new EmptyBorder(8, 12, 8, 12));
 
-            if (isSelected) {
-                label.setBackground(new Color(93, 58, 23));
-                label.setForeground(PALE);
-            } else {
-                label.setBackground(new Color(3, 9, 15));
-                label.setForeground(TEXT);
+                if (isSelected) {
+                    item.setBackground(new Color(93, 58, 23));
+                    item.setForeground(PALE);
+                } else {
+                    item.setBackground(new Color(3, 9, 15));
+                    item.setForeground(TEXT);
+                }
+
+                return item;
             }
+        });
 
-            return label;
-        }
-    });
-
-    combo.setUI(new BasicComboBoxUI() {
-        @Override
-        protected JButton createArrowButton() {
-            JButton button = new JButton("⌄");
-            button.setForeground(PALE);
-            button.setBackground(new Color(3, 9, 15));
-            button.setBorder(BorderFactory.createEmptyBorder());
-            button.setFocusPainted(false);
-            button.setOpaque(false);
-            button.setContentAreaFilled(false);
-            return button;
-        }
-    });
-}
+        combo.setUI(new BasicComboBoxUI() {
+            @Override
+            protected JButton createArrowButton() {
+                JButton button = new JButton("⌄");
+                button.setForeground(PALE);
+                button.setBackground(new Color(3, 9, 15));
+                button.setBorder(BorderFactory.createEmptyBorder());
+                button.setFocusPainted(false);
+                button.setOpaque(false);
+                button.setContentAreaFilled(false);
+                return button;
+            }
+        });
+    }
 
     private JLabel label(String text, int size, int style, Color color) {
         JLabel label = new JLabel(text);
@@ -382,28 +561,52 @@ public final class ReviewsPanel extends JPanel {
         @Override
         protected void paintComponent(Graphics raw) {
             Graphics2D g = (Graphics2D) raw.create();
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-            RoundRectangle2D shape = new RoundRectangle2D.Double(
-                    .5, .5, getWidth() - 1, getHeight() - 1, radius, radius
+            g.setRenderingHint(
+                    RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON
             );
 
-            g.setColor(new Color(0, 0, 0, 70));
-            g.fillRoundRect(5, 7, Math.max(0, getWidth() - 10), Math.max(0, getHeight() - 10), radius, radius);
+            RoundRectangle2D shape = new RoundRectangle2D.Double(
+                    0.5,
+                    0.5,
+                    Math.max(0, getWidth() - 1),
+                    Math.max(0, getHeight() - 1),
+                    radius,
+                    radius
+            );
+
+            g.setColor(new Color(0, 0, 0, 55));
+            g.fillRoundRect(
+                    4,
+                    5,
+                    Math.max(0, getWidth() - 8),
+                    Math.max(0, getHeight() - 8),
+                    radius,
+                    radius
+            );
 
             g.setPaint(new GradientPaint(
-                    0, 0, new Color(12, 22, 31),
-                    getWidth(), getHeight(), fill
+                    0,
+                    0,
+                    new Color(15, 24, 31),
+                    getWidth(),
+                    getHeight(),
+                    fill
             ));
             g.fill(shape);
 
             g.setPaint(new GradientPaint(
-                    0, 0, new Color(214, 160, 66, 25),
-                    getWidth(), 0, new Color(214, 160, 66, 3)
+                    0,
+                    0,
+                    new Color(214, 160, 66, 18),
+                    getWidth(),
+                    0,
+                    new Color(214, 160, 66, 2)
             ));
             g.fill(shape);
 
-            g.setColor(new Color(214, 160, 66, 85));
+            g.setColor(new Color(214, 160, 66, 72));
             g.draw(shape);
 
             g.dispose();
@@ -417,6 +620,7 @@ public final class ReviewsPanel extends JPanel {
 
         DarkTextArea(String placeholder) {
             this.placeholder = placeholder;
+
             setText(placeholder);
             setOpaque(false);
             setForeground(MUTED);
@@ -424,7 +628,7 @@ public final class ReviewsPanel extends JPanel {
             setFont(new Font("Segoe UI", Font.PLAIN, 13));
             setLineWrap(true);
             setWrapStyleWord(true);
-            setBorder(new EmptyBorder(12, 14, 12, 14));
+            setBorder(new EmptyBorder(10, 12, 10, 12));
 
             addFocusListener(new java.awt.event.FocusAdapter() {
                 @Override
@@ -450,6 +654,7 @@ public final class ReviewsPanel extends JPanel {
 
         GoldButton(String text) {
             super(text);
+
             setOpaque(false);
             setContentAreaFilled(false);
             setBorderPainted(false);
@@ -462,12 +667,23 @@ public final class ReviewsPanel extends JPanel {
         @Override
         protected void paintComponent(Graphics raw) {
             Graphics2D g = (Graphics2D) raw.create();
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            g.setRenderingHint(
+                    RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON
+            );
 
             g.setPaint(new GradientPaint(
-                    0, 0, getModel().isRollover() ? new Color(250, 219, 158) : PALE,
-                    getWidth(), getHeight(), new Color(164, 103, 33)
+                    0,
+                    0,
+                    getModel().isRollover()
+                            ? new Color(250, 219, 158)
+                            : PALE,
+                    getWidth(),
+                    getHeight(),
+                    new Color(164, 103, 33)
             ));
+
             g.fillRoundRect(0, 0, getWidth(), getHeight(), 12, 12);
 
             g.dispose();
@@ -480,25 +696,38 @@ public final class ReviewsPanel extends JPanel {
         @Override
         protected void paintComponent(Graphics raw) {
             Graphics2D g = (Graphics2D) raw.create();
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            g.setRenderingHint(
+                    RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON
+            );
 
             int cx = getWidth() / 2;
             int cy = getHeight() / 2;
 
-            g.setColor(new Color(214, 160, 66, 22));
-            g.fillOval(cx - 24, cy - 24, 48, 48);
+            g.setColor(new Color(214, 160, 66, 18));
+            g.fillOval(cx - 19, cy - 19, 38, 38);
 
             g.setColor(GOLD);
-            g.setStroke(new BasicStroke(2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.setStroke(new BasicStroke(
+                    1.8f,
+                    BasicStroke.CAP_ROUND,
+                    BasicStroke.JOIN_ROUND
+            ));
 
             Polygon star = new Polygon();
+
             for (int i = 0; i < 10; i++) {
                 double angle = -Math.PI / 2 + i * Math.PI / 5;
-                double r = i % 2 == 0 ? 18 : 8;
-                star.addPoint((int) (cx + Math.cos(angle) * r), (int) (cy + Math.sin(angle) * r));
-            }
-            g.drawPolygon(star);
+                double r = i % 2 == 0 ? 14 : 6;
 
+                star.addPoint(
+                        (int) (cx + Math.cos(angle) * r),
+                        (int) (cy + Math.sin(angle) * r)
+                );
+            }
+
+            g.drawPolygon(star);
             g.dispose();
         }
     }
@@ -508,7 +737,11 @@ public final class ReviewsPanel extends JPanel {
         @Override
         protected void paintComponent(Graphics raw) {
             Graphics2D g = (Graphics2D) raw.create();
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            g.setRenderingHint(
+                    RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON
+            );
 
             int size = Math.min(getWidth(), getHeight()) - 4;
             int x = (getWidth() - size) / 2;
@@ -519,106 +752,123 @@ public final class ReviewsPanel extends JPanel {
             g.fillOval(x, y, size, size);
 
             g.setColor(PALE);
-            g.setStroke(new BasicStroke(1.7f));
+            g.setStroke(new BasicStroke(1.5f));
             g.drawOval(x, y, size, size);
 
             g.setColor(new Color(223, 179, 143));
-            g.fillOval(cx - 9, y + 10, 18, 20);
+            g.fillOval(cx - 7, y + 8, 14, 16);
 
             g.setColor(new Color(235, 238, 242));
-            g.fillArc(cx - 20, y + 31, 40, 26, 0, 180);
+            g.fillArc(cx - 15, y + 25, 30, 20, 0, 180);
 
             g.dispose();
         }
- 
     }
-    
+
     private static final class DarkComboBox<E> extends JComboBox<E> {
 
-    DarkComboBox(E[] items) {
-        super(items);
-        setOpaque(false);
-        setBackground(new Color(3, 9, 15));
-        setForeground(TEXT);
-        setFont(new Font("Segoe UI", Font.BOLD, 13));
+        DarkComboBox(E[] items) {
+            super(items);
+
+            setOpaque(false);
+            setBackground(new Color(3, 9, 15));
+            setForeground(TEXT);
+            setFont(new Font("Segoe UI", Font.BOLD, 13));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+
+            g.setRenderingHint(
+                    RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON
+            );
+
+            g.setColor(new Color(3, 9, 15));
+            g.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+
+            g.setColor(new Color(214, 160, 66, 105));
+            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+
+            g.dispose();
+            super.paintComponent(raw);
+        }
     }
 
-    @Override
-    protected void paintComponent(Graphics raw) {
-        Graphics2D g = (Graphics2D) raw.create();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+    private static final class StarRating extends JComponent {
 
-        g.setColor(new Color(3, 9, 15));
-        g.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+        private final int rating;
 
-        g.setColor(new Color(214, 160, 66, 120));
-        g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+        StarRating(String stars) {
+            int count = 0;
 
-        g.dispose();
-        super.paintComponent(raw);
-    }
-}
-
-private static final class StarRating extends JComponent {
-
-    private final int rating;
-
-    StarRating(String stars) {
-        int count = 0;
-        if (stars != null) {
-            for (int i = 0; i < stars.length(); i++) {
-                if (stars.charAt(i) == '★') {
-                    count++;
+            if (stars != null) {
+                for (int i = 0; i < stars.length(); i++) {
+                    if (stars.charAt(i) == '★') {
+                        count++;
+                    }
                 }
             }
+
+            this.rating = Math.max(1, Math.min(5, count));
+            setOpaque(false);
         }
-        this.rating = Math.max(1, Math.min(5, count));
-        setOpaque(false);
-    }
 
-    @Override
-    protected void paintComponent(Graphics raw) {
-        Graphics2D g = (Graphics2D) raw.create();
-        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
 
-        int size = 15;
-        int gap = 6;
-        int y = 3;
+            g.setRenderingHint(
+                    RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON
+            );
 
-        for (int i = 0; i < 5; i++) {
-            int x = i * (size + gap) + 2;
-            Shape star = createStar(x + size / 2.0, y + size / 2.0, size / 2.0, size / 4.0);
+            int size = 13;
+            int gap = 5;
+            int y = 2;
 
-            if (i < rating) {
-                g.setColor(GOLD);
-                g.fill(star);
-            } else {
-                g.setColor(new Color(214, 160, 66, 55));
-                g.draw(star);
+            for (int i = 0; i < 5; i++) {
+                int x = i * (size + gap) + 2;
+
+                Shape star = createStar(
+                        x + size / 2.0,
+                        y + size / 2.0,
+                        size / 2.0,
+                        size / 4.0
+                );
+
+                if (i < rating) {
+                    g.setColor(GOLD);
+                    g.fill(star);
+                } else {
+                    g.setColor(new Color(214, 160, 66, 55));
+                    g.draw(star);
+                }
             }
+
+            g.dispose();
         }
 
-        g.dispose();
-    }
+        private Shape createStar(double cx, double cy, double outer, double inner) {
+            Path2D path = new Path2D.Double();
 
-    private Shape createStar(double cx, double cy, double outer, double inner) {
-        Path2D path = new Path2D.Double();
+            for (int i = 0; i < 10; i++) {
+                double angle = -Math.PI / 2 + i * Math.PI / 5;
+                double radius = i % 2 == 0 ? outer : inner;
 
-        for (int i = 0; i < 10; i++) {
-            double angle = -Math.PI / 2 + i * Math.PI / 5;
-            double radius = i % 2 == 0 ? outer : inner;
-            double x = cx + Math.cos(angle) * radius;
-            double y = cy + Math.sin(angle) * radius;
+                double x = cx + Math.cos(angle) * radius;
+                double y = cy + Math.sin(angle) * radius;
 
-            if (i == 0) {
-                path.moveTo(x, y);
-            } else {
-                path.lineTo(x, y);
+                if (i == 0) {
+                    path.moveTo(x, y);
+                } else {
+                    path.lineTo(x, y);
+                }
             }
-        }
 
-        path.closePath();
-        return path;
+            path.closePath();
+            return path;
+        }
     }
-}
 }

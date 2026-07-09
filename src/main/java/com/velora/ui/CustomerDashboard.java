@@ -170,6 +170,9 @@ public class CustomerDashboard extends JFrame {
         JPanel hero = createHero();
         hero.setAlignmentX(Component.LEFT_ALIGNMENT);
 
+        JPanel sectionHeader = createRentalsSectionHeader();
+        sectionHeader.setAlignmentX(Component.LEFT_ALIGNMENT);
+
         JPanel cards = createCardsGrid();
         cards.setAlignmentX(Component.LEFT_ALIGNMENT);
 
@@ -177,13 +180,51 @@ public class CustomerDashboard extends JFrame {
         footer.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         content.add(hero);
-        content.add(Box.createVerticalStrut(14));
+        content.add(Box.createVerticalStrut(18));
+        content.add(sectionHeader);
+        content.add(Box.createVerticalStrut(10));
         content.add(cards);
-        content.add(Box.createVerticalGlue());
-        content.add(Box.createVerticalStrut(14));
+        content.add(Box.createVerticalStrut(18));
         content.add(footer);
+        content.add(Box.createVerticalStrut(10));
 
         return content;
+    }
+
+    private JPanel createRentalsSectionHeader() {
+        JPanel header = new JPanel(new BorderLayout());
+        header.setOpaque(false);
+        header.setPreferredSize(new Dimension(1120, 42));
+        header.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
+
+        JPanel left = new JPanel();
+        left.setOpaque(false);
+        left.setLayout(new BoxLayout(left, BoxLayout.Y_AXIS));
+
+        JLabel title = new JLabel("YOUR ACTIVE RENTALS");
+        title.setForeground(TEXT);
+        title.setFont(new Font("Segoe UI", Font.BOLD, 17));
+
+        JLabel subtitle = new JLabel("Manage your current BMW rental experience");
+        subtitle.setForeground(MUTED);
+        subtitle.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+
+        left.add(title);
+        left.add(Box.createVerticalStrut(2));
+        left.add(subtitle);
+
+        RoundedButton viewAll = new RoundedButton("View All Rentals  →", 14);
+        viewAll.setPreferredSize(new Dimension(145, 34));
+        viewAll.setBackground(new Color(214, 168, 91, 22));
+        viewAll.setForeground(GOLD_LIGHT);
+        viewAll.setFont(new Font("Segoe UI", Font.BOLD, 11));
+        viewAll.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        viewAll.addActionListener(e -> showSection("My Rentals"));
+
+        header.add(left, BorderLayout.WEST);
+        header.add(viewAll, BorderLayout.EAST);
+
+        return header;
     }
 
     private JScrollPane wrapPage(JComponent page) {
@@ -288,18 +329,18 @@ public class CustomerDashboard extends JFrame {
                 0.16,
                 () -> searchVehicles("BMW")
         );
-        hero.setPreferredSize(new Dimension(1120, 355));
-        hero.setMaximumSize(new Dimension(Integer.MAX_VALUE, 355));
+        hero.setPreferredSize(new Dimension(1120, 315));
+        hero.setMaximumSize(new Dimension(Integer.MAX_VALUE, 315));
 
         JPanel heroHolder = new JPanel(new BorderLayout());
         heroHolder.setOpaque(false);
-        heroHolder.setPreferredSize(new Dimension(1120, 355));
-        heroHolder.setMaximumSize(new Dimension(Integer.MAX_VALUE, 355));
+        heroHolder.setPreferredSize(new Dimension(1120, 315));
+        heroHolder.setMaximumSize(new Dimension(Integer.MAX_VALUE, 315));
         heroHolder.add(hero, BorderLayout.CENTER);
 
         JPanel stats = createStats();
-        stats.setPreferredSize(new Dimension(1120, 72));
-        stats.setMaximumSize(new Dimension(Integer.MAX_VALUE, 72));
+        stats.setPreferredSize(new Dimension(1120, 82));
+        stats.setMaximumSize(new Dimension(Integer.MAX_VALUE, 82));
 
         wrapper.add(heroHolder);
         wrapper.add(Box.createVerticalStrut(12));
@@ -310,9 +351,9 @@ public class CustomerDashboard extends JFrame {
 
     private JPanel createStats() {
         RoundedPanel strip = new RoundedPanel(18);
-        strip.setBackground(new Color(4, 8, 13, 225));
+        strip.setBackground(new Color(3, 7, 12, 238));
         strip.setLayout(new GridLayout(1, 4, 0, 0));
-        strip.setBorder(new EmptyBorder(8, 22, 8, 22));
+        strip.setBorder(new EmptyBorder(10, 18, 10, 18));
 
         strip.add(statCard(MenuIconType.CAR, "TOTAL RENTALS", "12"));
         strip.add(statCard(MenuIconType.CALENDAR, "ACTIVE RENTALS", "2"));
@@ -323,45 +364,45 @@ public class CustomerDashboard extends JFrame {
     }
 
     private JPanel statCard(MenuIconType iconType, String label, String value) {
-        JPanel p = new JPanel(new BorderLayout(14, 0));
-        p.setOpaque(false);
-        p.setBorder(new EmptyBorder(0, 14, 0, 14));
+        JPanel card = new JPanel(new BorderLayout(14, 0));
+        card.setOpaque(false);
+        card.setBorder(new EmptyBorder(4, 18, 4, 18));
 
-        StatIcon icon = new StatIcon(iconType, 34);
-        p.add(icon, BorderLayout.WEST);
+        StatIcon icon = new StatIcon(iconType, 32);
 
         JPanel textPanel = new JPanel();
         textPanel.setOpaque(false);
         textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
 
-        JLabel l = new JLabel(label);
-        l.setForeground(MUTED);
-        l.setFont(new Font("Segoe UI", Font.BOLD, 11));
-        l.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel labelText = new JLabel(label);
+        labelText.setForeground(new Color(185, 190, 198));
+        labelText.setFont(new Font("Segoe UI", Font.BOLD, 10));
+        labelText.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel v = new JLabel(value);
-        v.setForeground(TEXT);
-        v.setFont(new Font("Segoe UI", Font.PLAIN, 22));
-        v.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JLabel valueText = new JLabel(value);
+        valueText.setForeground(TEXT);
+        valueText.setFont(new Font("Segoe UI Semibold", Font.PLAIN, 21));
+        valueText.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         textPanel.add(Box.createVerticalGlue());
-        textPanel.add(l);
-        textPanel.add(Box.createVerticalStrut(2));
-        textPanel.add(v);
+        textPanel.add(labelText);
+        textPanel.add(Box.createVerticalStrut(3));
+        textPanel.add(valueText);
         textPanel.add(Box.createVerticalGlue());
 
-        p.add(textPanel, BorderLayout.CENTER);
+        card.add(icon, BorderLayout.WEST);
+        card.add(textPanel, BorderLayout.CENTER);
 
-        return p;
+        return card;
     }
 
     private JPanel createCardsGrid() {
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setOpaque(false);
-        wrapper.setPreferredSize(new Dimension(1120, 192));
-        wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, 192));
+        wrapper.setPreferredSize(new Dimension(1120, 205));
+        wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, 205));
 
-        JPanel grid = new JPanel(new GridLayout(1, 3, 10, 0));
+        JPanel grid = new JPanel(new GridLayout(1, 3, 14, 0));
         grid.setOpaque(false);
 
         grid.add(clickableCard(rentalCard1, "BMW X7 xDrive40i"));
@@ -374,11 +415,11 @@ public class CustomerDashboard extends JFrame {
 
     private JPanel createFooter() {
         RoundedPanel footer = new RoundedPanel(10);
-        footer.setPreferredSize(new Dimension(1120, 64));
-        footer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 64));
+        footer.setPreferredSize(new Dimension(1120, 76));
+        footer.setMaximumSize(new Dimension(Integer.MAX_VALUE, 76));
         footer.setBackground(new Color(3, 6, 10, 245));
         footer.setLayout(new GridBagLayout());
-        footer.setBorder(new EmptyBorder(6, 18, 6, 14));
+        footer.setBorder(new EmptyBorder(9, 20, 9, 16));
 
         GridBagConstraints gc = new GridBagConstraints();
         gc.gridy = 0;
