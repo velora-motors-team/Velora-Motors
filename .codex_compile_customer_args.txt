@@ -1,0 +1,15 @@
+-encoding
+UTF-8
+-classpath
+"target/classes;src/main/java"
+-d
+target/classes
+src/main/java/com/velora/ui/AdminFooter.java
+src/main/java/com/velora/ui/CustomerFooter.java
+src/main/java/com/velora/ui/CustomerAccountState.java
+src/main/java/com/velora/ui/CustomerDashboard.java
+src/main/java/com/velora/ui/CustomerBillingPanel.java
+src/main/java/com/velora/ui/MyRentalsPanel.java
+src/main/java/com/velora/ui/LoyaltyPointsPanel.java
+src/main/java/com/velora/ui/ProfilePanel.java
+src/main/java/com/velora/ui/VehicleCatalog.java

@@ -8,6 +8,7 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
+import java.util.Locale;
 
 public final class MyRentalsPanel extends JPanel {
 
@@ -27,6 +28,13 @@ public final class MyRentalsPanel extends JPanel {
     private static final Color ORANGE = new Color(242, 174, 73);
 
     private final Customer customer;
+    private final CustomerAccountState accountState;
+    private JLabel activeRentalsValue;
+    private JLabel completedRentalsValue;
+    private JLabel currentCostValue;
+    private JLabel lateReturnsValue;
+    private JPanel activeRentalsList;
+    private JPanel historyList;
 
     public MyRentalsPanel(Customer customer) {
 
@@ -46,6 +54,8 @@ public final class MyRentalsPanel extends JPanel {
 
         add(createHeader(), BorderLayout.NORTH);
         add(createBody(), BorderLayout.CENTER);
+        accountState.addChangeListener(this::refreshRentals);
+        refreshRentals();
     }
 
     /* =========================================================

@@ -49,6 +49,10 @@ public final class ProfilePanel extends JPanel {
     private JTextField nameField;
     private JTextField emailField;
     private JTextField phoneField;
+    private JLabel totalRentalsValue;
+    private JLabel activeRentalsValue;
+    private JLabel loyaltyPointsValue;
+    private JLabel totalSpentValue;
 
     public ProfilePanel(Customer customer) {
         this(customer, null);

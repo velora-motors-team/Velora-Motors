@@ -12,6 +12,7 @@ import java.awt.event.MouseEvent;
 import java.awt.geom.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.util.Locale;
 
 public class CustomerDashboard extends JFrame {
 
@@ -22,8 +23,13 @@ public class CustomerDashboard extends JFrame {
     private static final Color LINE = new Color(214, 168, 91, 75);
 
     private final Customer customer;
+    private final CustomerAccountState accountState;
     private final CardLayout pageLayout = new CardLayout();
     private final JPanel pageCards = new JPanel(pageLayout);
+    private JLabel totalRentalsValue;
+    private JLabel activeRentalsValue;
+    private JLabel loyaltyPointsValue;
+    private JLabel totalSpentValue;
 
     private final BufferedImage iconImage;
     private final BufferedImage heroImage;
@@ -35,6 +41,7 @@ public class CustomerDashboard extends JFrame {
     public CustomerDashboard(Customer customer) {
         super("Velora Motors - Customer Dashboard");
         this.customer = customer;
+        this.accountState = CustomerAccountState.forCustomer(customer);
 
         iconImage = loadImage("/images/icon.png");
         heroImage = loadImage("/images/HERO_CENTER.png");
@@ -53,6 +60,8 @@ public class CustomerDashboard extends JFrame {
         }
 
         setContentPane(createRoot());
+        accountState.addChangeListener(this::refreshCustomerMetrics);
+        refreshCustomerMetrics();
     }
 
     private JPanel createRoot() {
@@ -60,6 +69,7 @@ public class CustomerDashboard extends JFrame {
         root.setLayout(new BorderLayout());
         root.add(createSidebar(), BorderLayout.WEST);
         root.add(createMain(), BorderLayout.CENTER);
+        root.add(new CustomerFooter(), BorderLayout.SOUTH);
         return root;
     }
 
@@ -175,9 +185,6 @@ public class CustomerDashboard extends JFrame {
 
         JPanel cards = createCardsGrid();
         cards.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JPanel footer = createFooter();
-        footer.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         content.add(hero);
         content.add(Box.createVerticalStrut(18));
@@ -355,10 +362,15 @@ public class CustomerDashboard extends JFrame {
         strip.setLayout(new GridLayout(1, 4, 0, 0));
         strip.setBorder(new EmptyBorder(10, 18, 10, 18));
 
-        strip.add(statCard(MenuIconType.CAR, "TOTAL RENTALS", "12"));
-        strip.add(statCard(MenuIconType.CALENDAR, "ACTIVE RENTALS", "2"));
-        strip.add(statCard(MenuIconType.DIAMOND, "LOYALTY POINTS", "2,450"));
-        strip.add(statCard(MenuIconType.FILE, "TOTAL SPENT", "$24,560"));
+        totalRentalsValue = statValueLabel();
+        activeRentalsValue = statValueLabel();
+        loyaltyPointsValue = statValueLabel();
+        totalSpentValue = statValueLabel();
+
+        strip.add(statCard(MenuIconType.CAR, "TOTAL RENTALS", totalRentalsValue));
+        strip.add(statCard(MenuIconType.CALENDAR, "ACTIVE RENTALS", activeRentalsValue));
+        strip.add(statCard(MenuIconType.DIAMOND, "LOYALTY POINTS", loyaltyPointsValue));
+        strip.add(statCard(MenuIconType.FILE, "TOTAL SPENT", totalSpentValue));
 
         return strip;
     }
@@ -394,6 +406,24 @@ public class CustomerDashboard extends JFrame {
         card.add(textPanel, BorderLayout.CENTER);
 
         return card;
+    }
+
+    private JLabel statValueLabel() {
+        JLabel label = new JLabel();
+        label.setForeground(TEXT);
+        label.setFont(new Font("Segoe UI", Font.PLAIN, 22));
+        label.setAlignmentX(Component.LEFT_ALIGNMENT);
+        return label;
+    }
+
+    private void refreshCustomerMetrics() {
+        if (totalRentalsValue == null) {
+            return;
+        }
+        totalRentalsValue.setText(formatNumber(accountState.getTotalRentals()));
+        activeRentalsValue.setText(formatNumber(accountState.getActiveRentals()));
+        loyaltyPointsValue.setText(formatNumber(accountState.getLoyaltyPoints()));
+        totalSpentValue.setText(formatMoney(accountState.getTotalSpent()));
     }
 
     private JPanel createCardsGrid() {
@@ -593,6 +623,14 @@ public class CustomerDashboard extends JFrame {
             return "Omar Al-Khatib";
         }
         return customer.getFullName();
+    }
+
+    private static String formatNumber(int value) {
+        return String.format(Locale.US, "%,d", value);
+    }
+
+    private static String formatMoney(double value) {
+        return String.format(Locale.US, "$%,.0f", value);
     }
 
     private static BufferedImage loadImage(String path) {
@@ -1336,6 +1374,7 @@ public class CustomerDashboard extends JFrame {
                 int x = (availW - drawW) / 2;
                 int y = (availH - drawH) / 2;
 
+                
                 g.drawImage(image, x, y, drawW, drawH, null);
             } else {
                 drawFallback(g);
