@@ -162,6 +162,7 @@ public final class ManagerDashboard extends JFrame {
     contentCards.add(wrapPage(new BillingPanel(manager)), "Billing");
     contentCards.add(wrapPage(new MaintenancePanel(manager)), "Maintenance");
     contentCards.add(wrapPage(createAnalyticsPage()), "Analytics");
+    contentCards.add(wrapPage(new AdminSupportInboxPanel()), "SupportInbox");
 
     workspace.add(contentCards, BorderLayout.CENTER);
     root.add(workspace, BorderLayout.CENTER);
@@ -331,11 +332,12 @@ panel.add(shell, BorderLayout.CENTER);
         ));
 
         HeaderButton messages = new HeaderButton("MAIL");
-        messages.setToolTipText("Messages");
-        messages.addActionListener(e -> showInfo(
-                "Messages",
-                "7 unread messages from customers and rental support."
-        ));
+        messages.setToolTipText("Open Support Inbox");
+        messages.addActionListener(e -> {
+            activeSection = "SupportInbox";
+            contentLayout.show(contentCards, "SupportInbox");
+            setActiveMenu("");
+        });
 
         JButton profile = new ProfileButton(manager.getFullName());
         profile.setPreferredSize(new Dimension(205, 40));

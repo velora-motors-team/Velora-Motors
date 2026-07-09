@@ -1,0 +1,5 @@
+SUP-20260709-144119|Omar Al-Khatib||BILLING_ISSUE|problem|jkvgjdflgjdlg|2026-07-09 14:41|true|RESOLVED|ok|2026-07-09 16:37
+SUP-20260709-152420|Omar Al-Khatib|omar@velora.com|BILLING_ISSUE|test reply|I have a billing problem|2026-07-09 15:24|true|IN_PROGRESS|hello|2026-07-09 16:49
+CHAT-20260709-154616|Omar Al-Khatib|omar@velora.com|LIVE_CHAT|Live Chat|Hello, I need help with my rental|2026-07-09 15:46|true|RESOLVED|Hello Omar, sure. Please tell us your rental ID.|2026-07-09 15:48
+CHAT-20260709-170339|Omar Al-Khatib|omar@velora.com|LIVE_CHAT|Live Chat|i have problem|2026-07-09 17:03|true|OPEN||
+SUP-20260709-170401|Omar Al-Khatib|omar@velora.com|TECHNICAL_ISSUE|p|i have|2026-07-09 17:04|true|IN_PROGRESS|tell me|2026-07-09 17:05
