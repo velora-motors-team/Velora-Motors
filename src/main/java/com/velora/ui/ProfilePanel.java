@@ -248,6 +248,8 @@ public final class ProfilePanel extends JPanel {
         nameField = new DarkTextField(customerName());
         emailField = new DarkTextField(customerEmail());
         phoneField = new DarkTextField(customerPhone());
+        emailField.setEditable(false);
+        emailField.setToolTipText("Email is the account link for billing, reviews, and admin records.");
 
         content.add(createFieldGroup("Full Name", nameField));
         content.add(Box.createVerticalStrut(8));
@@ -613,12 +615,44 @@ public final class ProfilePanel extends JPanel {
     }
 
     private void saveProfile() {
-        JOptionPane.showMessageDialog(
-                this,
-                "Profile changes saved successfully.",
-                "Velora Profile",
-                JOptionPane.INFORMATION_MESSAGE
-        );
+        String fullName = nameField == null ? "" : nameField.getText().trim();
+        String phone = phoneField == null ? "" : phoneField.getText().trim();
+
+        if (fullName.isBlank()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Full name is required.",
+                    "Velora Profile",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
+        try {
+            boolean updated = authenticationService.updateProfile(customerEmail(), fullName, phone);
+            if (updated) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Profile changes saved successfully.\nAdmin customer records will show the updated name and phone.",
+                        "Velora Profile",
+                        JOptionPane.INFORMATION_MESSAGE
+                );
+            } else {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "Could not find this account in accounts.txt.",
+                        "Velora Profile",
+                        JOptionPane.ERROR_MESSAGE
+                );
+            }
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    ex.getMessage(),
+                    "Velora Profile",
+                    JOptionPane.ERROR_MESSAGE
+            );
+        }
     }
 
     private void changePassword() {

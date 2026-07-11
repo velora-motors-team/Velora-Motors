@@ -3,6 +3,7 @@ package com.velora.ui;
 import com.velora.authentication.Customer;
 import com.velora.service.VehicleService;
 import com.velora.vehicle.Vehicle;
+import com.velora.vehicle.VehicleStatus;
 
 import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
@@ -50,7 +51,11 @@ import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.Comparator;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -68,6 +73,7 @@ public final class RentalReturnPanel extends JPanel {
     private static final Color BLUE = new Color(67, 132, 207);
 
     private static final int PAGE_SIZE = 8;
+    private static final Path RENTALS_FILE = Path.of(System.getProperty("user.dir"), "data", "rental-returns.tsv");
 
     private final Customer manager;
     private final VehicleService vehicleService = new VehicleService();
@@ -95,7 +101,10 @@ public final class RentalReturnPanel extends JPanel {
         setLayout(new BorderLayout());
         setBorder(new EmptyBorder(12, 14, 14, 18));
 
-        loadDemoData();
+        if (!loadSavedRentals()) {
+            loadDemoData();
+            saveRentals();
+        }
         filteredRentals.addAll(allRentals);
         updatePageData();
 
@@ -468,7 +477,123 @@ public final class RentalReturnPanel extends JPanel {
             record.status = "Returned";
             record.actualReturn = "07 Jul 2026\nNow";
             record.lateDuration = record.lateDuration.equals("-") ? "-" : record.lateDuration;
+            markVehicleAvailable(record.vehicleFullName);
+            saveRentals();
             applyFilters();
+        }
+    }
+
+    private void markVehicleAvailable(String vehicleName) {
+        if (vehicleName == null || vehicleName.isBlank()) {
+            return;
+        }
+        for (Vehicle vehicle : vehicleService.getAllVehicles()) {
+            if (FleetUiData.displayName(vehicle).equalsIgnoreCase(vehicleName.trim())) {
+                vehicle.setStatus(VehicleStatus.AVAILABLE);
+                vehicleService.saveVehicles();
+                return;
+            }
+        }
+    }
+
+    private boolean loadSavedRentals() {
+        if (!Files.exists(RENTALS_FILE)) {
+            return false;
+        }
+
+        try {
+            List<String> lines = Files.readAllLines(RENTALS_FILE, StandardCharsets.UTF_8);
+            allRentals.clear();
+
+            for (String line : lines) {
+                if (line == null || line.isBlank()) {
+                    continue;
+                }
+
+                String[] parts = line.split("\t", -1);
+                if (parts.length < 18 || !"RENTAL".equals(parts[0])) {
+                    continue;
+                }
+
+                allRentals.add(new RentalRecord(
+                        decode(parts[1]),
+                        decode(parts[2]),
+                        decode(parts[3]),
+                        decode(parts[4]),
+                        decode(parts[5]),
+                        decode(parts[6]),
+                        decode(parts[7]),
+                        parseInt(parts[8], 0),
+                        decode(parts[9]),
+                        decode(parts[10]),
+                        decode(parts[11]),
+                        decode(parts[12]),
+                        decode(parts[13]),
+                        decode(parts[14]),
+                        parseInt(parts[15], 0),
+                        parseInt(parts[16], 0),
+                        parseInt(parts[17], 0)
+                ));
+            }
+
+            allRentals.sort(Comparator.comparing(r -> r.id));
+            return !allRentals.isEmpty() || !lines.isEmpty();
+        } catch (IOException | IllegalArgumentException ex) {
+            allRentals.clear();
+            return false;
+        }
+    }
+
+    private void saveRentals() {
+        try {
+            Files.createDirectories(RENTALS_FILE.getParent());
+            List<String> lines = new ArrayList<>();
+
+            for (RentalRecord rental : allRentals) {
+                lines.add(String.join("\t",
+                        "RENTAL",
+                        encode(rental.id),
+                        encode(rental.customer),
+                        encode(rental.vehicle),
+                        encode(rental.color),
+                        encode(rental.expectedReturn),
+                        encode(rental.actualReturn),
+                        encode(rental.lateDuration),
+                        String.valueOf(rental.lateFee),
+                        encode(rental.status),
+                        encode(rental.email),
+                        encode(rental.phone),
+                        encode(rental.imagePath),
+                        encode(rental.vehicleFullName),
+                        encode(rental.vin),
+                        String.valueOf(rental.baseRental),
+                        String.valueOf(rental.insurance),
+                        String.valueOf(rental.taxes)
+                ));
+            }
+
+            Files.write(RENTALS_FILE, lines, StandardCharsets.UTF_8);
+        } catch (IOException ignored) {
+        }
+    }
+
+    private static String encode(String value) {
+        String safe = value == null ? "" : value;
+        return Base64.getEncoder().encodeToString(safe.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String decode(String value) {
+        if (value == null || value.isBlank()) {
+            return "";
+        }
+        return new String(Base64.getDecoder().decode(value), StandardCharsets.UTF_8);
+    }
+
+    private static int parseInt(String value, int fallback) {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException ex) {
+            return fallback;
         }
     }
 

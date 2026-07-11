@@ -3,6 +3,7 @@ package com.velora.ui;
 import com.velora.authentication.Customer;
 import com.velora.service.VehicleService;
 import com.velora.vehicle.Vehicle;
+import com.velora.vehicle.VehicleStatus;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -15,9 +16,14 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 
@@ -32,6 +38,7 @@ public final class MaintenancePanel extends JPanel {
     private static final Color BLUE = new Color(89, 151, 255);
     private static final Color ORANGE = new Color(245, 164, 75);
     private static final int PAGE_SIZE = 8;
+    private static final Path MAINTENANCE_FILE = Path.of(System.getProperty("user.dir"), "data", "maintenance-jobs.tsv");
 
     private final Customer manager;
     private final VehicleService vehicleService = new VehicleService();
@@ -62,7 +69,10 @@ public final class MaintenancePanel extends JPanel {
         setOpaque(false);
         setLayout(new BorderLayout());
         setBorder(new EmptyBorder(8, 12, 18, 22));
-        loadDemoJobs();
+        if (!loadSavedJobs()) {
+            loadDemoJobs();
+            saveJobs();
+        }
         filteredJobs.addAll(jobs);
         add(createContent(), BorderLayout.CENTER);
         refreshAll();
@@ -396,6 +406,8 @@ public final class MaintenancePanel extends JPanel {
                     notes
             );
             jobs.add(job);
+            applyVehicleStatusForJob(job);
+            saveJobs();
             refreshAll();
             JOptionPane.showMessageDialog(this, "Service " + job.serviceId + " has been scheduled.", "Velora Maintenance", JOptionPane.INFORMATION_MESSAGE);
         } catch (NumberFormatException ex) {
@@ -412,6 +424,8 @@ public final class MaintenancePanel extends JPanel {
             return;
         }
         job.status = "In Service";
+        updateVehicleStatus(job.vehicle, VehicleStatus.MAINTENANCE);
+        saveJobs();
         refreshMetrics();
         refreshPage();
         JOptionPane.showMessageDialog(this, job.serviceId + " is now In Service.", "Velora Maintenance", JOptionPane.INFORMATION_MESSAGE);
@@ -420,9 +434,110 @@ public final class MaintenancePanel extends JPanel {
     private void completeSelectedJob(ServiceJob job) {
         if (job == null) return;
         job.status = "Completed";
+        updateVehicleStatus(job.vehicle, VehicleStatus.AVAILABLE);
+        saveJobs();
         refreshMetrics();
         refreshPage();
         JOptionPane.showMessageDialog(this, job.serviceId + " has been completed.", "Velora Maintenance", JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private void applyVehicleStatusForJob(ServiceJob job) {
+        if (job == null) {
+            return;
+        }
+        if ("Completed".equals(job.status)) {
+            updateVehicleStatus(job.vehicle, VehicleStatus.AVAILABLE);
+        } else if ("In Service".equals(job.status) || "Delayed".equals(job.status) || "Due Soon".equals(job.status)) {
+            updateVehicleStatus(job.vehicle, VehicleStatus.MAINTENANCE);
+        }
+    }
+
+    private void updateVehicleStatus(String vehicleName, VehicleStatus status) {
+        if (vehicleName == null || vehicleName.isBlank() || status == null) {
+            return;
+        }
+        for (Vehicle vehicle : vehicleService.getAllVehicles()) {
+            if (FleetUiData.displayName(vehicle).equalsIgnoreCase(vehicleName.trim())) {
+                vehicle.setStatus(status);
+                vehicleService.saveVehicles();
+                return;
+            }
+        }
+    }
+
+    private boolean loadSavedJobs() {
+        if (!Files.exists(MAINTENANCE_FILE)) {
+            return false;
+        }
+        try {
+            List<String> lines = Files.readAllLines(MAINTENANCE_FILE, StandardCharsets.UTF_8);
+            jobs.clear();
+            for (String line : lines) {
+                if (line == null || line.isBlank()) {
+                    continue;
+                }
+                String[] parts = line.split("\t", -1);
+                if (parts.length < 10 || !"JOB".equals(parts[0])) {
+                    continue;
+                }
+                jobs.add(new ServiceJob(
+                        decode(parts[1]),
+                        decode(parts[2]),
+                        decode(parts[3]),
+                        decode(parts[4]),
+                        decode(parts[5]),
+                        decode(parts[6]),
+                        decode(parts[7]),
+                        parseDouble(parts[8], 0),
+                        decode(parts[9])
+                ));
+            }
+            return !jobs.isEmpty() || !lines.isEmpty();
+        } catch (IOException | IllegalArgumentException ex) {
+            jobs.clear();
+            return false;
+        }
+    }
+
+    private void saveJobs() {
+        try {
+            Files.createDirectories(MAINTENANCE_FILE.getParent());
+            List<String> lines = new ArrayList<>();
+            for (ServiceJob job : jobs) {
+                lines.add(String.join(
+                        "\t",
+                        "JOB",
+                        encode(job.serviceId),
+                        encode(job.vehicle),
+                        encode(job.serviceType),
+                        encode(job.technician),
+                        encode(job.scheduledDate),
+                        encode(job.priority),
+                        encode(job.status),
+                        String.valueOf(job.cost),
+                        encode(job.notes)
+                ));
+            }
+            Files.write(MAINTENANCE_FILE, lines, StandardCharsets.UTF_8);
+        } catch (IOException ignored) {
+            // Keep the UI responsive even if local persistence is temporarily unavailable.
+        }
+    }
+
+    private static String encode(String value) {
+        return Base64.getEncoder().encodeToString((value == null ? "" : value).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String decode(String value) {
+        return new String(Base64.getDecoder().decode(value == null ? "" : value), StandardCharsets.UTF_8);
+    }
+
+    private static double parseDouble(String value, double fallback) {
+        try {
+            return Double.parseDouble(value);
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
     }
 
     private void loadDemoJobs() {

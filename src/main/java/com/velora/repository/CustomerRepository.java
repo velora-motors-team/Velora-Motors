@@ -73,6 +73,42 @@ public final class CustomerRepository {
         return updated;
     }
 
+    public synchronized boolean updateProfile(String email, String fullName, String phone) {
+        String normalizedEmail = normalizeEmail(email);
+        String normalizedName = fullName == null ? "" : fullName.trim();
+        String normalizedPhone = phone == null ? "" : phone.trim();
+
+        if (normalizedName.isBlank()) {
+            throw new IllegalArgumentException("Full name is required.");
+        }
+
+        List<StoredCustomer> accounts = readAll();
+        boolean updated = false;
+
+        for (int i = 0; i < accounts.size(); i++) {
+            StoredCustomer account = accounts.get(i);
+            Customer current = account.customer();
+
+            if (current.getEmail().equals(normalizedEmail)) {
+                Customer updatedCustomer = new Customer(
+                        normalizedName,
+                        current.getEmail(),
+                        normalizedPhone,
+                        current.getRole()
+                );
+                accounts.set(i, new StoredCustomer(updatedCustomer, account.password()));
+                updated = true;
+                break;
+            }
+        }
+
+        if (updated) {
+            writeAll(accounts);
+        }
+
+        return updated;
+    }
+
     public synchronized boolean deleteByEmail(String email) {
         String normalizedEmail = normalizeEmail(email);
         List<StoredCustomer> accounts = readAll();

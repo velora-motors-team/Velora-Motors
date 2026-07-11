@@ -115,6 +115,7 @@ public final class LoginScreen extends JFrame {
             );
 
             veloraLogo = loadFirst(
+                    "/assets/icons/velora-logo-gold.png",
                     "/assets/icons/velora-logo.png",
                     "/assets/icons/velora-wing.png",
                     "/images/velora-logo.png",
@@ -1176,11 +1177,11 @@ public final class LoginScreen extends JFrame {
             int fh = footerH();
             int y = h - fh;
 
-            g.setColor(new Color(3, 7, 12, 248));
+            g.setColor(new Color(1, 7, 11));
             g.fillRect(0, y, w, fh);
 
-            g.setColor(new Color(255, 215, 150, 35));
-            g.drawLine(sw(16), y, w - sw(16), y);
+            g.setColor(new Color(214, 160, 66, 34));
+            g.drawLine(0, y, w, y);
 
             int cy = y + fh / 2;
 
@@ -1190,12 +1191,18 @@ public final class LoginScreen extends JFrame {
             String copyright = "© 2026 Velora Motors. All rights reserved.";
             g.drawString(copyright, sw(16), cy + leftFm.getAscent() / 2 - sh(2));
 
-            int markSize = Math.max(sw(58), sh(38));
-            int brandX = w / 2 - sw(86);
-            int markY = cy - markSize / 2;
-            drawMiniVeloraMark(g, brandX, markY, markSize);
+            int logoW = sw(100);
+            int logoH = sh(36);
+            int brandCenterX = w / 2 - sw(64);
+            int logoX = brandCenterX - sw(52);
+            int logoY = cy - logoH / 2;
+            if (veloraLogo != null) {
+                g.drawImage(veloraLogo, logoX, logoY, logoW, logoH, null);
+            } else {
+                drawMiniVeloraMark(g, logoX + sw(5), cy - sh(19), Math.max(sw(86), sh(36)));
+            }
 
-            int textX = brandX + markSize + sw(16);
+            int textX = brandCenterX + sw(64);
             g.setColor(WHITE);
             g.setFont(new Font("Segoe UI", Font.PLAIN, sf(18)));
             g.drawString("VELORA MOTORS", textX, cy - sh(5));

@@ -1,6 +1,7 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
+import com.velora.repository.RatingRepository;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -22,6 +23,7 @@ public final class ReviewsPanel extends JPanel {
     private static final Color GREEN = new Color(86, 207, 114);
 
     private final Customer customer;
+    private final RatingRepository ratingRepository = new RatingRepository();
 
     private JComboBox<String> vehicleBox;
     private JComboBox<String> ratingBox;
@@ -439,12 +441,25 @@ public final class ReviewsPanel extends JPanel {
         String customerName = customer == null ? "Customer" : customer.getFullName();
         String vehicle = String.valueOf(vehicleBox.getSelectedItem());
         String rating = String.valueOf(ratingBox.getSelectedItem());
+        int ratingValue = parseRatingValue(rating);
 
         String stars = rating.startsWith("5") ? "★★★★★"
                 : rating.startsWith("4") ? "★★★★☆"
                 : rating.startsWith("3") ? "★★★☆☆"
                 : rating.startsWith("2") ? "★★☆☆☆"
                 : "★☆☆☆☆";
+
+        try {
+            ratingRepository.saveRating(customer, ratingValue, vehicle + " | " + message);
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Unable to save this review for admin dashboard.\n" + ex.getMessage(),
+                    "Velora Reviews",
+                    JOptionPane.ERROR_MESSAGE
+            );
+            return;
+        }
 
         reviewsList.add(Box.createVerticalStrut(9), 0);
         reviewsList.add(reviewRow(customerName, vehicle, stars, message), 0);
@@ -463,6 +478,17 @@ public final class ReviewsPanel extends JPanel {
         );
 
         reviewArea.setText("");
+    }
+
+    private int parseRatingValue(String rating) {
+        if (rating == null || rating.isBlank()) {
+            return 5;
+        }
+        try {
+            return Integer.parseInt(rating.substring(0, 1));
+        } catch (NumberFormatException ex) {
+            return 5;
+        }
     }
 
     private int countReviewRows() {

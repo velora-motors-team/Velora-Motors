@@ -39,6 +39,7 @@ public final class AnalyticsPanel extends JPanel {
         setOpaque(false);
         setLayout(new BorderLayout(0, 16));
         setBorder(new EmptyBorder(8, 12, 24, 22));
+        BillingMetricsBus.addChangeListener(this::refreshAnalytics);
         build();
     }
 
@@ -59,11 +60,18 @@ public final class AnalyticsPanel extends JPanel {
             baseRevenue = vehicles.stream().mapToDouble(Vehicle::getDailyPrice).sum();
         }
 
+        BillingMetricsBus.Metrics billingMetrics = BillingMetricsBus.snapshot();
         double rangeFactor = rangeFactor(selectedDateRange);
-        long rented = Math.max(1, Math.round(realRented * rangeFactor));
+        long rented = scaledCount(
+                billingMetrics.invoiceCount > 0 ? billingMetrics.invoiceCount : realRented,
+                rangeFactor
+        );
         int customers = Math.max(realCustomers, (int) Math.round(realCustomers * Math.min(rangeFactor, 2.0)));
-        double revenue = baseRevenue * rangeFactor;
-        double avgDaily = active == 0 ? 0 : revenue / active;
+        double revenue = scaledMoney(
+                billingMetrics.paidRevenue > 0 ? billingMetrics.paidRevenue : baseRevenue,
+                rangeFactor
+        );
+        double avgDaily = rented == 0 ? 0 : revenue / Math.max(1, rented);
 
         add(createHeading(), BorderLayout.NORTH);
 
@@ -76,11 +84,11 @@ public final class AnalyticsPanel extends JPanel {
         statsRow.setAlignmentX(LEFT_ALIGNMENT);
         statsRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 108));
         statsRow.setPreferredSize(new Dimension(1200, 108));
-        statsRow.add(statCard("Total Revenue", formatMoney(revenue), "+ Live from fleet", "BILL"));
-        statsRow.add(statCard("Total Rentals", String.valueOf(rented), "Currently rented", "CAL"));
+        statsRow.add(statCard("Total Revenue", formatMoney(revenue), billingMetrics.paidInvoices + " paid invoices", "BILL"));
+        statsRow.add(statCard("Total Rentals", String.valueOf(rented), billingMetrics.pendingPayments + " pending", "CAL"));
         statsRow.add(statCard("Total Customers", String.valueOf(customers), "Registered accounts", "USERS"));
         statsRow.add(statCard("Active Vehicles", String.valueOf(active), available + " available", "CAR"));
-        statsRow.add(statCard("Average Daily Revenue", formatMoney(avgDaily), "Per active vehicle", "CHART"));
+        statsRow.add(statCard("Average Revenue", formatMoney(avgDaily), "Per rental", "CHART"));
         body.add(statsRow);
         body.add(Box.createVerticalStrut(14));
 
@@ -90,7 +98,7 @@ public final class AnalyticsPanel extends JPanel {
         row2.setMaximumSize(new Dimension(Integer.MAX_VALUE, 310));
         row2.setPreferredSize(new Dimension(1200, 310));
         row2.add(revenueTrendCard(vehicles, revenue));
-        row2.add(categoryDonutCard(vehicles));
+        row2.add(invoiceStatusCard(billingMetrics));
         row2.add(topVehiclesCard(vehicles));
         body.add(row2);
         body.add(Box.createVerticalStrut(14));
@@ -100,7 +108,7 @@ public final class AnalyticsPanel extends JPanel {
         row3.setAlignmentX(LEFT_ALIGNMENT);
         row3.setMaximumSize(new Dimension(Integer.MAX_VALUE, 292));
         row3.setPreferredSize(new Dimension(1200, 292));
-        row3.add(paymentMethodCard(revenue));
+        row3.add(paymentMethodCard(billingMetrics, revenue));
         row3.add(rentalsByPeriodCard(rented));
         row3.add(customerGrowthCard(customers));
         body.add(row3);
@@ -113,6 +121,16 @@ public final class AnalyticsPanel extends JPanel {
         scroll.getVerticalScrollBar().setPreferredSize(new Dimension(7, 0));
         scroll.getVerticalScrollBar().setUI(new DarkScrollBarUI());
         add(scroll, BorderLayout.CENTER);
+    }
+
+    private void refreshAnalytics() {
+        build();
+        revalidate();
+        repaint();
+    }
+
+    public void refreshData() {
+        refreshAnalytics();
     }
 
     private JComponent createHeading() {
@@ -233,6 +251,24 @@ public final class AnalyticsPanel extends JPanel {
         return card;
     }
 
+    private JComponent invoiceStatusCard(BillingMetricsBus.Metrics metrics) {
+        RoundedPanel card = panelCard();
+        card.add(label("Invoices by Status", 14, Font.BOLD, TEXT), BorderLayout.NORTH);
+
+        PieSlice[] slices = new PieSlice[]{
+                new PieSlice("Paid", metrics.paidInvoices, GOLD),
+                new PieSlice("Pending", Math.max(0, metrics.pendingPayments - metrics.overdueInvoices), new Color(128, 128, 128)),
+                new PieSlice("Overdue", metrics.overdueInvoices, new Color(190, 74, 78))
+        };
+
+        JPanel content = new JPanel(new BorderLayout());
+        content.setOpaque(false);
+        content.add(new DonutChartPanel(slices, String.valueOf(metrics.invoiceCount), "Invoices"), BorderLayout.CENTER);
+        content.add(legendPanel(slices), BorderLayout.EAST);
+        card.add(content, BorderLayout.CENTER);
+        return card;
+    }
+
     private JComponent topVehiclesCard(List<Vehicle> vehicles) {
         RoundedPanel card = panelCard();
         JPanel top = new JPanel(new BorderLayout());
@@ -269,18 +305,19 @@ public final class AnalyticsPanel extends JPanel {
         return card;
     }
 
-    private JComponent paymentMethodCard(double totalRevenue) {
+    private JComponent paymentMethodCard(BillingMetricsBus.Metrics metrics, double visibleRevenue) {
         RoundedPanel card = panelCard();
         card.add(label("Revenue by Payment Method", 14, Font.BOLD, TEXT), BorderLayout.NORTH);
+        double totalRevenue = metrics.paidRevenue;
         PieSlice[] slices = new PieSlice[]{
-                new PieSlice("Credit Card", totalRevenue * .60, GOLD),
-                new PieSlice("Cash", totalRevenue * .25, new Color(128, 128, 128)),
-                new PieSlice("Bank Transfer", totalRevenue * .10, new Color(94, 123, 178)),
-                new PieSlice("Other", totalRevenue * .05, new Color(74, 150, 96))
+                new PieSlice("Credit Card", totalRevenue > 0 ? metrics.cardRevenue : visibleRevenue * .60, GOLD),
+                new PieSlice("Cash", totalRevenue > 0 ? metrics.cashRevenue : visibleRevenue * .25, new Color(128, 128, 128)),
+                new PieSlice("Bank Transfer", totalRevenue > 0 ? metrics.bankTransferRevenue : visibleRevenue * .10, new Color(94, 123, 178)),
+                new PieSlice("Other", totalRevenue > 0 ? metrics.otherRevenue : visibleRevenue * .05, new Color(74, 150, 96))
         };
         JPanel content = new JPanel(new BorderLayout());
         content.setOpaque(false);
-        content.add(new DonutChartPanel(slices, formatMoney(totalRevenue), "Total"), BorderLayout.WEST);
+        content.add(new DonutChartPanel(slices, formatMoney(visibleRevenue), "Total"), BorderLayout.WEST);
         content.add(legendPanel(slices), BorderLayout.CENTER);
         card.add(content, BorderLayout.CENTER);
         return card;
@@ -452,6 +489,20 @@ public final class AnalyticsPanel extends JPanel {
             case "This Year" -> 4.5;
             default -> 1.0;
         };
+    }
+
+    private long scaledCount(long value, double rangeFactor) {
+        if (value <= 0) {
+            return 0;
+        }
+        return Math.max(1, Math.round(value * rangeFactor));
+    }
+
+    private double scaledMoney(double value, double rangeFactor) {
+        if (value <= 0) {
+            return 0;
+        }
+        return value * rangeFactor;
     }
 
     private double[] revenueTrendValues(String mode, double base) {

@@ -3,3 +3,4 @@ SUP-20260709-152420|Omar Al-Khatib|omar@velora.com|BILLING_ISSUE|test reply|I ha
 CHAT-20260709-154616|Omar Al-Khatib|omar@velora.com|LIVE_CHAT|Live Chat|Hello, I need help with my rental|2026-07-09 15:46|true|RESOLVED|Hello Omar, sure. Please tell us your rental ID.|2026-07-09 15:48
 CHAT-20260709-170339|Omar Al-Khatib|omar@velora.com|LIVE_CHAT|Live Chat|i have problem|2026-07-09 17:03|true|OPEN||
 SUP-20260709-170401|Omar Al-Khatib|omar@velora.com|TECHNICAL_ISSUE|p|i have|2026-07-09 17:04|true|IN_PROGRESS|tell me|2026-07-09 17:05
+E2E-1783753570103|Velora E2E Customer|velora.e2e.customer@velora.com|BILLING_ISSUE|Rental payment confirmation|Customer completed a rental, paid the invoice, rated the vehicle, and needs admin confirmation.|2026-07-11 10:06|true|RESOLVED|Admin confirmed the rental, payment, vehicle status, rating, and billing record successfully.|2026-07-11 10:06

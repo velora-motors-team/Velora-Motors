@@ -1,4 +1,3 @@
 # Velora Motors ratings v1
 # email	fullName	rating	comment	createdAt
-# Velora Motors ratings v1
-# email	fullName	rating	comment	createdAt
+velora.e2e.customer%40velora.com	Velora+E2E+Customer	5	BMW+XM+Label+%7C+End-to-end+customer+rating+from+the+full+binding+check.	2026-07-11T10%3A06%3A10.098928700

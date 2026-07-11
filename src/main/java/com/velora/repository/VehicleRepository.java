@@ -4,15 +4,40 @@ import com.velora.vehicle.Vehicle;
 import com.velora.vehicle.VehicleStatus;
 import com.velora.vehicle.VehicleType;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 public class VehicleRepository {
 
+    private static final Path VEHICLE_FILE = Path.of(System.getProperty("user.dir"), "data", "vehicles.tsv");
+    private static final List<Vehicle> SHARED_VEHICLES = loadVehicles();
+
     private final List<Vehicle> vehicles;
 
     public VehicleRepository() {
-        vehicles = new ArrayList<>();
+        vehicles = SHARED_VEHICLES;
+    }
+
+    public List<Vehicle> findAll() {
+        return vehicles;
+    }
+
+    public void saveAll() {
+        saveVehicles(vehicles);
+    }
+
+    private static List<Vehicle> loadVehicles() {
+        List<Vehicle> saved = loadSavedVehicles();
+        if (!saved.isEmpty()) {
+            return saved;
+        }
+
+        List<Vehicle> vehicles = new ArrayList<>();
 
         vehicles.add(new Vehicle(
                 "VM-0001",
@@ -288,9 +313,79 @@ public class VehicleRepository {
                 VehicleStatus.MAINTENANCE,
                 310.0
         ));
+
+        return vehicles;
     }
 
-    public List<Vehicle> findAll() {
+    private static List<Vehicle> loadSavedVehicles() {
+        List<Vehicle> vehicles = new ArrayList<>();
+        if (!Files.exists(VEHICLE_FILE)) {
+            return vehicles;
+        }
+
+        try {
+            for (String line : Files.readAllLines(VEHICLE_FILE, StandardCharsets.UTF_8)) {
+                if (line == null || line.isBlank()) {
+                    continue;
+                }
+                String[] parts = line.split("\t", -1);
+                if (parts.length < 7 || !"VEHICLE".equals(parts[0])) {
+                    continue;
+                }
+                String battery = parts[6];
+                vehicles.add(new Vehicle(
+                        decode(parts[1]),
+                        decode(parts[2]),
+                        decode(parts[3]),
+                        VehicleType.valueOf(parts[4]),
+                        VehicleStatus.valueOf(parts[5]),
+                        parseDouble(parts[6]),
+                        parts.length > 7 && !parts[7].isBlank() ? parseInt(parts[7]) : null
+                ));
+            }
+        } catch (IOException | IllegalArgumentException ex) {
+            vehicles.clear();
+        }
+
         return vehicles;
+    }
+
+    private static void saveVehicles(List<Vehicle> vehicles) {
+        try {
+            Files.createDirectories(VEHICLE_FILE.getParent());
+            List<String> lines = new ArrayList<>();
+            for (Vehicle vehicle : vehicles) {
+                lines.add(String.join(
+                        "\t",
+                        "VEHICLE",
+                        encode(vehicle.getId()),
+                        encode(vehicle.getBrand()),
+                        encode(vehicle.getModel()),
+                        vehicle.getType().name(),
+                        vehicle.getStatus().name(),
+                        String.valueOf(vehicle.getDailyPrice()),
+                        vehicle.getBatteryLevel() == null ? "" : String.valueOf(vehicle.getBatteryLevel())
+                ));
+            }
+            Files.write(VEHICLE_FILE, lines, StandardCharsets.UTF_8);
+        } catch (IOException ignored) {
+            // Keep the UI usable even if local persistence is unavailable.
+        }
+    }
+
+    private static String encode(String value) {
+        return Base64.getEncoder().encodeToString((value == null ? "" : value).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String decode(String value) {
+        return new String(Base64.getDecoder().decode(value == null ? "" : value), StandardCharsets.UTF_8);
+    }
+
+    private static int parseInt(String value) {
+        return Integer.parseInt(value);
+    }
+
+    private static double parseDouble(String value) {
+        return Double.parseDouble(value);
     }
 }

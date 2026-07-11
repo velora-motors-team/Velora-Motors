@@ -77,10 +77,12 @@ private DarkComboButton paymentFilter;
 private DarkComboButton dateFilter;
 
 private JLabel totalRevenueValue;
+private JLabel walletBalanceValue;
 private JLabel paidInvoicesValue;
 private JLabel pendingPaymentsValue;
 private JLabel lateFeesValue;
 private JLabel totalSpentHint;
+private JLabel walletBalanceHint;
 private JLabel paidInvoicesHint;
 private JLabel pendingPaymentsHint;
 private JLabel lateFeesHint;
@@ -154,14 +156,23 @@ private JComponent createHeader() {
 
     titleRow.add(left, BorderLayout.WEST);
 
-    JPanel cards = new JPanel(new GridLayout(1, 4, 14, 0));
+    JPanel cards = new JPanel(new GridLayout(1, 5, 12, 0));
     cards.setOpaque(false);
     cards.setBorder(new EmptyBorder(0, 0, 0, 0));
 
     totalRevenueValue = label("$0.00", 22, Font.PLAIN, TEXT);
+    walletBalanceValue = label("$0.00", 29, Font.BOLD, TEXT);
     paidInvoicesValue = label("0", 22, Font.PLAIN, TEXT);
     pendingPaymentsValue = label("0", 22, Font.PLAIN, TEXT);
     lateFeesValue = label("$0.00", 22, Font.PLAIN, TEXT);
+
+    cards.add(metricCard(
+            "AVAILABLE BALANCE",
+            walletBalanceValue,
+            walletBalanceHint = label("", 8, Font.PLAIN, PALE),
+            "MONEY",
+            GOLD
+    ));
 
     cards.add(metricCard(
             "TOTAL SPENT",
@@ -204,13 +215,14 @@ private JComponent createHeader() {
 private JComponent metricCard(String title, JLabel value, JLabel hintLabel, String icon, Color iconColor) {
     RoundedPanel card = new RoundedPanel(14, new Color(6, 13, 20, 238));
     card.setLayout(new BorderLayout(13, 0));
-    card.setBorder(new EmptyBorder(8, 13, 8, 13));
-    card.setPreferredSize(new Dimension(250, 92));
-    card.setMinimumSize(new Dimension(180, 92));
-    card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 92));
+    boolean walletCard = "AVAILABLE BALANCE".equals(title);
+    card.setBorder(new EmptyBorder(walletCard ? 7 : 8, walletCard ? 12 : 13, walletCard ? 7 : 8, walletCard ? 12 : 13));
+    card.setPreferredSize(new Dimension(walletCard ? 285 : 235, 100));
+    card.setMinimumSize(new Dimension(walletCard ? 230 : 170, 100));
+    card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 100));
 
     MetricIconBadge iconBadge = new MetricIconBadge(icon, iconColor);
-    Dimension iconSize = new Dimension(56, 56);
+    Dimension iconSize = walletCard ? new Dimension(62, 62) : new Dimension(54, 54);
     iconBadge.setPreferredSize(iconSize);
     iconBadge.setMinimumSize(iconSize);
     iconBadge.setMaximumSize(iconSize);
@@ -220,7 +232,7 @@ private JComponent metricCard(String title, JLabel value, JLabel hintLabel, Stri
     text.setOpaque(false);
     text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
 
-    JLabel titleLabel = label(title, 9, Font.PLAIN, new Color(210, 214, 220));
+    JLabel titleLabel = label(title, walletCard ? 10 : 9, Font.BOLD, walletCard ? PALE : new Color(210, 214, 220));
 
     titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
     value.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -427,14 +439,17 @@ private void refreshAll() {
 
 private void refreshMetrics() {
     double totalRevenue = accountState.getTotalSpent();
+    double walletBalance = accountState.getWalletBalance();
     long paid = accountState.getPaidInvoices();
     long pending = accountState.getPendingPayments();
     double lateFees = accountState.getLateFees();
 
+    walletBalanceValue.setText(formatMoney(walletBalance));
     totalRevenueValue.setText(formatMoney(totalRevenue));
     paidInvoicesValue.setText(String.valueOf(paid));
     pendingPaymentsValue.setText(String.valueOf(pending));
     lateFeesValue.setText(formatMoney(lateFees));
+    walletBalanceHint.setText("Linked wallet balance");
     totalSpentHint.setText(formatMoney(accountState.getOutstandingBalance()) + " outstanding");
     paidInvoicesHint.setText(formatMoney(totalRevenue) + " paid");
     pendingPaymentsHint.setText(formatMoney(accountState.getOutstandingBalance()) + " pending");
@@ -669,10 +684,21 @@ private void recordPayment(CustomerAccountState.CustomerInvoice invoice) {
         return;
     }
 
+    if (!accountState.canAfford(invoice.totalAmount())) {
+        VeloraNotificationDialog.showError(
+                this,
+                "Insufficient Balance",
+                "Your available balance is " + formatMoney(accountState.getWalletBalance())
+                        + ".\nRequired amount: " + formatMoney(invoice.totalAmount())
+        );
+        return;
+    }
+
     boolean confirmed = VeloraNotificationDialog.showConfirm(
             this,
             "Confirm Payment",
-            "Pay invoice " + invoice.invoiceId + "?\nTotal: " + formatMoney(invoice.totalAmount()),
+            "Pay invoice " + invoice.invoiceId + "?\nTotal: " + formatMoney(invoice.totalAmount())
+                    + "\nCurrent balance: " + formatMoney(accountState.getWalletBalance()),
             "Pay Now"
     );
 
@@ -680,7 +706,14 @@ private void recordPayment(CustomerAccountState.CustomerInvoice invoice) {
         return;
     }
 
-    accountState.recordPayment(invoice, "Card");
+    if (!accountState.recordPayment(invoice, "Card")) {
+        VeloraNotificationDialog.showError(
+                this,
+                "Payment Failed",
+                "The payment could not be completed because the wallet balance changed."
+        );
+        return;
+    }
 
     int pageBeforeRefresh = currentPage;
     refreshMetrics();
@@ -691,7 +724,8 @@ private void recordPayment(CustomerAccountState.CustomerInvoice invoice) {
     VeloraNotificationDialog.showSuccess(
             this,
             "Payment Successful",
-            "Payment completed successfully for " + invoice.invoiceId + "."
+            "Payment completed successfully for " + invoice.invoiceId
+                    + ".\nRemaining balance: " + formatMoney(accountState.getWalletBalance())
     );
 }
 

@@ -90,6 +90,9 @@ public final class ManagerDashboard extends JFrame {
     private final CardLayout contentLayout = new CardLayout();
     private final JPanel contentCards = new JPanel(contentLayout);
     private final DashboardBackground root = new DashboardBackground();
+    private BillingPanel billingPanel;
+    private AnalyticsPanel analyticsPanel;
+    private AdminSupportInboxPanel adminSupportInboxPanel;
 
     private JPanel sidebar;
     private JTextField searchField;
@@ -159,10 +162,13 @@ public final class ManagerDashboard extends JFrame {
     contentCards.add(wrapPage(createVehiclesPage()), "Vehicles");
     contentCards.add(wrapPage(new RentalReturnPanel(manager)), "Rentals");
     contentCards.add(wrapPage(createCustomersPage()), "Customers");
-    contentCards.add(wrapPage(new BillingPanel(manager)), "Billing");
+    billingPanel = new BillingPanel(manager);
+    contentCards.add(wrapPage(billingPanel), "Billing");
     contentCards.add(wrapPage(new MaintenancePanel(manager)), "Maintenance");
-    contentCards.add(wrapPage(createAnalyticsPage()), "Analytics");
-    contentCards.add(wrapPage(new AdminSupportInboxPanel()), "SupportInbox");
+    analyticsPanel = new AnalyticsPanel(vehicleService, authenticationService);
+    contentCards.add(wrapPage(analyticsPanel), "Analytics");
+    adminSupportInboxPanel = new AdminSupportInboxPanel();
+    contentCards.add(wrapPage(adminSupportInboxPanel), "SupportInbox");
 
     workspace.add(contentCards, BorderLayout.CENTER);
     root.add(workspace, BorderLayout.CENTER);
@@ -1550,6 +1556,7 @@ page.add(Box.createVerticalGlue());
 
     private void showSection(String section) {
         activeSection = section;
+        refreshAllDataMetricsOnly();
         contentLayout.show(contentCards, section);
         setActiveMenu(section);
         if ("Vehicles".equals(section)) {
@@ -1558,6 +1565,14 @@ page.add(Box.createVerticalGlue());
         } else if ("Customers".equals(section)) {
             loadCustomerTable();
             filterVisibleTable();
+        } else if ("Billing".equals(section) && billingPanel != null) {
+            billingPanel.refreshData();
+        } else if ("Analytics".equals(section) && analyticsPanel != null) {
+            analyticsPanel.refreshData();
+        } else if ("SupportInbox".equals(section) && adminSupportInboxPanel != null) {
+            adminSupportInboxPanel.refreshMessages();
+        } else if ("Dashboard".equals(section)) {
+            refreshAllData();
         }
     }
 
@@ -1746,6 +1761,7 @@ page.add(Box.createVerticalGlue());
                     batteryLevel
             );
             vehicleService.getAllVehicles().add(vehicle);
+            vehicleService.saveVehicles();
             loadVehicleTable();
         } catch (IllegalArgumentException ex) {
             showError(ex.getMessage());
@@ -1774,6 +1790,7 @@ page.add(Box.createVerticalGlue());
                 vehicle.setBrand(brand.getText().trim());
                 vehicle.setModel(model.getText().trim());
                 vehicle.setDailyPrice(Double.parseDouble(price.getText().trim()));
+                vehicleService.saveVehicles();
                 loadVehicleTable();
             } catch (NumberFormatException ex) {
                 showError("Daily price must be a valid number.");
@@ -1798,6 +1815,7 @@ page.add(Box.createVerticalGlue());
         );
         if (status != null) {
             vehicle.setStatus(status);
+            vehicleService.saveVehicles();
             loadVehicleTable();
         }
     }
@@ -1819,6 +1837,7 @@ page.add(Box.createVerticalGlue());
 
         try {
             vehicle.setBatteryLevel(clampBattery(Integer.parseInt(input.trim())));
+            vehicleService.saveVehicles();
             loadVehicleTable();
         } catch (NumberFormatException ex) {
             showError("Battery must be a number between 0 and 100.");
@@ -1839,6 +1858,7 @@ page.add(Box.createVerticalGlue());
                 JOptionPane.WARNING_MESSAGE
         ) == JOptionPane.YES_OPTION) {
             vehicleService.getAllVehicles().remove(vehicle);
+            vehicleService.saveVehicles();
             loadVehicleTable();
         }
     }
@@ -2111,8 +2131,7 @@ page.add(Box.createVerticalGlue());
     }
 
     private void logout() {
-        new LoginScreen().setVisible(true);
-        dispose();
+        handleLogout();
     }
 
     private void showInfo(String title, String message) {

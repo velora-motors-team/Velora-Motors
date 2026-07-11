@@ -37,4 +37,8 @@ public class VehicleService {
     public int countAvailableVehicles() {
         return getAvailableVehicles().size();
     }
+
+    public void saveVehicles() {
+        vehicleRepository.saveAll();
+    }
 }

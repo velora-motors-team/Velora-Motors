@@ -1179,6 +1179,10 @@ public final class SupportPanel extends JPanel {
     // LOAD CONVERSATION
     // =========================================================
 
+    public void refreshData() {
+        loadSupportConversation();
+    }
+
     private void loadSupportConversation() {
 
         if (chatMessagesPanel == null) {

@@ -65,6 +65,16 @@ public final class AuthenticationService {
         return customerRepository.updatePassword(normalizedEmail, plainPassword);
     }
 
+    public boolean updateProfile(String email, String fullName, String phone) {
+        String normalizedEmail = normalizeEmail(email);
+
+        if (customerRepository.findByEmail(normalizedEmail).isEmpty()) {
+            return false;
+        }
+
+        return customerRepository.updateProfile(normalizedEmail, fullName, phone);
+    }
+
     public Path getAccountsFile() {
         return customerRepository.getAccountsFile();
     }

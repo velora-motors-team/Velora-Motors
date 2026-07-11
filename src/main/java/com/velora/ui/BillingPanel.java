@@ -41,12 +41,14 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
+import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 
@@ -64,6 +66,7 @@ public final class BillingPanel extends JPanel {
     private static final Color BLUE = new Color(89, 151, 255);
 
     private static final int PAGE_SIZE = 8;
+    static final Path ADMIN_INVOICE_FILE = Path.of(System.getProperty("user.dir"), "data", "admin-billing-invoices.tsv");
 
     private final Customer manager;
     private final VehicleService vehicleService = new VehicleService();
@@ -98,10 +101,14 @@ public final class BillingPanel extends JPanel {
         setLayout(new BorderLayout());
         setBorder(new EmptyBorder(8, 12, 18, 22));
 
-        loadDemoInvoices();
+        if (!loadSavedInvoices()) {
+            loadDemoInvoices();
+            saveInvoices();
+        }
         filteredInvoices.addAll(invoices);
 
         add(createContent(), BorderLayout.CENTER);
+        BillingMetricsBus.addChangeListener(this::refreshMetrics);
         refreshAll();
     }
 
@@ -356,16 +363,66 @@ public final class BillingPanel extends JPanel {
         applyFilters();
     }
 
-    private void refreshMetrics() {
-        double totalRevenue = invoices.stream().mapToDouble(Invoice::totalAmount).sum();
-        long paid = invoices.stream().filter(i -> i.status.equals("Paid")).count();
-        long pending = invoices.stream().filter(i -> i.status.equals("Pending")).count();
-        double lateFees = invoices.stream().mapToDouble(i -> i.lateFee).sum();
+    public void refreshData() {
+        loadSavedInvoices();
+        filteredInvoices.clear();
+        filteredInvoices.addAll(invoices);
+        refreshAll();
+    }
 
-        totalRevenueValue.setText(formatMoney(totalRevenue));
-        paidInvoicesValue.setText(String.valueOf(paid));
-        pendingPaymentsValue.setText(String.valueOf(pending));
-        lateFeesValue.setText(formatMoney(lateFees));
+    private void refreshMetrics() {
+        BillingMetricsBus.setAdminMetrics(localBillingMetrics());
+        BillingMetricsBus.Metrics metrics = BillingMetricsBus.snapshot();
+
+        totalRevenueValue.setText(formatMoney(metrics.paidRevenue));
+        paidInvoicesValue.setText(String.valueOf(metrics.paidInvoices));
+        pendingPaymentsValue.setText(String.valueOf(metrics.pendingPayments));
+        lateFeesValue.setText(formatMoney(metrics.lateFees));
+    }
+
+    private BillingMetricsBus.Metrics localBillingMetrics() {
+        int invoiceCount = invoices.size();
+        long paid = invoices.stream().filter(i -> "Paid".equals(i.status)).count();
+        long pending = invoices.stream().filter(i -> !"Paid".equals(i.status)).count();
+        long overdue = invoices.stream().filter(i -> "Overdue".equals(i.status)).count();
+        double paidRevenue = invoices.stream()
+                .filter(i -> "Paid".equals(i.status))
+                .mapToDouble(Invoice::totalAmount)
+                .sum();
+        double outstanding = invoices.stream()
+                .filter(i -> !"Paid".equals(i.status))
+                .mapToDouble(Invoice::totalAmount)
+                .sum();
+        double lateFees = invoices.stream().mapToDouble(i -> i.lateFee).sum();
+        double grossTotal = invoices.stream().mapToDouble(Invoice::totalAmount).sum();
+        double cardRevenue = paidRevenueByMethod("Card");
+        double cashRevenue = paidRevenueByMethod("Cash");
+        double bankTransferRevenue = paidRevenueByMethod("Bank Transfer");
+        double methodRevenue = cardRevenue + cashRevenue + bankTransferRevenue;
+        double otherRevenue = Math.max(0, paidRevenue - methodRevenue);
+
+        return new BillingMetricsBus.Metrics(
+                invoiceCount,
+                paid,
+                pending,
+                overdue,
+                paidRevenue,
+                outstanding,
+                lateFees,
+                grossTotal,
+                cardRevenue,
+                cashRevenue,
+                bankTransferRevenue,
+                otherRevenue
+        );
+    }
+
+    private double paidRevenueByMethod(String method) {
+        return invoices.stream()
+                .filter(i -> "Paid".equals(i.status))
+                .filter(i -> method.equals(i.paymentMethod))
+                .mapToDouble(Invoice::totalAmount)
+                .sum();
     }
 
     private void applyFilters() {
@@ -520,7 +577,9 @@ public final class BillingPanel extends JPanel {
             );
 
             invoices.add(invoice);
+            saveInvoices();
             refreshAll();
+            BillingMetricsBus.fireChanged();
 
             int lastPage = Math.max(1, (int) Math.ceil(filteredInvoices.size() / (double) PAGE_SIZE));
             currentPage = lastPage;
@@ -568,12 +627,14 @@ public final class BillingPanel extends JPanel {
 
         invoice.status = "Paid";
         invoice.paymentMethod = "Card";
+        saveInvoices();
 
         int pageBeforeRefresh = currentPage;
         refreshMetrics();
         applyFilters();
         currentPage = Math.min(pageBeforeRefresh, totalPages);
         refreshPage();
+        BillingMetricsBus.fireChanged();
 
         JOptionPane.showMessageDialog(
                 this,
@@ -661,6 +722,68 @@ public final class BillingPanel extends JPanel {
         }
     }
 
+    private boolean loadSavedInvoices() {
+        if (!Files.exists(ADMIN_INVOICE_FILE)) {
+            return false;
+        }
+        try {
+            List<String> lines = Files.readAllLines(ADMIN_INVOICE_FILE, StandardCharsets.UTF_8);
+            invoices.clear();
+            for (String line : lines) {
+                if (line == null || line.isBlank()) {
+                    continue;
+                }
+                String[] parts = line.split("\t", -1);
+                if (parts.length < 11 || !"INVOICE".equals(parts[0])) {
+                    continue;
+                }
+                invoices.add(new Invoice(
+                        decode(parts[1]),
+                        decode(parts[2]),
+                        decode(parts[3]),
+                        parseInt(parts[4], 1),
+                        parseDouble(parts[5], 0),
+                        parseDouble(parts[6], 0),
+                        decode(parts[7]),
+                        decode(parts[8]),
+                        decode(parts[9]),
+                        decode(parts[10])
+                ));
+            }
+            BillingMetricsBus.setAdminMetrics(localBillingMetrics());
+            return !invoices.isEmpty() || !lines.isEmpty();
+        } catch (IOException | IllegalArgumentException ex) {
+            invoices.clear();
+            return false;
+        }
+    }
+
+    private void saveInvoices() {
+        try {
+            Files.createDirectories(ADMIN_INVOICE_FILE.getParent());
+            List<String> lines = new ArrayList<>();
+            for (Invoice invoice : invoices) {
+                lines.add(String.join(
+                        "\t",
+                        "INVOICE",
+                        encode(invoice.invoiceId),
+                        encode(invoice.customerName),
+                        encode(invoice.vehicleName),
+                        String.valueOf(invoice.rentalDays),
+                        String.valueOf(invoice.baseAmount),
+                        String.valueOf(invoice.lateFee),
+                        encode(invoice.status),
+                        encode(invoice.paymentMethod),
+                        encode(invoice.startDate),
+                        encode(invoice.endDate)
+                ));
+            }
+            Files.write(ADMIN_INVOICE_FILE, lines, StandardCharsets.UTF_8);
+        } catch (IOException ignored) {
+            // Keep the billing UI usable if the local persistence file cannot be written.
+        }
+    }
+
     private JLabel label(String text, int size, int style, Color color) {
         JLabel label = new JLabel(text);
         label.setFont(new Font("Segoe UI", style, size));
@@ -670,6 +793,30 @@ public final class BillingPanel extends JPanel {
 
     private static String formatMoney(double value) {
         return "$" + String.format("%,.2f", value);
+    }
+
+    private static String encode(String value) {
+        return Base64.getEncoder().encodeToString((value == null ? "" : value).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String decode(String value) {
+        return new String(Base64.getDecoder().decode(value == null ? "" : value), StandardCharsets.UTF_8);
+    }
+
+    private static int parseInt(String value, int fallback) {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
+    }
+
+    private static double parseDouble(String value, double fallback) {
+        try {
+            return Double.parseDouble(value);
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
     }
 
     private static final class Invoice {

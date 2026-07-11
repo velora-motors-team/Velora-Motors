@@ -1,49 +1,88 @@
-
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
 import com.velora.service.VehicleService;
 import com.velora.vehicle.Vehicle;
+import com.velora.vehicle.VehicleStatus;
+import com.velora.vehicle.VehicleType;
 
 import javax.imageio.ImageIO;
-import javax.swing.*;
+import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.DefaultListCellRenderer;
+import javax.swing.JButton;
+import javax.swing.JComboBox;
+import javax.swing.JComponent;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JOptionPane;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
-import java.awt.*;
+import javax.swing.plaf.basic.BasicComboBoxUI;
+import javax.swing.plaf.basic.BasicScrollBarUI;
+import java.awt.AlphaComposite;
+import java.awt.BasicStroke;
+import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Component;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.GradientPaint;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridLayout;
+import java.awt.RenderingHints;
+import java.awt.Shape;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.awt.geom.*;
+import java.awt.geom.Ellipse2D;
+import java.awt.geom.Path2D;
+import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 
-public class VehicleCatalog extends JFrame {
+public class VehicleCatalog extends JPanel {
 
-    private static final Color BG = new Color(3, 7, 11);
-    private static final Color PANEL = new Color(5, 10, 16, 235);
-    private static final Color PANEL_2 = new Color(7, 13, 20, 230);
-    private static final Color GOLD = new Color(214, 168, 91);
-    private static final Color GOLD_LIGHT = new Color(238, 199, 140);
-    private static final Color TEXT = new Color(245, 245, 245);
-    private static final Color MUTED = new Color(170, 176, 186);
-    private static final Color GREEN = new Color(67, 210, 103);
-    private static final Color LINE = new Color(214, 168, 91, 75);
-
-    private static final int PAGE_SIZE = 8;
+    private static final Color BG = new Color(2, 6, 10);
+    private static final Color CARD = new Color(5, 11, 18, 238);
+    private static final Color CARD_DARK = new Color(3, 8, 13, 238);
+    private static final Color GOLD = new Color(214, 160, 66);
+    private static final Color PALE = new Color(238, 201, 139);
+    private static final Color TEXT = new Color(245, 245, 247);
+    private static final Color MUTED = new Color(166, 172, 183);
+    private static final Color GREEN = new Color(73, 190, 93);
+    private static final Color RED = new Color(226, 87, 91);
+    private static final Color LINE = new Color(214, 160, 66, 86);
+    private static final int PAGE_SIZE = 6;
 
     private final Customer customer;
     private final VehicleService vehicleService = new VehicleService();
-    private final ArrayList<VehicleItem> allVehicles = new ArrayList<>();
-    private final ArrayList<VehicleItem> filteredVehicles = new ArrayList<>();
-    private final JPanel cardsGrid = new JPanel();
+    private final CustomerAccountState accountState;
+    private final JPanel cardsGrid = new JPanel(new GridLayout(0, 3, 14, 14));
     private final JTextField searchField = new JTextField();
-    private JLabel pageInfoLabel;
-    private JPanel paginationPanel;
+    private final JLabel showingLabel = label("", 11, Font.PLAIN, MUTED);
+    private final JLabel walletBalanceLabel = label("$0", 22, Font.BOLD, TEXT);
+    private final JPanel pager = new JPanel(new FlowLayout(FlowLayout.RIGHT, 7, 0));
 
-    private String currentFilter = "ALL";
+    private FilterCombo categoryFilter;
+    private FilterCombo priceFilter;
+    private FilterCombo fuelFilter;
+    private FilterCombo availabilityFilter;
     private int currentPage = 1;
 
     public VehicleCatalog() {
@@ -51,930 +90,766 @@ public class VehicleCatalog extends JFrame {
     }
 
     public VehicleCatalog(Customer customer) {
-        super("Velora Motors - Vehicle Collection");
         this.customer = customer;
+        this.accountState = CustomerAccountState.forCustomer(customer);
 
-        allVehicles.addAll(readVehiclesFromFleet());
-
-        setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
-        setMinimumSize(new Dimension(1180, 720));
-        setSize(1380, 820);
-        setLocationRelativeTo(null);
-        setContentPane(createRoot());
-
+        setOpaque(false);
+        setLayout(new BorderLayout());
+        add(createRoot(), BorderLayout.CENTER);
+        accountState.addChangeListener(this::refreshWalletBalance);
+        refreshWalletBalance();
         refreshCards();
     }
 
-    private JPanel createRoot() {
+    public void refreshData() {
+        refreshWalletBalance();
+        refreshCards();
+    }
+
+    private JComponent createRoot() {
         JPanel root = new GradientRoot();
-        root.setLayout(new BorderLayout());
-        root.setBorder(new EmptyBorder(18, 18, 18, 18));
-        root.add(createHeader(), BorderLayout.NORTH);
-        root.add(createContent(), BorderLayout.CENTER);
-        root.add(new CustomerFooter(), BorderLayout.SOUTH);
+        root.setLayout(new BorderLayout(0, 10));
+        root.setBorder(new EmptyBorder(2, 20, 14, 20));
+
+        root.add(createCenter(), BorderLayout.CENTER);
+        root.add(featureStrip(), BorderLayout.SOUTH);
         return root;
     }
 
-    private JPanel createHeader() {
-        RoundedPanel header = new RoundedPanel(24);
-        header.setBackground(new Color(4, 8, 13, 235));
-        header.setLayout(new BorderLayout(16, 0));
-        header.setBorder(new EmptyBorder(14, 18, 14, 18));
-
-        JPanel titleBlock = new JPanel();
-        titleBlock.setOpaque(false);
-        titleBlock.setLayout(new BoxLayout(titleBlock, BoxLayout.Y_AXIS));
-
-        JLabel title = new JLabel("VEHICLE COLLECTION");
-        title.setForeground(TEXT);
-        title.setFont(new Font("Serif", Font.PLAIN, 32));
-        title.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JLabel sub = new JLabel("Browse premium cars, hybrid cars, electric vehicles, e-bikes, and motorcycles.");
-        sub.setForeground(GOLD_LIGHT);
-        sub.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        sub.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        titleBlock.add(title);
-        titleBlock.add(Box.createVerticalStrut(4));
-        titleBlock.add(sub);
+    private JComponent createTop() {
+        JPanel top = new JPanel(new BorderLayout(22, 0));
+        top.setOpaque(false);
 
         SearchBox search = new SearchBox();
-        search.setPreferredSize(new Dimension(470, 46));
+        search.setPreferredSize(new Dimension(590, 44));
+        top.add(search, BorderLayout.WEST);
 
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 12, 0));
-        right.setOpaque(false);
-        right.add(createCustomerBadge());
-
-        RoundedButton back = new RoundedButton("Back", 18);
-        back.setPreferredSize(new Dimension(105, 46));
-        back.setBackground(new Color(0, 0, 0, 0));
-        back.setForeground(GOLD_LIGHT);
-        back.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        back.addActionListener(e -> dispose());
-        right.add(back);
-
-        header.add(titleBlock, BorderLayout.WEST);
-        header.add(search, BorderLayout.CENTER);
-        header.add(right, BorderLayout.EAST);
-
-        return header;
-    }
-
-    private JPanel createCustomerBadge() {
-        JPanel badge = new JPanel(new BorderLayout(10, 0));
-        badge.setOpaque(false);
-        badge.setPreferredSize(new Dimension(210, 46));
-
-        AvatarIcon avatar = new AvatarIcon(42);
-
-        JPanel text = new JPanel(new GridLayout(2, 1));
-        text.setOpaque(false);
-
-        JLabel welcome = new JLabel("Welcome Back,");
-        welcome.setForeground(MUTED);
-        welcome.setFont(new Font("Segoe UI", Font.PLAIN, 11));
-
-        JLabel name = new JLabel(getCustomerName());
-        name.setForeground(GOLD_LIGHT);
-        name.setFont(new Font("Segoe UI", Font.BOLD, 14));
-
-        text.add(welcome);
-        text.add(name);
-
-        badge.add(avatar, BorderLayout.WEST);
-        badge.add(text, BorderLayout.CENTER);
-
-        return badge;
-    }
-
-    private String getCustomerName() {
-        if (customer == null || customer.getFullName() == null || customer.getFullName().trim().isEmpty()) {
-            return "Omar Al-Khatib";
-        }
-        return customer.getFullName();
-    }
-
-    private JPanel createContent() {
-        RoundedPanel content = new RoundedPanel(24);
-        content.setBackground(PANEL);
-        content.setLayout(new BorderLayout(0, 16));
-        content.setBorder(new EmptyBorder(18, 18, 18, 18));
-
-        content.add(createFilterBar(), BorderLayout.NORTH);
-        content.add(createVehicleScroll(), BorderLayout.CENTER);
-
-        return content;
-    }
-
-    private JPanel createFilterBar() {
-        JPanel wrapper = new JPanel();
-        wrapper.setOpaque(false);
-        wrapper.setLayout(new BoxLayout(wrapper, BoxLayout.Y_AXIS));
-
-        JPanel filters = new JPanel(new BorderLayout());
-        filters.setOpaque(false);
-
-        JPanel leftFilters = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        leftFilters.setOpaque(false);
-
-        leftFilters.add(filterButton("All", "ALL"));
-        leftFilters.add(filterButton("Cars", "CAR"));
-        leftFilters.add(filterButton("Hybrid Cars", "HYBRID_CAR"));
-        leftFilters.add(filterButton("Electric Vehicles", "ELECTRIC_VEHICLE"));
-        leftFilters.add(filterButton("E-Bikes", "ELECTRIC_BIKE"));
-        leftFilters.add(filterButton("Motorcycles", "MOTORCYCLE"));
-        leftFilters.add(filterButton("Available Now", "AVAILABLE"));
-
-        JLabel note = new JLabel("8 vehicles per page");
-        note.setForeground(MUTED);
-        note.setFont(new Font("Segoe UI", Font.BOLD, 12));
-
-        filters.add(leftFilters, BorderLayout.WEST);
-        filters.add(note, BorderLayout.EAST);
-
-        JPanel stats = new JPanel(new GridLayout(1, 4, 14, 0));
+        JPanel stats = new JPanel(new GridLayout(1, 4, 0, 0));
         stats.setOpaque(false);
-        stats.setBorder(new EmptyBorder(16, 0, 0, 0));
+        stats.setPreferredSize(new Dimension(620, 72));
+        stats.add(topMetric("CAR", availableVehicles(), "Available Vehicles"));
+        stats.add(topMetric("BOLT", electricVehicles(), "Electric Models"));
+        stats.add(topMetric("SUV", countType(VehicleType.SUV), "SUVs"));
+        stats.add(topMetric("STAR", "4.8", "Best Rated"));
+        top.add(new MetricFrame(stats), BorderLayout.EAST);
 
-        stats.add(statCard("Available Vehicles", countAvailable(), "units", StatIconType.CAR));
-        stats.add(statCard("Electric Units", countElectric(), "units", StatIconType.BOLT));
-        stats.add(statCard("Hybrid Models", countByType("HYBRID_CAR"), "units", StatIconType.LEAF));
-        stats.add(statCard("Bikes & Motorcycles", countBikes(), "units", StatIconType.BIKE));
-
-        wrapper.add(filters);
-        wrapper.add(stats);
-
-        return wrapper;
+        return top;
     }
 
-    private JButton filterButton(String text, String filter) {
-        RoundedButton b = new RoundedButton(text, 16);
-        b.setPreferredSize(new Dimension(Math.max(78, text.length() * 10 + 28), 38));
-        b.setBackground(filter.equals(currentFilter) ? GOLD : new Color(0, 0, 0, 0));
-        b.setForeground(filter.equals(currentFilter) ? new Color(25, 15, 7) : TEXT);
-        b.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        b.addActionListener(e -> {
-            currentFilter = filter;
-            currentPage = 1;
-            refreshCards();
-        });
-        return b;
+    private JComponent createCenter() {
+        JPanel page = new JPanel();
+        page.setOpaque(false);
+        page.setLayout(new BoxLayout(page, BoxLayout.Y_AXIS));
+        page.setBorder(new EmptyBorder(0, 0, 0, 0));
+
+        page.add(createWalletHeader());
+        page.add(Box.createVerticalStrut(10));
+        page.add(createFilters());
+        page.add(Box.createVerticalStrut(12));
+
+        cardsGrid.setOpaque(false);
+        cardsGrid.setBorder(new EmptyBorder(0, 0, 0, 0));
+        JScrollPane scroll = new JScrollPane(cardsGrid);
+        scroll.setOpaque(false);
+        scroll.getViewport().setOpaque(false);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.getVerticalScrollBar().setUnitIncrement(18);
+        scroll.getVerticalScrollBar().setPreferredSize(new Dimension(7, 0));
+        scroll.getVerticalScrollBar().setUI(new DarkScrollBarUI());
+        scroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+        page.add(scroll);
+
+        JPanel bottom = new JPanel(new BorderLayout());
+        bottom.setOpaque(false);
+        bottom.setAlignmentX(Component.LEFT_ALIGNMENT);
+        bottom.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        pager.setOpaque(false);
+        bottom.add(showingLabel, BorderLayout.WEST);
+        bottom.add(pager, BorderLayout.EAST);
+        page.add(Box.createVerticalStrut(10));
+        page.add(bottom);
+        return page;
     }
 
-    private JPanel statCard(String title, int value, String suffix, StatIconType iconType) {
-        RoundedPanel card = new RoundedPanel(18);
-        card.setBackground(PANEL_2);
-        card.setLayout(new BorderLayout(16, 0));
-        card.setBorder(new EmptyBorder(13, 18, 13, 18));
+    private JComponent createWalletHeader() {
+        RoundedPanel header = new RoundedPanel(14, new Color(5, 11, 18, 238));
+        header.setLayout(new BorderLayout(18, 0));
+        header.setBorder(new EmptyBorder(9, 16, 9, 16));
+        header.setAlignmentX(Component.LEFT_ALIGNMENT);
+        header.setMaximumSize(new Dimension(Integer.MAX_VALUE, 80));
+        header.setPreferredSize(new Dimension(1200, 80));
 
-        StatIcon icon = new StatIcon(iconType, 42);
+        JPanel title = new JPanel();
+        title.setOpaque(false);
+        title.setLayout(new BoxLayout(title, BoxLayout.Y_AXIS));
+        title.add(label("BMW Vehicle Collection", 25, Font.BOLD, TEXT));
+        title.add(Box.createVerticalStrut(3));
+        title.add(label("Your wallet is linked with billing, rentals, loyalty, and saved activity.", 12, Font.PLAIN, MUTED));
+        header.add(title, BorderLayout.CENTER);
+
+        RoundedPanel wallet = new RoundedPanel(12, new Color(14, 18, 22, 238));
+        wallet.setLayout(new BorderLayout(12, 0));
+        wallet.setBorder(new EmptyBorder(8, 13, 7, 15));
+        wallet.setPreferredSize(new Dimension(275, 62));
+        wallet.add(new MiniIcon("DIAMOND"), BorderLayout.WEST);
 
         JPanel text = new JPanel();
         text.setOpaque(false);
         text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+        JLabel titleLabel = label("AVAILABLE BALANCE", 10, Font.BOLD, PALE);
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        walletBalanceLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        walletBalanceLabel.setPreferredSize(new Dimension(180, 28));
+        walletBalanceLabel.setMinimumSize(new Dimension(180, 28));
+        walletBalanceLabel.setMaximumSize(new Dimension(220, 28));
+        text.add(titleLabel);
+        text.add(Box.createVerticalStrut(0));
+        text.add(walletBalanceLabel);
+        wallet.add(text, BorderLayout.CENTER);
 
-        JLabel t = new JLabel(title);
-        t.setForeground(TEXT);
-        t.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        t.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JLabel v = new JLabel(value + " " + suffix);
-        v.setForeground(GOLD_LIGHT);
-        v.setFont(new Font("Segoe UI", Font.PLAIN, 25));
-        v.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        text.add(Box.createVerticalGlue());
-        text.add(t);
-        text.add(Box.createVerticalStrut(3));
-        text.add(v);
-        text.add(Box.createVerticalGlue());
-
-        card.add(icon, BorderLayout.WEST);
-        card.add(text, BorderLayout.CENTER);
-
-        return card;
+        header.add(wallet, BorderLayout.EAST);
+        return header;
     }
 
-    private JScrollPane createVehicleScroll() {
-        cardsGrid.setOpaque(false);
-        cardsGrid.setLayout(new GridLayout(0, 4, 14, 14));
-
-        JScrollPane scroll = new JScrollPane(cardsGrid);
-        scroll.setOpaque(false);
-        scroll.getViewport().setOpaque(false);
-        scroll.setBorder(null);
-        scroll.getVerticalScrollBar().setUnitIncrement(18);
-
-        return scroll;
+    private void refreshWalletBalance() {
+        walletBalanceLabel.setText(formatMoney(accountState.getWalletBalance()));
+        walletBalanceLabel.repaint();
     }
 
-    private JPanel createFooter() {
-        JPanel footer = new JPanel(new BorderLayout());
-        footer.setOpaque(false);
+    private JComponent createFilters() {
+        JPanel filters = new JPanel(new GridLayout(1, 5, 12, 0));
+        filters.setOpaque(false);
+        filters.setAlignmentX(Component.LEFT_ALIGNMENT);
+        filters.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
+        filters.setPreferredSize(new Dimension(1200, 38));
 
-        JLabel hint = new JLabel("Customer view shows AVAILABLE vehicles only. Admin adds cars/photos into data/vehicles.txt.");
-        hint.setForeground(MUTED);
-        hint.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        categoryFilter = filterCombo("All Categories", "Cars", "SUVs", "Electric", "Hybrid");
+        priceFilter = filterCombo("All Prices", "Under $250", "$250 - $399", "$400+");
+        fuelFilter = filterCombo("All Powertrains", "Fuel", "Electric", "Hybrid");
+        availabilityFilter = filterCombo("All Availability", "Available", "Rented", "Maintenance");
+        JButton reset = new GhostButton("Reset Filters");
+        reset.addActionListener(e -> {
+            searchField.setText("");
+            categoryFilter.setSelectedIndex(0);
+            priceFilter.setSelectedIndex(0);
+            fuelFilter.setSelectedIndex(0);
+            availabilityFilter.setSelectedIndex(0);
+            currentPage = 1;
+            refreshCards();
+        });
 
-        paginationPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        paginationPanel.setOpaque(false);
+        filters.add(categoryFilter);
+        filters.add(priceFilter);
+        filters.add(fuelFilter);
+        filters.add(availabilityFilter);
+        filters.add(reset);
+        return filters;
+    }
 
-        pageInfoLabel = new JLabel();
-        pageInfoLabel.setForeground(GOLD_LIGHT);
-        pageInfoLabel.setFont(new Font("Segoe UI", Font.BOLD, 12));
-
-        footer.add(hint, BorderLayout.WEST);
-        footer.add(paginationPanel, BorderLayout.EAST);
-
-        return footer;
+    private FilterCombo filterCombo(String... items) {
+        FilterCombo combo = new FilterCombo(items);
+        combo.addActionListener(e -> {
+            currentPage = 1;
+            refreshCards();
+        });
+        return combo;
     }
 
     private void refreshCards() {
         cardsGrid.removeAll();
-        filteredVehicles.clear();
+        List<Vehicle> vehicles = filteredVehicles();
 
-        String query = searchField.getText() == null ? "" : searchField.getText().trim().toLowerCase(Locale.ROOT);
+        int totalPages = Math.max(1, (int) Math.ceil(vehicles.size() / (double) PAGE_SIZE));
+        currentPage = Math.max(1, Math.min(currentPage, totalPages));
+        int start = Math.min((currentPage - 1) * PAGE_SIZE, vehicles.size());
+        int end = Math.min(start + PAGE_SIZE, vehicles.size());
 
-        for (VehicleItem v : allVehicles) {
-            if (!"AVAILABLE".equalsIgnoreCase(v.status)) {
-                continue;
-            }
-            if (!matchesFilter(v)) {
-                continue;
-            }
-            if (!query.isEmpty() && !v.matches(query)) {
-                continue;
-            }
-            filteredVehicles.add(v);
-        }
-
-        int totalPages = Math.max(1, (int) Math.ceil(filteredVehicles.size() / (double) PAGE_SIZE));
-        if (currentPage > totalPages) {
-            currentPage = totalPages;
-        }
-        if (currentPage < 1) {
-            currentPage = 1;
-        }
-
-        if (filteredVehicles.isEmpty()) {
+        if (vehicles.isEmpty()) {
             cardsGrid.setLayout(new BorderLayout());
             cardsGrid.add(emptyState(), BorderLayout.CENTER);
         } else {
-            cardsGrid.setLayout(new GridLayout(2, 4, 14, 14));
-
-            int start = (currentPage - 1) * PAGE_SIZE;
-            int end = Math.min(start + PAGE_SIZE, filteredVehicles.size());
-
+            cardsGrid.setLayout(new GridLayout(0, 3, 14, 14));
             for (int i = start; i < end; i++) {
-                cardsGrid.add(new VehicleCard(filteredVehicles.get(i)));
+                cardsGrid.add(new VehicleCard(vehicles.get(i)));
             }
-
             for (int i = end; i < start + PAGE_SIZE; i++) {
-                JPanel empty = new JPanel();
-                empty.setOpaque(false);
-                cardsGrid.add(empty);
+                JPanel spacer = new JPanel();
+                spacer.setOpaque(false);
+                cardsGrid.add(spacer);
             }
         }
 
-        updatePagination();
-
+        showingLabel.setText("Showing " + (vehicles.isEmpty() ? 0 : start + 1) + " - " + end + " of " + vehicles.size() + " vehicles");
+        rebuildPager(totalPages);
         cardsGrid.revalidate();
         cardsGrid.repaint();
     }
 
-    private void updatePagination() {
-        if (paginationPanel == null) {
-            return;
-        }
+    private List<Vehicle> filteredVehicles() {
+        String query = searchField.getText() == null ? "" : searchField.getText().trim().toLowerCase(Locale.ROOT);
+        String category = selected(categoryFilter);
+        String price = selected(priceFilter);
+        String fuel = selected(fuelFilter);
+        String availability = selected(availabilityFilter);
 
-        paginationPanel.removeAll();
-
-        int totalItems = filteredVehicles.size();
-        int totalPages = Math.max(1, (int) Math.ceil(totalItems / (double) PAGE_SIZE));
-
-        if (pageInfoLabel != null) {
-            int first = totalItems == 0 ? 0 : ((currentPage - 1) * PAGE_SIZE + 1);
-            int last = Math.min(currentPage * PAGE_SIZE, totalItems);
-            pageInfoLabel.setText("Showing " + first + " - " + last + " of " + totalItems + " vehicles");
-            paginationPanel.add(pageInfoLabel);
-        }
-
-        RoundedButton prev = paginationButton("<");
-        prev.setEnabled(currentPage > 1);
-        prev.addActionListener(e -> {
-            if (currentPage > 1) {
-                currentPage--;
-                refreshCards();
+        List<Vehicle> matches = new ArrayList<>();
+        for (Vehicle vehicle : vehicleService.getAllVehicles()) {
+            if (!query.isBlank()
+                    && !FleetUiData.displayName(vehicle).toLowerCase(Locale.ROOT).contains(query)
+                    && !vehicle.getId().toLowerCase(Locale.ROOT).contains(query)
+                    && !prettyType(vehicle.getType()).toLowerCase(Locale.ROOT).contains(query)) {
+                continue;
             }
-        });
-        paginationPanel.add(prev);
-
-        for (int i = 1; i <= totalPages; i++) {
-            int page = i;
-            RoundedButton b = paginationButton(String.valueOf(i));
-            b.setBackground(page == currentPage ? GOLD : new Color(0, 0, 0, 0));
-            b.setForeground(page == currentPage ? new Color(25, 15, 7) : TEXT);
-            b.addActionListener(e -> {
-                currentPage = page;
-                refreshCards();
-            });
-            paginationPanel.add(b);
-        }
-
-        RoundedButton next = paginationButton(">");
-        next.setEnabled(currentPage < totalPages);
-        next.addActionListener(e -> {
-            if (currentPage < totalPages) {
-                currentPage++;
-                refreshCards();
+            if (!matchesCategory(vehicle, category) || !matchesPrice(vehicle, price)
+                    || !matchesFuel(vehicle, fuel) || !matchesAvailability(vehicle, availability)) {
+                continue;
             }
-        });
-        paginationPanel.add(next);
-
-        paginationPanel.revalidate();
-        paginationPanel.repaint();
+            matches.add(vehicle);
+        }
+        return matches;
     }
 
-    private RoundedButton paginationButton(String text) {
-        RoundedButton b = new RoundedButton(text, 12);
-        b.setPreferredSize(new Dimension(38, 30));
-        b.setBackground(new Color(0, 0, 0, 0));
-        b.setForeground(TEXT);
-        b.setFont(new Font("Segoe UI", Font.BOLD, 12));
-        return b;
-    }
-
-    private boolean matchesFilter(VehicleItem v) {
-        if ("ALL".equals(currentFilter) || "AVAILABLE".equals(currentFilter)) {
+    private boolean matchesCategory(Vehicle vehicle, String value) {
+        if (value.startsWith("All")) {
             return true;
         }
-        if ("CAR".equals(currentFilter)) {
-            return "CAR".equalsIgnoreCase(v.type) || "SUV".equalsIgnoreCase(v.type);
+        return switch (value) {
+            case "Cars" -> vehicle.getType() == VehicleType.CAR;
+            case "SUVs" -> vehicle.getType() == VehicleType.SUV;
+            case "Electric" -> vehicle.getType() == VehicleType.ELECTRIC_VEHICLE || vehicle.getType() == VehicleType.ELECTRIC_BIKE;
+            case "Hybrid" -> vehicle.getType() == VehicleType.HYBRID_CAR;
+            default -> true;
+        };
+    }
+
+    private boolean matchesPrice(Vehicle vehicle, String value) {
+        if (value.startsWith("All")) {
+            return true;
         }
-        return currentFilter.equalsIgnoreCase(v.type);
+        double price = vehicle.getDailyPrice();
+        return switch (value) {
+            case "Under $250" -> price < 250;
+            case "$250 - $399" -> price >= 250 && price <= 399;
+            case "$400+" -> price >= 400;
+            default -> true;
+        };
     }
 
-    private JPanel emptyState() {
-        JPanel p = new JPanel(new GridBagLayout());
-        p.setOpaque(false);
-
-        JLabel label = new JLabel("No available vehicles found.");
-        label.setForeground(MUTED);
-        label.setFont(new Font("Segoe UI", Font.BOLD, 22));
-
-        p.add(label);
-        return p;
-    }
-
-    private int countAvailable() {
-        int c = 0;
-        for (VehicleItem v : allVehicles) {
-            if ("AVAILABLE".equalsIgnoreCase(v.status)) {
-                c++;
-            }
+    private boolean matchesFuel(Vehicle vehicle, String value) {
+        if (value.startsWith("All")) {
+            return true;
         }
-        return c;
+        return switch (value) {
+            case "Electric" -> vehicle.getType() == VehicleType.ELECTRIC_VEHICLE || vehicle.getType() == VehicleType.ELECTRIC_BIKE;
+            case "Hybrid" -> vehicle.getType() == VehicleType.HYBRID_CAR;
+            case "Fuel" -> vehicle.getType() == VehicleType.CAR || vehicle.getType() == VehicleType.SUV || vehicle.getType() == VehicleType.MOTORCYCLE || vehicle.getType() == VehicleType.TRUCK;
+            default -> true;
+        };
     }
 
-    private int countByType(String type) {
-        int c = 0;
-        for (VehicleItem v : allVehicles) {
-            if ("AVAILABLE".equalsIgnoreCase(v.status) && type.equalsIgnoreCase(v.type)) {
-                c++;
-            }
+    private boolean matchesAvailability(Vehicle vehicle, String value) {
+        if (value.startsWith("All")) {
+            return true;
         }
-        return c;
+        return switch (value) {
+            case "Available" -> vehicle.getStatus() == VehicleStatus.AVAILABLE;
+            case "Rented" -> vehicle.getStatus() == VehicleStatus.RENTED;
+            case "Maintenance" -> vehicle.getStatus() == VehicleStatus.MAINTENANCE;
+            default -> true;
+        };
     }
 
-    private int countElectric() {
-        int c = 0;
-        for (VehicleItem v : allVehicles) {
-            String type = v.type.toUpperCase(Locale.ROOT);
-            if ("AVAILABLE".equalsIgnoreCase(v.status) && type.contains("ELECTRIC")) {
-                c++;
-            }
+    private void rebuildPager(int totalPages) {
+        pager.removeAll();
+        pager.add(pageButton("<", currentPage > 1, () -> {
+            currentPage--;
+            refreshCards();
+        }));
+        for (int i = 1; i <= totalPages; i++) {
+            int page = i;
+            pager.add(pageButton(String.valueOf(i), true, () -> {
+                currentPage = page;
+                refreshCards();
+            }, page == currentPage));
         }
-        return c;
+        pager.add(pageButton(">", currentPage < totalPages, () -> {
+            currentPage++;
+            refreshCards();
+        }));
+        pager.revalidate();
+        pager.repaint();
     }
 
-    private int countBikes() {
-        int c = 0;
-        for (VehicleItem v : allVehicles) {
-            if ("AVAILABLE".equalsIgnoreCase(v.status)
-                    && ("MOTORCYCLE".equalsIgnoreCase(v.type) || "ELECTRIC_BIKE".equalsIgnoreCase(v.type))) {
-                c++;
-            }
-        }
-        return c;
+    private JButton pageButton(String text, boolean enabled, Runnable action) {
+        return pageButton(text, enabled, action, false);
     }
 
-    private void showDetails(VehicleItem v) {
-        String battery = v.hasBattery() ? "\\nBattery: " + v.battery + "%" : "";
+    private JButton pageButton(String text, boolean enabled, Runnable action, boolean active) {
+        JButton button = new PageButton(text, active);
+        button.setPreferredSize(new Dimension(38, 31));
+        button.setEnabled(enabled);
+        button.addActionListener(e -> action.run());
+        return button;
+    }
 
+    private JComponent emptyState() {
+        JPanel empty = new JPanel(new GridLayout(1, 1));
+        empty.setOpaque(false);
+        JLabel label = label("No vehicles match these filters.", 22, Font.BOLD, MUTED);
+        label.setHorizontalAlignment(SwingConstants.CENTER);
+        empty.add(label);
+        return empty;
+    }
+
+    private void showDetails(Vehicle vehicle) {
+        String battery = vehicle.getBatteryLevel() == null ? "" : "\nBattery: " + vehicle.getBatteryLevel() + "%";
         JOptionPane.showMessageDialog(
                 this,
-                v.brand + " " + v.model
-                        + "\\nType: " + prettyType(v.type)
-                        + "\\nPrice: $" + v.dailyPrice + " /day"
-                        + "\\nStatus: " + v.status
+                FleetUiData.displayName(vehicle)
+                        + "\nID: " + vehicle.getId()
+                        + "\nCategory: " + prettyType(vehicle.getType())
+                        + "\nStatus: " + prettyStatus(vehicle.getStatus())
+                        + "\nDaily price: " + formatMoney(vehicle.getDailyPrice())
                         + battery
-                        + "\\n" + v.feature1
-                        + "\\n" + v.feature2,
+                        + "\nPlate: " + FleetUiData.plate(vehicle)
+                        + "\nColor: " + FleetUiData.color(vehicle),
                 "Vehicle Details",
                 JOptionPane.INFORMATION_MESSAGE
         );
     }
 
-    private void rentVehicle(VehicleItem v) {
-        JOptionPane.showMessageDialog(
+    private void rentVehicle(Vehicle vehicle) {
+        if (vehicle.getStatus() != VehicleStatus.AVAILABLE) {
+            VeloraNotificationDialog.showInfo(
+                    this,
+                    "Vehicle Unavailable",
+                    "This vehicle is not available right now."
+            );
+            return;
+        }
+        double subtotal = vehicle.getDailyPrice() * 3;
+        double total = subtotal * 1.10;
+        if (!accountState.canAfford(total)) {
+            VeloraNotificationDialog.showError(
+                    this,
+                    "Insufficient Balance",
+                    "Your available balance is " + formatMoney(accountState.getWalletBalance())
+                            + ".\nRequired amount: " + formatMoney(total)
+            );
+            return;
+        }
+
+        boolean confirmed = VeloraNotificationDialog.showConfirm(
                 this,
-                "Rental flow will be implemented later for:\\n" + v.brand + " " + v.model,
-                "Rent Vehicle",
-                JOptionPane.INFORMATION_MESSAGE
+                "Confirm Rental",
+                "Rent " + FleetUiData.displayName(vehicle) + " for 3 days?\nEstimated total: "
+                        + formatMoney(total) + "\nCurrent balance: " + formatMoney(accountState.getWalletBalance()),
+                "Rent Now"
+        );
+        if (!confirmed) {
+            return;
+        }
+
+        CustomerAccountState.CustomerInvoice invoice = CustomerAccountState.createInvoice(
+                customer,
+                accountState.getInvoices().size(),
+                FleetUiData.displayName(vehicle),
+                3,
+                subtotal,
+                0,
+                "Paid",
+                "Card"
+        );
+        if (!accountState.addPaidInvoice(invoice, "Card")) {
+            VeloraNotificationDialog.showError(
+                    this,
+                    "Payment Failed",
+                    "The rental could not be completed because the wallet balance changed."
+            );
+            return;
+        }
+        vehicle.setStatus(VehicleStatus.RENTED);
+        vehicleService.saveVehicles();
+        refreshWalletBalance();
+        refreshCards();
+
+        VeloraNotificationDialog.showSuccess(
+                this,
+                "Rental Completed",
+                "You rented " + FleetUiData.displayName(vehicle)
+                        + ".\nPaid: " + formatMoney(invoice.totalAmount())
+                        + "\nRemaining balance: " + formatMoney(accountState.getWalletBalance())
+                        + "\nInvoice: " + invoice.invoiceId
         );
     }
 
-    private ArrayList<VehicleItem> readVehiclesFromFleet() {
-        ArrayList<VehicleItem> list = new ArrayList<>();
-        for (Vehicle vehicle : vehicleService.getAllVehicles()) {
-            list.add(new VehicleItem(
-                    vehicle.getId(),
-                    vehicle.getBrand(),
-                    vehicle.getModel(),
-                    vehicle.getType().name(),
-                    vehicle.getStatus().name(),
-                    vehicle.getDailyPrice(),
-                    vehicle.getBatteryLevel() == null ? "N/A" : vehicle.getBatteryLevel() + "%",
-                    FleetUiData.color(vehicle),
-                    FleetUiData.plate(vehicle),
-                    FleetUiData.imagePath(vehicle)
-            ));
-        }
-        return list;
+    private JComponent topMetric(String icon, int value, String caption) {
+        return topMetric(icon, String.valueOf(value), caption);
     }
 
-    private static String prettyType(String type) {
+    private JComponent topMetric(String icon, String value, String caption) {
+        JPanel metric = new JPanel(new BorderLayout(10, 0));
+        metric.setOpaque(false);
+        metric.setBorder(new EmptyBorder(10, 15, 10, 15));
+        metric.add(new MiniIcon(icon), BorderLayout.WEST);
+
+        JPanel text = new JPanel();
+        text.setOpaque(false);
+        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+        text.add(label(value, 20, Font.PLAIN, TEXT));
+        text.add(label(caption, 10, Font.PLAIN, MUTED));
+        metric.add(text, BorderLayout.CENTER);
+        return metric;
+    }
+
+    private JComponent featureStrip() {
+        RoundedPanel strip = new RoundedPanel(10, CARD_DARK);
+        strip.setLayout(new GridLayout(1, 5, 0, 0));
+        strip.setBorder(new EmptyBorder(12, 16, 12, 16));
+        strip.setPreferredSize(new Dimension(100, 74));
+        strip.add(feature("SHIELD", "PREMIUM FLEET", "Latest BMW models"));
+        strip.add(feature("DIAMOND", "TRUSTED SERVICE", "Excellence in every step"));
+        strip.add(feature("STAR", "BEST PRICES", "Luxury within reach"));
+        strip.add(feature("HEADSET", "24/7 SUPPORT", "We are here for you"));
+        strip.add(feature("CHECK", "DRIVE LUXURY.", "LIVE EXCELLENCE."));
+        return strip;
+    }
+
+    private JComponent feature(String icon, String title, String sub) {
+        JPanel panel = new JPanel(new BorderLayout(10, 0));
+        panel.setOpaque(false);
+        panel.setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, new Color(214, 160, 66, 45)));
+        panel.add(new MiniIcon(icon), BorderLayout.WEST);
+        JPanel text = new JPanel();
+        text.setOpaque(false);
+        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+        text.add(Box.createVerticalGlue());
+        text.add(label(title, 11, Font.BOLD, TEXT));
+        text.add(Box.createVerticalStrut(4));
+        text.add(label(sub, 10, Font.PLAIN, MUTED));
+        text.add(Box.createVerticalGlue());
+        panel.add(text, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private int availableVehicles() {
+        return (int) vehicleService.getAllVehicles().stream().filter(v -> v.getStatus() == VehicleStatus.AVAILABLE).count();
+    }
+
+    private int electricVehicles() {
+        return (int) vehicleService.getAllVehicles().stream()
+                .filter(v -> v.getType() == VehicleType.ELECTRIC_VEHICLE || v.getType() == VehicleType.ELECTRIC_BIKE)
+                .count();
+    }
+
+    private int countType(VehicleType type) {
+        return (int) vehicleService.getAllVehicles().stream().filter(v -> v.getType() == type).count();
+    }
+
+    private static String selected(JComboBox<String> combo) {
+        return combo == null || combo.getSelectedItem() == null ? "" : String.valueOf(combo.getSelectedItem());
+    }
+
+    private static String prettyType(VehicleType type) {
         if (type == null) {
             return "";
         }
-        return type.replace("_", " ");
+        return type.name().replace('_', ' ');
     }
 
-    private static BufferedImage loadImageFromPath(String path) {
-        if (path == null || path.trim().isEmpty()) {
-            return null;
+    private static String prettyStatus(VehicleStatus status) {
+        if (status == null) {
+            return "";
         }
+        return status.name().charAt(0) + status.name().substring(1).toLowerCase(Locale.ROOT);
+    }
 
+    private static String formatMoney(double value) {
+        return "$" + String.format(Locale.US, "%,.0f", value);
+    }
+
+    private static JLabel label(String text, int size, int style, Color color) {
+        JLabel label = new JLabel(text);
+        label.setFont(new Font("Segoe UI", style, size));
+        label.setForeground(color);
+        return label;
+    }
+
+    private static BufferedImage loadImage(String path) {
         try {
-            String p = path.trim();
-
-            if (p.startsWith("/")) {
-                java.net.URL url = VehicleCatalog.class.getResource(p);
+            if (path == null || path.isBlank()) {
+                return null;
+            }
+            if (path.startsWith("/")) {
+                var url = VehicleCatalog.class.getResource(path);
                 return url == null ? null : ImageIO.read(url);
             }
-
-            Path file = Paths.get(p);
-            if (Files.exists(file)) {
-                return ImageIO.read(file.toFile());
-            }
-
-        } catch (IOException ignored) {
-        }
-
-        return null;
-    }
-
-
-    private static final class AvatarIcon extends JPanel {
-        private final int size;
-
-        AvatarIcon(int size) {
-            this.size = size;
-            setOpaque(false);
-            setPreferredSize(new Dimension(size, size));
-        }
-
-        @Override
-        protected void paintComponent(Graphics raw) {
-            Graphics2D g = (Graphics2D) raw.create();
-
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-            int s = Math.min(getWidth(), getHeight()) - 2;
-            int x = (getWidth() - s) / 2;
-            int y = (getHeight() - s) / 2;
-
-            Ellipse2D circle = new Ellipse2D.Double(x, y, s, s);
-
-            g.setColor(new Color(6, 12, 19));
-            g.fill(circle);
-
-            g.setColor(GOLD);
-            g.setStroke(new BasicStroke(1.5f));
-            g.draw(circle);
-
-            Shape oldClip = g.getClip();
-            g.setClip(circle);
-
-            g.setColor(new Color(228, 175, 130));
-            g.fillOval(x + s / 2 - s / 8, y + s / 6, s / 4, s / 4);
-
-            g.setColor(new Color(20, 22, 27));
-            g.fillArc(x + s / 2 - s / 7, y + s / 8, s / 3, s / 4, 0, 180);
-
-            Path2D suit = new Path2D.Double();
-            suit.moveTo(x + s * 0.22, y + s);
-            suit.lineTo(x + s * 0.34, y + s * 0.58);
-            suit.lineTo(x + s * 0.50, y + s * 0.73);
-            suit.lineTo(x + s * 0.66, y + s * 0.58);
-            suit.lineTo(x + s * 0.78, y + s);
-            suit.closePath();
-
-            g.setColor(new Color(18, 20, 25));
-            g.fill(suit);
-
-            Path2D shirt = new Path2D.Double();
-            shirt.moveTo(x + s * 0.41, y + s * 0.60);
-            shirt.lineTo(x + s * 0.50, y + s * 0.78);
-            shirt.lineTo(x + s * 0.59, y + s * 0.60);
-            shirt.closePath();
-
-            g.setColor(new Color(238, 238, 232));
-            g.fill(shirt);
-
-            Path2D tie = new Path2D.Double();
-            tie.moveTo(x + s * 0.48, y + s * 0.63);
-            tie.lineTo(x + s * 0.52, y + s * 0.63);
-            tie.lineTo(x + s * 0.55, y + s * 0.87);
-            tie.lineTo(x + s * 0.50, y + s * 0.95);
-            tie.lineTo(x + s * 0.45, y + s * 0.87);
-            tie.closePath();
-
-            g.setColor(GOLD);
-            g.fill(tie);
-
-            g.setClip(oldClip);
-            g.dispose();
+            Path file = Paths.get(path);
+            return Files.exists(file) ? ImageIO.read(file.toFile()) : null;
+        } catch (IOException ex) {
+            return null;
         }
     }
 
-    private final class SearchBox extends JPanel {
+    private static void drawCover(Graphics2D g, BufferedImage image, int x, int y, int w, int h) {
+        if (image == null) {
+            g.setPaint(new GradientPaint(x, y, new Color(18, 24, 32), x + w, y + h, new Color(4, 8, 12)));
+            g.fillRect(x, y, w, h);
+            return;
+        }
+        double scale = Math.max(w / (double) image.getWidth(), h / (double) image.getHeight());
+        int iw = (int) Math.round(image.getWidth() * scale);
+        int ih = (int) Math.round(image.getHeight() * scale);
+        int ix = x + (w - iw) / 2;
+        int iy = y + (h - ih) / 2;
+        g.drawImage(image, ix, iy, iw, ih, null);
+    }
+
+    private final class SearchBox extends RoundedPanel {
         SearchBox() {
-            setOpaque(false);
+            super(14, new Color(5, 9, 15, 225));
             setLayout(new BorderLayout());
-
+            setBorder(new EmptyBorder(0, 48, 0, 14));
             searchField.setOpaque(false);
+            searchField.setBorder(BorderFactory.createEmptyBorder());
             searchField.setForeground(TEXT);
-            searchField.setCaretColor(GOLD_LIGHT);
-            searchField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-            searchField.setBorder(new EmptyBorder(0, 48, 0, 42));
-
+            searchField.setCaretColor(PALE);
+            searchField.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            searchField.putClientProperty("placeholder", "Search for BMW cars...");
             searchField.getDocument().addDocumentListener(new DocumentListener() {
-                @Override
-                public void insertUpdate(DocumentEvent e) {
-                    currentPage = 1;
-                    refreshCards();
-                }
-
-                @Override
-                public void removeUpdate(DocumentEvent e) {
-                    currentPage = 1;
-                    refreshCards();
-                }
-
-                @Override
-                public void changedUpdate(DocumentEvent e) {
-                    refreshCards();
-                }
+                public void insertUpdate(DocumentEvent e) { currentPage = 1; refreshCards(); }
+                public void removeUpdate(DocumentEvent e) { currentPage = 1; refreshCards(); }
+                public void changedUpdate(DocumentEvent e) { currentPage = 1; refreshCards(); }
             });
-
             add(searchField, BorderLayout.CENTER);
         }
 
         @Override
         protected void paintComponent(Graphics raw) {
+            super.paintComponent(raw);
             Graphics2D g = (Graphics2D) raw.create();
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-            RoundRectangle2D box = new RoundRectangle2D.Double(0, 0, getWidth() - 1, getHeight() - 1, 24, 24);
-
-            g.setColor(new Color(2, 5, 9, 210));
-            g.fill(box);
-
-            g.setColor(new Color(255, 255, 255, 30));
-            g.draw(box);
-
-            g.setColor(GOLD_LIGHT);
-            g.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-            g.draw(new Ellipse2D.Double(18, 14, 12, 12));
-            g.drawLine(28, 24, 34, 30);
-
-            if (searchField.getText().trim().isEmpty() && !searchField.hasFocus()) {
+            g.setColor(PALE);
+            g.setStroke(new BasicStroke(1.7f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.drawOval(20, 15, 12, 12);
+            g.drawLine(30, 25, 37, 32);
+            if (searchField.getText().isBlank() && !searchField.hasFocus()) {
                 g.setColor(MUTED);
-                g.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-                g.drawString("Search for vehicles, brands, or types...", 48, 30);
+                g.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+                g.drawString("Search for BMW cars...", 50, 28);
             }
-
             g.dispose();
-            super.paintComponent(raw);
         }
     }
 
     private final class VehicleCard extends RoundedPanel {
-        private final VehicleItem vehicle;
+        private final Vehicle vehicle;
         private final BufferedImage image;
+        private final JButton details = new GhostButton("View Details");
+        private final JButton rent = new GoldButton("Rent Now");
 
-        VehicleCard(VehicleItem vehicle) {
-            super(18);
+        VehicleCard(Vehicle vehicle) {
+            super(10, CARD);
             this.vehicle = vehicle;
-            this.image = loadImageFromPath(vehicle.imagePath);
-
-            setBackground(new Color(5, 10, 16, 230));
-            setLayout(new BorderLayout());
+            this.image = loadImage(FleetUiData.imagePath(vehicle));
+            setLayout(null);
+            setPreferredSize(new Dimension(395, 205));
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-
+            details.addActionListener(e -> showDetails(vehicle));
+            rent.addActionListener(e -> rentVehicle(vehicle));
+            add(details);
+            add(rent);
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
-                    showDetails(vehicle);
+                    if (!(e.getSource() instanceof JButton)) {
+                        showDetails(vehicle);
+                    }
                 }
             });
         }
 
         @Override
+        public void doLayout() {
+            int y = getHeight() - 42;
+            details.setBounds(getWidth() - 218, y, 98, 30);
+            rent.setBounds(getWidth() - 108, y, 92, 30);
+        }
+
+        @Override
         protected void paintComponent(Graphics raw) {
             super.paintComponent(raw);
-
             Graphics2D g = (Graphics2D) raw.create();
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            drawCover(g, image, 0, 0, getWidth(), getHeight());
+            g.setPaint(new GradientPaint(0, 0, new Color(0, 0, 0, 155), getWidth(), 0, new Color(0, 0, 0, 30)));
+            g.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+            g.setPaint(new GradientPaint(0, getHeight() - 75, new Color(0, 0, 0, 15), 0, getHeight(), new Color(0, 0, 0, 165)));
+            g.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
 
-            int w = getWidth();
-            int h = getHeight();
-            int imageW = (int) (w * 0.50);
-
-            Shape oldClip = g.getClip();
-            RoundRectangle2D leftClip = new RoundRectangle2D.Double(0, 0, imageW, h, 18, 18);
-            g.setClip(leftClip);
-
-            if (image != null) {
-                drawCover(g, image, 0, 0, imageW, h);
-            } else {
-                drawPlaceholder(g, 0, 0, imageW, h);
-            }
-
-            g.setClip(oldClip);
-
-            int x = imageW + 16;
-            int y = 24;
-
+            int x = 18;
             g.setColor(TEXT);
-            g.setFont(new Font("Segoe UI", Font.BOLD, 18));
-            g.drawString(vehicle.brand + " " + vehicle.model, x, y);
+            g.setFont(new Font("Serif", Font.BOLD, 18));
+            g.drawString(FleetUiData.displayName(vehicle), x, 30);
+            g.setColor(PALE);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            g.drawString(prettyType(vehicle.getType()), x, 50);
 
-            y += 24;
+            g.setColor(new Color(220, 185, 124));
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            g.drawString(seatsText(vehicle), x, 82);
+            g.drawString(vehicle.getBatteryLevel() == null ? "Automatic" : vehicle.getBatteryLevel() + "% Battery", x, 104);
+            g.drawString(rangeText(vehicle), x, 126);
 
-            g.setColor(GOLD_LIGHT);
-            g.setFont(new Font("Segoe UI", Font.BOLD, 13));
-            g.drawString(prettyType(vehicle.type), x, y);
+            drawStatusPill(g, getWidth() - 82, 13, vehicle.getStatus());
+            g.setColor(PALE);
+            g.setFont(new Font("Segoe UI", Font.BOLD, 12));
+            g.drawString("* " + rating(vehicle), x, getHeight() - 19);
 
-            y += 36;
-
-            g.setColor(GOLD);
-            g.setFont(new Font("Segoe UI", Font.BOLD, 28));
-            g.drawString("$" + formatPrice(vehicle.dailyPrice), x, y);
-
+            String price = formatMoney(vehicle.getDailyPrice());
+            g.setColor(TEXT);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 20));
+            int priceWidth = g.getFontMetrics().stringWidth(price);
+            g.drawString(price, getWidth() - priceWidth - 18, 104);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 10));
             g.setColor(MUTED);
-            g.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-            g.drawString("/day", x + 82, y);
-
-            y += 24;
-            drawStatus(g, x, y);
-            y += 34;
-
-            if (vehicle.hasBattery()) {
-                drawBattery(g, x, y, vehicle.batteryAsInt());
-                y += 28;
-            }
-
-            g.setColor(MUTED);
-            g.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-            g.drawString(vehicle.feature1, x, Math.min(y, h - 52));
-            g.drawString(vehicle.feature2, x + 105, Math.min(y, h - 52));
-
-            drawButton(g, x, h - 40, 95, 28, "View Details", false);
-            drawButton(g, x + 105, h - 40, 92, 28, "Rent Now", true);
-
+            g.drawString("Per Day", getWidth() - 62, 121);
             g.dispose();
         }
 
-        private void drawStatus(Graphics2D g, int x, int y) {
-            RoundRectangle2D pill = new RoundRectangle2D.Double(x, y - 17, 95, 24, 8, 8);
-            g.setColor(new Color(23, 80, 34, 130));
-            g.fill(pill);
-            g.setColor(new Color(63, 170, 80, 180));
-            g.draw(pill);
-
-            g.setColor(GREEN);
-            g.fillOval(x + 10, y - 9, 8, 8);
-
-            g.setFont(new Font("Segoe UI", Font.BOLD, 12));
-            g.drawString("Available", x + 24, y);
-        }
-
-        private void drawBattery(Graphics2D g, int x, int y, int level) {
-            g.setColor(MUTED);
-            g.setFont(new Font("Segoe UI", Font.BOLD, 12));
-
-            g.drawRoundRect(x, y - 14, 38, 16, 4, 4);
-            g.drawRect(x + 38, y - 9, 3, 6);
-
-            int fill = Math.max(0, Math.min(34, (int) (34 * (level / 100.0))));
-            g.setColor(level >= 60 ? new Color(60, 160, 220) : GOLD_LIGHT);
-            g.fillRoundRect(x + 2, y - 12, fill, 12, 4, 4);
-
+        private void drawStatusPill(Graphics2D g, int x, int y, VehicleStatus status) {
+            Color c = status == VehicleStatus.AVAILABLE ? GREEN : status == VehicleStatus.RENTED ? GOLD : RED;
+            String text = prettyStatus(status);
+            g.setFont(new Font("Segoe UI", Font.BOLD, 10));
+            int w = Math.max(64, g.getFontMetrics().stringWidth(text) + 18);
+            g.setColor(new Color(c.getRed(), c.getGreen(), c.getBlue(), 115));
+            g.fillRoundRect(x - (w - 64), y, w, 23, 7, 7);
+            g.setColor(c);
+            g.drawRoundRect(x - (w - 64), y, w, 23, 7, 7);
             g.setColor(TEXT);
-            g.drawString(level + "% Battery", x + 52, y);
-        }
-
-        private void drawButton(Graphics2D g, int x, int y, int w, int h, String text, boolean filled) {
-            RoundRectangle2D b = new RoundRectangle2D.Double(x, y, w, h, 8, 8);
-
-            if (filled) {
-                g.setPaint(new GradientPaint(x, y, GOLD_LIGHT, x, y + h, new Color(130, 82, 28)));
-                g.fill(b);
-            } else {
-                g.setColor(new Color(0, 0, 0, 90));
-                g.fill(b);
-            }
-
-            g.setColor(GOLD);
-            g.draw(b);
-
-            g.setColor(filled ? new Color(20, 12, 5) : TEXT);
-            g.setFont(new Font("Segoe UI", Font.BOLD, 11));
-            g.drawString(text, x + 12, y + 18);
-        }
-
-        @Override
-        public Dimension getPreferredSize() {
-            return new Dimension(360, 230);
+            g.drawString(text, x - (w - 64) + 9, y + 15);
         }
     }
 
-    private static void drawCover(Graphics2D g, BufferedImage img, int x, int y, int w, int h) {
-        double s = Math.max(w / (double) img.getWidth(), h / (double) img.getHeight());
-
-        int iw = (int) Math.round(img.getWidth() * s);
-        int ih = (int) Math.round(img.getHeight() * s);
-
-        int ix = x + (w - iw) / 2;
-        int iy = y + (h - ih) / 2;
-
-        g.drawImage(img, ix, iy, iw, ih, null);
+    private static String seatsText(Vehicle vehicle) {
+        return (vehicle.getType() == VehicleType.CAR ? "4" : "5") + " Seats";
     }
 
-    private static void drawPlaceholder(Graphics2D g, int x, int y, int w, int h) {
-        g.setPaint(new GradientPaint(x, y, new Color(17, 24, 33), x + w, y + h, new Color(4, 8, 12)));
-        g.fillRect(x, y, w, h);
-
-        g.setColor(new Color(214, 168, 91, 130));
-        g.setFont(new Font("Serif", Font.PLAIN, 22));
-        g.drawString("VELORA", x + 26, y + h / 2);
+    private static String rangeText(Vehicle vehicle) {
+        if (vehicle.getType() == VehicleType.ELECTRIC_VEHICLE || vehicle.getType() == VehicleType.ELECTRIC_BIKE) {
+            return (560 + Math.floorMod(vehicle.getId().hashCode(), 90)) + " km Range";
+        }
+        return "0-100 km/h Luxury Tune";
     }
 
-    private static String formatPrice(double price) {
-        if (Math.abs(price - Math.round(price)) < 0.001) {
-            return String.valueOf((int) Math.round(price));
-        }
-        return String.format(Locale.US, "%.2f", price);
+    private static String rating(Vehicle vehicle) {
+        double rating = 4.7 + Math.floorMod(vehicle.getId().hashCode(), 3) / 10.0;
+        int reviews = 120 + Math.floorMod(FleetUiData.displayName(vehicle).hashCode(), 160);
+        return String.format(Locale.US, "%.1f (%d)", rating, reviews);
     }
 
-    private static final class VehicleItem {
-        private final String id;
-        private final String brand;
-        private final String model;
-        private final String type;
-        private final String status;
-        private final double dailyPrice;
-        private final String battery;
-        private final String feature1;
-        private final String feature2;
-        private final String imagePath;
-
-        VehicleItem(
-                String id,
-                String brand,
-                String model,
-                String type,
-                String status,
-                double dailyPrice,
-                String battery,
-                String feature1,
-                String feature2,
-                String imagePath
-        ) {
-            this.id = id;
-            this.brand = brand;
-            this.model = model;
-            this.type = type;
-            this.status = status;
-            this.dailyPrice = dailyPrice;
-            this.battery = battery;
-            this.feature1 = feature1;
-            this.feature2 = feature2;
-            this.imagePath = imagePath;
-        }
-
-        boolean hasBattery() {
-            return battery != null && !battery.equalsIgnoreCase("N/A") && !battery.trim().isEmpty();
-        }
-
-        int batteryAsInt() {
-            try {
-                return Integer.parseInt(battery.trim());
-            } catch (Exception ex) {
-                return 0;
-            }
-        }
-
-        boolean matches(String q) {
-            String all = (id + " " + brand + " " + model + " " + type + " " + status + " " + feature1 + " " + feature2)
-                    .toLowerCase(Locale.ROOT);
-            return all.contains(q);
-        }
-    }
-
-    private enum StatIconType {
-        CAR, BOLT, LEAF, BIKE
-    }
-
-    private static final class StatIcon extends JPanel {
-        private final StatIconType type;
-        private final int size;
-
-        StatIcon(StatIconType type, int size) {
-            this.type = type;
-            this.size = size;
+    private static final class FilterCombo extends JComboBox<String> {
+        FilterCombo(String... items) {
+            super(items);
             setOpaque(false);
-            setPreferredSize(new Dimension(size + 6, size + 6));
+            setBackground(new Color(5, 10, 16));
+            setForeground(TEXT);
+            setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            setBorder(BorderFactory.createEmptyBorder());
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setUI(new BasicComboBoxUI());
+            setRenderer(new DarkComboRenderer());
         }
 
         @Override
         protected void paintComponent(Graphics raw) {
             Graphics2D g = (Graphics2D) raw.create();
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(new Color(5, 10, 16, 230));
+            g.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 9, 9);
+            g.setColor(LINE);
+            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 9, 9);
+            g.setColor(TEXT);
+            g.setFont(getFont());
+            String text = getSelectedItem() == null ? "" : getSelectedItem().toString();
+            g.drawString(text, 15, (getHeight() + g.getFontMetrics().getAscent()) / 2 - 3);
+            g.setColor(PALE);
+            g.drawString("v", getWidth() - 24, (getHeight() + g.getFontMetrics().getAscent()) / 2 - 4);
+            g.dispose();
+        }
+    }
 
-            int s = size;
-            int x = (getWidth() - s) / 2;
-            int y = (getHeight() - s) / 2;
+    private static final class DarkComboRenderer extends DefaultListCellRenderer {
+        @Override
+        public Component getListCellRendererComponent(
+                JList<?> list,
+                Object value,
+                int index,
+                boolean selected,
+                boolean focus
+        ) {
+            JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, selected, focus);
+            label.setOpaque(true);
+            label.setBorder(new EmptyBorder(7, 10, 7, 10));
+            label.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            label.setForeground(selected ? new Color(22, 13, 6) : TEXT);
+            label.setBackground(selected ? GOLD : new Color(5, 10, 16));
+            list.setBackground(new Color(5, 10, 16));
+            list.setForeground(TEXT);
+            list.setSelectionBackground(GOLD);
+            list.setSelectionForeground(new Color(22, 13, 6));
+            return label;
+        }
+    }
 
-            g.setColor(GOLD_LIGHT);
-            g.setStroke(new BasicStroke(2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+    private static final class PageButton extends JButton {
+        private final boolean active;
 
-            if (type == StatIconType.CAR) {
-                g.drawRoundRect(x + 4, y + 18, s - 8, 13, 6, 6);
-                g.drawLine(x + 11, y + 18, x + 16, y + 9);
-                g.drawLine(x + s - 11, y + 18, x + s - 16, y + 9);
-                g.drawOval(x + 8, y + 29, 6, 6);
-                g.drawOval(x + s - 14, y + 29, 6, 6);
-            } else if (type == StatIconType.BOLT) {
-                Path2D bolt = new Path2D.Double();
-                bolt.moveTo(x + s * 0.58, y + 2);
-                bolt.lineTo(x + s * 0.28, y + s * 0.55);
-                bolt.lineTo(x + s * 0.50, y + s * 0.55);
-                bolt.lineTo(x + s * 0.38, y + s - 2);
-                bolt.lineTo(x + s * 0.74, y + s * 0.42);
-                bolt.lineTo(x + s * 0.52, y + s * 0.42);
-                bolt.closePath();
-                g.draw(bolt);
-            } else if (type == StatIconType.LEAF) {
-                g.setColor(new Color(78, 210, 98));
-                Path2D leaf = new Path2D.Double();
-                leaf.moveTo(x + 5, y + s - 8);
-                leaf.curveTo(x + 8, y + 6, x + s - 8, y + 4, x + s - 5, y + 5);
-                leaf.curveTo(x + s - 4, y + s - 15, x + 20, y + s - 7, x + 5, y + s - 8);
-                g.draw(leaf);
-                g.drawLine(x + 10, y + s - 10, x + s - 12, y + 12);
-            } else {
-                g.drawOval(x + 7, y + 23, 8, 8);
-                g.drawOval(x + s - 15, y + 23, 8, 8);
-                g.drawLine(x + 11, y + 23, x + 18, y + 13);
-                g.drawLine(x + 18, y + 13, x + 25, y + 23);
-                g.drawLine(x + 18, y + 13, x + s - 11, y + 23);
-                g.drawLine(x + 25, y + 23, x + 31, y + 13);
+        PageButton(String text, boolean active) {
+            super(text);
+            this.active = active;
+            setOpaque(false);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setFont(new Font("Segoe UI", Font.BOLD, 12));
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            Color fill = active ? GOLD : new Color(0, 0, 0, 95);
+            Color stroke = getModel().isRollover() ? PALE : LINE;
+            Color text = active ? new Color(22, 13, 6) : PALE;
+            if (!isEnabled()) {
+                text = new Color(PALE.getRed(), PALE.getGreen(), PALE.getBlue(), 90);
+                stroke = new Color(LINE.getRed(), LINE.getGreen(), LINE.getBlue(), 55);
             }
 
+            g.setColor(fill);
+            g.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+            g.setColor(stroke);
+            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+
+            g.setColor(text);
+            g.setFont(getFont());
+            FontMetrics fm = g.getFontMetrics();
+            String value = getText();
+            g.drawString(value, (getWidth() - fm.stringWidth(value)) / 2, (getHeight() + fm.getAscent()) / 2 - 3);
             g.dispose();
         }
     }
 
     private static class RoundedPanel extends JPanel {
         private final int radius;
+        private final Color fill;
 
-        RoundedPanel(int radius) {
+        RoundedPanel(int radius, Color fill) {
             this.radius = radius;
+            this.fill = fill;
             setOpaque(false);
         }
 
@@ -982,55 +857,161 @@ public class VehicleCatalog extends JFrame {
         protected void paintComponent(Graphics raw) {
             Graphics2D g = (Graphics2D) raw.create();
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-            RoundRectangle2D body = new RoundRectangle2D.Double(0, 0, getWidth() - 1, getHeight() - 1, radius, radius);
-
-            g.setColor(getBackground());
-            g.fill(body);
-
+            g.setColor(fill);
+            g.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, radius, radius);
             g.setColor(LINE);
-            g.setStroke(new BasicStroke(1.0f));
-            g.draw(body);
-
+            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, radius, radius);
             g.dispose();
             super.paintComponent(raw);
         }
     }
 
-    private static final class RoundedButton extends JButton {
-        private final int radius;
-
-        RoundedButton(String text, int radius) {
+    private static class GhostButton extends JButton {
+        GhostButton(String text) {
             super(text);
-            this.radius = radius;
-
             setOpaque(false);
             setContentAreaFilled(false);
             setBorderPainted(false);
             setFocusPainted(false);
+            setForeground(PALE);
+            setFont(new Font("Segoe UI", Font.BOLD, 11));
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setBackground(new Color(0, 0, 0, 80));
         }
 
         @Override
         protected void paintComponent(Graphics raw) {
             Graphics2D g = (Graphics2D) raw.create();
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-            RoundRectangle2D body = new RoundRectangle2D.Double(0, 0, getWidth() - 1, getHeight() - 1, radius, radius);
-
-            if (getModel().isRollover()) {
-                g.setColor(new Color(214, 168, 91, 40));
-            } else {
-                g.setColor(getBackground());
-            }
-
-            g.fill(body);
-
-            g.setColor(getModel().isRollover() ? GOLD_LIGHT : LINE);
-            g.draw(body);
-
+            g.setColor(getBackground());
+            g.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+            g.setColor(getModel().isRollover() ? PALE : LINE);
+            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
             g.dispose();
             super.paintComponent(raw);
+        }
+    }
+
+    private static final class GoldButton extends GhostButton {
+        GoldButton(String text) {
+            super(text);
+            setForeground(new Color(23, 13, 5));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setPaint(new GradientPaint(0, 0, PALE, 0, getHeight(), new Color(132, 82, 29)));
+            g.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+            g.setColor(new Color(255, 225, 165, 130));
+            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 8, 8);
+            g.setColor(new Color(23, 13, 5));
+            g.setFont(getFont());
+            FontMetrics fm = g.getFontMetrics();
+            String text = getText();
+            g.drawString(text, (getWidth() - fm.stringWidth(text)) / 2, (getHeight() + fm.getAscent()) / 2 - 3);
+            g.dispose();
+        }
+    }
+
+    private static final class MetricFrame extends RoundedPanel {
+        MetricFrame(JComponent content) {
+            super(12, new Color(5, 10, 16, 230));
+            setLayout(new BorderLayout());
+            add(content, BorderLayout.CENTER);
+        }
+    }
+
+    private static final class MiniIcon extends JComponent {
+        private final String type;
+
+        MiniIcon(String type) {
+            this.type = type;
+            setPreferredSize(new Dimension(34, 34));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setColor(PALE);
+            g.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            int cx = getWidth() / 2;
+            int cy = getHeight() / 2;
+            if ("BOLT".equals(type)) {
+                Path2D p = new Path2D.Double();
+                p.moveTo(cx + 3, 5);
+                p.lineTo(cx - 8, cy + 2);
+                p.lineTo(cx, cy + 2);
+                p.lineTo(cx - 4, getHeight() - 4);
+                p.lineTo(cx + 10, cy - 3);
+                p.lineTo(cx + 1, cy - 3);
+                p.closePath();
+                g.draw(p);
+            } else if ("STAR".equals(type)) {
+                drawStar(g, cx, cy, 12, 5);
+            } else if ("DIAMOND".equals(type)) {
+                g.drawPolygon(new int[]{cx, cx + 12, cx, cx - 12}, new int[]{4, cy, getHeight() - 4, cy}, 4);
+            } else if ("HEADSET".equals(type)) {
+                g.drawArc(cx - 11, cy - 9, 22, 21, 0, 180);
+                g.drawLine(cx - 11, cy + 1, cx - 11, cy + 10);
+                g.drawLine(cx + 11, cy + 1, cx + 11, cy + 10);
+                g.drawRoundRect(cx - 15, cy + 5, 7, 10, 4, 4);
+                g.drawRoundRect(cx + 8, cy + 5, 7, 10, 4, 4);
+            } else if ("CHECK".equals(type)) {
+                g.drawRoundRect(cx - 12, cy - 12, 24, 24, 8, 8);
+                g.drawLine(cx - 6, cy, cx - 1, cy + 6);
+                g.drawLine(cx - 1, cy + 6, cx + 8, cy - 6);
+            } else {
+                g.drawRoundRect(cx - 13, cy - 4, 26, 11, 5, 5);
+                g.drawLine(cx - 8, cy - 4, cx - 4, cy - 11);
+                g.drawLine(cx + 8, cy - 4, cx + 4, cy - 11);
+                g.drawOval(cx - 10, cy + 6, 6, 6);
+                g.drawOval(cx + 4, cy + 6, 6, 6);
+            }
+            g.dispose();
+        }
+
+        private void drawStar(Graphics2D g, int cx, int cy, int outer, int inner) {
+            Path2D p = new Path2D.Double();
+            for (int i = 0; i < 10; i++) {
+                double angle = -Math.PI / 2 + i * Math.PI / 5;
+                int r = i % 2 == 0 ? outer : inner;
+                double x = cx + Math.cos(angle) * r;
+                double y = cy + Math.sin(angle) * r;
+                if (i == 0) {
+                    p.moveTo(x, y);
+                } else {
+                    p.lineTo(x, y);
+                }
+            }
+            p.closePath();
+            g.draw(p);
+        }
+    }
+
+    private static final class DarkScrollBarUI extends BasicScrollBarUI {
+        @Override
+        protected void configureScrollBarColors() {
+            thumbColor = new Color(214, 160, 66, 135);
+            trackColor = new Color(0, 0, 0, 0);
+        }
+
+        @Override
+        protected JButton createDecreaseButton(int orientation) {
+            return invisible();
+        }
+
+        @Override
+        protected JButton createIncreaseButton(int orientation) {
+            return invisible();
+        }
+
+        private JButton invisible() {
+            JButton b = new JButton();
+            b.setPreferredSize(new Dimension(0, 0));
+            return b;
         }
     }
 
@@ -1038,16 +1019,12 @@ public class VehicleCatalog extends JFrame {
         @Override
         protected void paintComponent(Graphics raw) {
             Graphics2D g = (Graphics2D) raw.create();
-
             g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-            g.setPaint(new GradientPaint(0, 0, BG, getWidth(), getHeight(), new Color(7, 12, 19)));
+            g.setPaint(new GradientPaint(0, 0, BG, getWidth(), getHeight(), new Color(5, 10, 17)));
             g.fillRect(0, 0, getWidth(), getHeight());
-
-            g.setComposite(AlphaComposite.SrcOver.derive(0.15f));
+            g.setComposite(AlphaComposite.SrcOver.derive(0.12f));
             g.setColor(GOLD);
-            g.fillOval(getWidth() - 280, -190, 430, 340);
-
+            g.fillOval(getWidth() - 230, -190, 390, 310);
             g.dispose();
         }
     }

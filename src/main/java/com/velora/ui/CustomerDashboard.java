@@ -12,7 +12,9 @@ import java.awt.event.MouseEvent;
 import java.awt.geom.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 
 public class CustomerDashboard extends JFrame {
 
@@ -26,6 +28,9 @@ public class CustomerDashboard extends JFrame {
     private final CustomerAccountState accountState;
     private final CardLayout pageLayout = new CardLayout();
     private final JPanel pageCards = new JPanel(pageLayout);
+    private final Map<String, MenuButton> menuButtons = new LinkedHashMap<>();
+    private VehicleCatalog vehicleCatalog;
+    private SupportPanel supportPanel;
     private JLabel totalRentalsValue;
     private JLabel activeRentalsValue;
     private JLabel loyaltyPointsValue;
@@ -36,7 +41,6 @@ public class CustomerDashboard extends JFrame {
     private final BufferedImage rentalCard1;
     private final BufferedImage rentalCard2;
     private final BufferedImage rentalCard3;
-    private final BufferedImage sidebarCar;
 
     public CustomerDashboard(Customer customer) {
         super("Velora Motors - Customer Dashboard");
@@ -44,16 +48,17 @@ public class CustomerDashboard extends JFrame {
         this.accountState = CustomerAccountState.forCustomer(customer);
 
         iconImage = loadImage("/images/icon.png");
-        heroImage = loadImage("/images/HERO_CENTER.png");
-        rentalCard1 = loadImage("/images/RENTAL_CARD_1.png");
-        rentalCard2 = loadImage("/images/RENTAL_CARD_2.png");
-        rentalCard3 = loadImage("/images/RENTAL_CARD_3.png");
-        sidebarCar = loadImage("/images/SIDEBAR_CAR.png");
+        heroImage = loadImage("/images/customer-dashboard-hero-reference.png");
+        rentalCard1 = loadImage("/images/customer-rental-x7-custom.png");
+        rentalCard2 = loadImage("/images/customer-rental-m8-custom.png");
+        rentalCard3 = loadImage("/images/customer-rental-i7-custom.png");
 
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+        setUndecorated(true);
         setMinimumSize(new Dimension(1240, 760));
         setSize(1480, 860);
-        setLocationRelativeTo(null);
+        setBounds(GraphicsEnvironment.getLocalGraphicsEnvironment().getMaximumWindowBounds());
+        setExtendedState(JFrame.MAXIMIZED_BOTH);
 
         if (iconImage != null) {
             setIconImage(iconImage);
@@ -110,7 +115,7 @@ public class CustomerDashboard extends JFrame {
         menu.setOpaque(false);
 
         menu.add(menuButton(MenuIconType.HOME, "Dashboard", true, () -> showSection("Dashboard")));
-        menu.add(menuButton(MenuIconType.CAR, "Vehicles", false, () -> showMessage("Vehicles catalog will open here.")));
+        menu.add(menuButton(MenuIconType.CAR, "Vehicles", false, () -> showSection("Vehicles")));
         menu.add(menuButton(MenuIconType.CALENDAR, "My Rentals", false, () -> showSection("My Rentals")));
         menu.add(menuButton(MenuIconType.FILE, "Billing & Invoices", false, () -> showSection("Billing & Invoices")));
         menu.add(menuButton(MenuIconType.DIAMOND, "Loyalty Points", false, () -> showSection("Loyalty Points")));
@@ -127,18 +132,7 @@ public class CustomerDashboard extends JFrame {
         JButton logout = outlineButton("Logout");
         logout.addActionListener(e -> logout());
 
-        ImageCard sidebarPromo = new ImageCard(sidebarCar, false);
-        sidebarPromo.setPreferredSize(new Dimension(220, 240));
-        sidebarPromo.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        sidebarPromo.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                showMessage("Explore vehicles collection.");
-            }
-        });
-
         bottom.add(logout, BorderLayout.NORTH);
-        bottom.add(sidebarPromo, BorderLayout.CENTER);
 
         sidebar.add(top, BorderLayout.CENTER);
         sidebar.add(bottom, BorderLayout.SOUTH);
@@ -155,9 +149,12 @@ public class CustomerDashboard extends JFrame {
 
         pageCards.setOpaque(false);
         pageCards.add(wrapPage(createDashboardContent()), "Dashboard");
+        vehicleCatalog = new VehicleCatalog(customer);
+        supportPanel = new SupportPanel(customer);
+        pageCards.add(vehicleCatalog, "Vehicles");
         pageCards.add(wrapPage(new MyRentalsPanel(customer)), "My Rentals");
         pageCards.add(wrapPage(new CustomerBillingPanel(customer)), "Billing & Invoices");
-        pageCards.add(wrapPage(new SupportPanel(customer)), "Support");
+        pageCards.add(wrapPage(supportPanel), "Support");
         pageCards.add(wrapPage(new ReviewsPanel(customer)), "Reviews");
         pageCards.add(wrapPage(new LoyaltyPointsPanel(customer)), "Loyalty Points");
         pageCards.add(
@@ -173,9 +170,10 @@ public class CustomerDashboard extends JFrame {
     }
 
     private JComponent createDashboardContent() {
-        JPanel content = new JPanel();
+        JPanel content = new WidthTrackingPanel();
         content.setOpaque(false);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBorder(new EmptyBorder(0, 0, 12, 0));
 
         JPanel hero = createHero();
         hero.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -186,14 +184,17 @@ public class CustomerDashboard extends JFrame {
         JPanel cards = createCardsGrid();
         cards.setAlignmentX(Component.LEFT_ALIGNMENT);
 
+        JPanel actions = createActionStrip();
+        actions.setAlignmentX(Component.LEFT_ALIGNMENT);
+
         content.add(hero);
         content.add(Box.createVerticalStrut(18));
         content.add(sectionHeader);
-        content.add(Box.createVerticalStrut(10));
+        content.add(Box.createVerticalStrut(12));
         content.add(cards);
-        content.add(Box.createVerticalStrut(18));
-        content.add(createFooter());
-        content.add(Box.createVerticalStrut(10));
+        content.add(Box.createVerticalStrut(16));
+        content.add(actions);
+        content.add(Box.createVerticalGlue());
 
         return content;
     }
@@ -239,20 +240,34 @@ public class CustomerDashboard extends JFrame {
         scroll.setBorder(BorderFactory.createEmptyBorder());
         scroll.setOpaque(false);
         scroll.getViewport().setOpaque(false);
+        scroll.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+        scroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED);
         scroll.getVerticalScrollBar().setUnitIncrement(18);
-        scroll.getHorizontalScrollBar().setUnitIncrement(18);
         return scroll;
     }
 
     private void showSection(String section) {
+        if ("Vehicles".equals(section) && vehicleCatalog != null) {
+            vehicleCatalog.refreshData();
+        } else if ("Support".equals(section) && supportPanel != null) {
+            supportPanel.refreshData();
+        }
+        refreshCustomerMetrics();
         pageLayout.show(pageCards, section);
+        setActiveMenu(section);
+    }
+
+    private void setActiveMenu(String section) {
+        for (Map.Entry<String, MenuButton> entry : menuButtons.entrySet()) {
+            entry.getValue().setActive(entry.getKey().equals(section));
+        }
     }
 
     private JPanel createTopBar() {
         JPanel top = new JPanel(new BorderLayout(16, 0));
         top.setOpaque(false);
 
-        SearchPanel search = new SearchPanel("Search for BMW cars...");
+        SearchPanel search = new SearchPanel("Search for BMW cars, models, or features...");
         search.setPreferredSize(new Dimension(540, 46));
 
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 14, 0));
@@ -277,12 +292,44 @@ public class CustomerDashboard extends JFrame {
         right.add(bell);
         right.add(mail);
         right.add(createProfileBlock());
+        right.add(createWindowControls());
 
-        top.add(Box.createHorizontalStrut(240), BorderLayout.WEST);
         top.add(search, BorderLayout.CENTER);
         top.add(right, BorderLayout.EAST);
 
         return top;
+    }
+
+    private JComponent createWindowControls() {
+        JPanel controls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        controls.setOpaque(false);
+
+        WindowControlButton minimize = new WindowControlButton(WindowControlType.MINIMIZE);
+        minimize.setToolTipText("Minimize");
+        minimize.addActionListener(e -> setExtendedState(JFrame.ICONIFIED));
+
+        WindowControlButton maximize = new WindowControlButton(WindowControlType.MAXIMIZE);
+        maximize.setToolTipText("Maximize / Restore");
+        maximize.addActionListener(e -> {
+            int state = getExtendedState();
+            if ((state & JFrame.MAXIMIZED_BOTH) == JFrame.MAXIMIZED_BOTH) {
+                setExtendedState(JFrame.NORMAL);
+            } else {
+                setExtendedState(JFrame.MAXIMIZED_BOTH);
+            }
+        });
+
+        WindowControlButton close = new WindowControlButton(WindowControlType.CLOSE);
+        close.setToolTipText("Close");
+        close.addActionListener(e -> dispatchEvent(new java.awt.event.WindowEvent(
+                this,
+                java.awt.event.WindowEvent.WINDOW_CLOSING
+        )));
+
+        controls.add(minimize);
+        controls.add(maximize);
+        controls.add(close);
+        return controls;
     }
 
     private JPanel createProfileBlock() {
@@ -329,25 +376,25 @@ public class CustomerDashboard extends JFrame {
 
         ButtonOverlayImageCard hero = new ButtonOverlayImageCard(
                 heroImage,
-                false,
-                0.43,
-                0.34,
-                0.23,
-                0.16,
+                true,
+                0.035,
+                0.74,
+                0.155,
+                0.13,
                 () -> searchVehicles("BMW")
         );
-        hero.setPreferredSize(new Dimension(1120, 315));
-        hero.setMaximumSize(new Dimension(Integer.MAX_VALUE, 315));
+        hero.setPreferredSize(new Dimension(1120, 292));
+        hero.setMaximumSize(new Dimension(Integer.MAX_VALUE, 292));
 
         JPanel heroHolder = new JPanel(new BorderLayout());
         heroHolder.setOpaque(false);
-        heroHolder.setPreferredSize(new Dimension(1120, 315));
-        heroHolder.setMaximumSize(new Dimension(Integer.MAX_VALUE, 315));
+        heroHolder.setPreferredSize(new Dimension(1120, 292));
+        heroHolder.setMaximumSize(new Dimension(Integer.MAX_VALUE, 292));
         heroHolder.add(hero, BorderLayout.CENTER);
 
         JPanel stats = createStats();
-        stats.setPreferredSize(new Dimension(1120, 82));
-        stats.setMaximumSize(new Dimension(Integer.MAX_VALUE, 82));
+        stats.setPreferredSize(new Dimension(1120, 94));
+        stats.setMaximumSize(new Dimension(Integer.MAX_VALUE, 94));
 
         wrapper.add(heroHolder);
         wrapper.add(Box.createVerticalStrut(12));
@@ -357,30 +404,39 @@ public class CustomerDashboard extends JFrame {
     }
 
     private JPanel createStats() {
-        RoundedPanel strip = new RoundedPanel(18);
-        strip.setBackground(new Color(3, 7, 12, 238));
-        strip.setLayout(new GridLayout(1, 4, 0, 0));
-        strip.setBorder(new EmptyBorder(10, 18, 10, 18));
+        JPanel strip = new JPanel(new GridLayout(1, 4, 14, 0));
+        strip.setOpaque(false);
 
         totalRentalsValue = statValueLabel();
         activeRentalsValue = statValueLabel();
         loyaltyPointsValue = statValueLabel();
         totalSpentValue = statValueLabel();
 
-        strip.add(statCard(MenuIconType.CAR, "TOTAL RENTALS", totalRentalsValue));
-        strip.add(statCard(MenuIconType.CALENDAR, "ACTIVE RENTALS", activeRentalsValue));
-        strip.add(statCard(MenuIconType.DIAMOND, "LOYALTY POINTS", loyaltyPointsValue));
-        strip.add(statCard(MenuIconType.FILE, "TOTAL SPENT", totalSpentValue));
+        strip.add(statCard(MenuIconType.CALENDAR, "TOTAL RENTALS", totalRentalsValue, "All time bookings",
+                () -> showSection("My Rentals")));
+        strip.add(statCard(MenuIconType.CALENDAR, "ACTIVE RENTALS", activeRentalsValue, "Currently ongoing",
+                () -> showSection("My Rentals")));
+        strip.add(statCard(MenuIconType.DIAMOND, "LOYALTY POINTS", loyaltyPointsValue, "Gold Member",
+                () -> showSection("Loyalty Points")));
+        strip.add(statCard(MenuIconType.FILE, "TOTAL SPENT", totalSpentValue, "Across all rentals",
+                () -> showSection("Billing & Invoices")));
 
         return strip;
     }
 
-    private JPanel statCard(MenuIconType iconType, String label, JLabel valueText) {
-        JPanel card = new JPanel(new BorderLayout(14, 0));
-        card.setOpaque(false);
-        card.setBorder(new EmptyBorder(4, 18, 4, 18));
+    private JPanel statCard(MenuIconType iconType, String label, JLabel valueText, String subText, Runnable action) {
+        RoundedPanel card = new RoundedPanel(16);
+        card.setBackground(new Color(3, 7, 12, 232));
+        card.setLayout(new BorderLayout(14, 0));
+        card.setBorder(new EmptyBorder(12, 16, 12, 14));
+        card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
 
         StatIcon icon = new StatIcon(iconType, 32);
+        RoundedPanel iconShell = new RoundedPanel(12);
+        iconShell.setBackground(new Color(255, 255, 255, 16));
+        iconShell.setPreferredSize(new Dimension(58, 58));
+        iconShell.setLayout(new GridBagLayout());
+        iconShell.add(icon);
 
         JPanel textPanel = new JPanel();
         textPanel.setOpaque(false);
@@ -391,14 +447,31 @@ public class CustomerDashboard extends JFrame {
         labelText.setFont(new Font("Segoe UI", Font.BOLD, 10));
         labelText.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        textPanel.add(Box.createVerticalGlue());
-        textPanel.add(labelText);
-        textPanel.add(Box.createVerticalStrut(3));
-        textPanel.add(valueText);
-        textPanel.add(Box.createVerticalGlue());
+        JLabel sub = new JLabel(subText);
+        sub.setForeground(MUTED);
+        sub.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        sub.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        card.add(icon, BorderLayout.WEST);
+        textPanel.add(labelText);
+        textPanel.add(Box.createVerticalStrut(2));
+        textPanel.add(valueText);
+        textPanel.add(Box.createVerticalStrut(1));
+        textPanel.add(sub);
+
+        JLabel arrow = new JLabel(">");
+        arrow.setForeground(GOLD);
+        arrow.setFont(new Font("Segoe UI", Font.PLAIN, 24));
+
+        card.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                action.run();
+            }
+        });
+
+        card.add(iconShell, BorderLayout.WEST);
         card.add(textPanel, BorderLayout.CENTER);
+        card.add(arrow, BorderLayout.EAST);
 
         return card;
     }
@@ -424,18 +497,129 @@ public class CustomerDashboard extends JFrame {
     private JPanel createCardsGrid() {
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setOpaque(false);
-        wrapper.setPreferredSize(new Dimension(1120, 205));
-        wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, 205));
+        wrapper.setPreferredSize(new Dimension(1120, 285));
+        wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, 285));
 
         JPanel grid = new JPanel(new GridLayout(1, 3, 14, 0));
         grid.setOpaque(false);
 
-        grid.add(clickableCard(rentalCard1, "BMW X7 xDrive40i"));
-        grid.add(clickableCard(rentalCard2, "BMW M8 Competition"));
-        grid.add(clickableCard(rentalCard3, "BMW i7 M70"));
+        grid.add(rentalCard(
+                rentalCard1,
+                "BMW X7 xDrive40i",
+                "Luxury SUV",
+                "10 - 17 Jun 2026",
+                "7 Days Left",
+                "New York, NY"
+        ));
+        grid.add(rentalCard(
+                rentalCard2,
+                "BMW M8 Competition",
+                "Performance Coupe",
+                "01 - 07 Jun 2026",
+                "2 Days Left",
+                "Los Angeles, CA"
+        ));
+        grid.add(rentalCard(
+                rentalCard3,
+                "BMW i7 M70",
+                "100% Electric Luxury Sedan",
+                "05 - 12 Jun 2026",
+                "5 Days Left",
+                "Miami, FL"
+        ));
 
         wrapper.add(grid, BorderLayout.CENTER);
         return wrapper;
+    }
+
+    private JPanel createActionStrip() {
+        JPanel wrapper = new JPanel(new BorderLayout());
+        wrapper.setOpaque(false);
+        wrapper.setPreferredSize(new Dimension(1120, 98));
+        wrapper.setMaximumSize(new Dimension(Integer.MAX_VALUE, 98));
+
+        JPanel grid = new JPanel(new GridLayout(1, 3, 14, 0));
+        grid.setOpaque(false);
+        grid.add(actionCard(MenuIconType.STAR, "Gold Member Benefits",
+                "You're enjoying premium benefits and exclusive privileges.",
+                "View Benefits  ->",
+                () -> showSection("Loyalty Points")));
+        grid.add(actionCard(MenuIconType.DIAMOND, "Refer & Earn",
+                "Invite friends and earn loyalty points when they rent.",
+                "Refer Now  ->",
+                () -> showMessage("Referral code: VELORA-"
+                        + getCustomerName().trim().split("\\s+")[0].toUpperCase(Locale.US))));
+        grid.add(actionCard(MenuIconType.HEADSET, "Need Assistance?",
+                "Our support team is here to help you 24/7.",
+                "Contact Support  ->",
+                () -> showSection("Support")));
+
+        wrapper.add(grid, BorderLayout.CENTER);
+        return wrapper;
+    }
+
+    private JPanel actionCard(MenuIconType iconType, String title, String description, String buttonText, Runnable action) {
+        RoundedPanel card = new RoundedPanel(16);
+        card.setBackground(new Color(3, 7, 12, 232));
+        card.setLayout(new GridBagLayout());
+        card.setBorder(new EmptyBorder(10, 18, 10, 18));
+        card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.gridy = 0;
+        gc.fill = GridBagConstraints.BOTH;
+        gc.weighty = 1;
+        gc.insets = new Insets(0, 0, 0, 12);
+
+        gc.gridx = 0;
+        gc.weightx = 0;
+        ActionIcon icon = new ActionIcon(iconType, 58);
+        card.add(icon, gc);
+
+        JPanel text = new JPanel();
+        text.setOpaque(false);
+        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+
+        JLabel t = new JLabel(title);
+        t.setForeground(GOLD_LIGHT);
+        t.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        t.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel d = new JLabel("<html><body style='width:185px'>" + description + "</body></html>");
+        d.setForeground(MUTED);
+        d.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+        d.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        text.add(Box.createVerticalGlue());
+        text.add(t);
+        text.add(Box.createVerticalStrut(4));
+        text.add(d);
+        text.add(Box.createVerticalGlue());
+
+        gc.gridx = 1;
+        gc.weightx = 1;
+        card.add(text, gc);
+
+        RoundedButton button = new RoundedButton(buttonText, 12);
+        button.setPreferredSize(new Dimension(132, 34));
+        button.setBackground(new Color(214, 168, 91, 20));
+        button.setForeground(GOLD_LIGHT);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 9));
+        button.addActionListener(e -> action.run());
+
+        gc.gridx = 2;
+        gc.weightx = 0;
+        gc.insets = new Insets(0, 0, 0, 0);
+        card.add(button, gc);
+
+        card.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                action.run();
+            }
+        });
+
+        return card;
     }
 
     private JPanel createFooter() {
@@ -551,17 +735,17 @@ public class CustomerDashboard extends JFrame {
         return p;
     }
 
-    private JPanel clickableCard(BufferedImage image, String vehicleName) {
-        ButtonOverlayImageCard card = new ButtonOverlayImageCard(
-                image,
-                false,
-                0.04,
-                0.72,
-                0.25,
-                0.18,
-                () -> showMessage(vehicleName + "\nVehicle details will open here.")
-        );
-        card.setToolTipText(null);
+    private JComponent rentalCard(
+            BufferedImage image,
+            String vehicleName,
+            String category,
+            String dates,
+            String daysLeft,
+            String location
+    ) {
+        RentalVehicleCard card = new RentalVehicleCard(image, vehicleName, category, dates, daysLeft, location);
+        card.addActionListener(e -> showMessage(vehicleName + "\nVehicle details will open here."));
+        card.setMinimumSize(new Dimension(0, 0));
         return card;
     }
 
@@ -590,6 +774,7 @@ public class CustomerDashboard extends JFrame {
         MenuButton b = new MenuButton(iconType, text, active);
         b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         b.addActionListener(e -> action.run());
+        menuButtons.put(text, b);
         return b;
     }
 
@@ -605,8 +790,13 @@ public class CustomerDashboard extends JFrame {
     }
 
     private void logout() {
-        new LoginScreen().setVisible(true);
-        dispose();
+        LogoutConfirmDialog confirmDialog = new LogoutConfirmDialog(this);
+        confirmDialog.setVisible(true);
+
+        if (confirmDialog.isConfirmed()) {
+            dispose();
+            new FarewellScreen(getCustomerName()).setVisible(true);
+        }
     }
 
     private void showMessage(String msg) {
@@ -645,6 +835,10 @@ public class CustomerDashboard extends JFrame {
 
     private enum BadgeIconType {
         BELL, MAIL
+    }
+
+    private enum WindowControlType {
+        MINIMIZE, MAXIMIZE, CLOSE
     }
 
     private static final class GradientRoot extends JPanel {
@@ -740,9 +934,148 @@ public class CustomerDashboard extends JFrame {
             int ih = (int) Math.round(img.getHeight() * s);
 
             int ix = x + (w - iw) / 2;
-            int iy = y + (h - ih) / 2;
+            int iy = cover ? y : y + (h - ih) / 2;
 
             g.drawImage(img, ix, iy, iw, ih, null);
+        }
+    }
+
+    private static final class RentalVehicleCard extends JButton {
+        private final BufferedImage image;
+        private final String vehicleName;
+        private final String category;
+        private final String dates;
+        private final String daysLeft;
+        private final String location;
+
+        RentalVehicleCard(
+                BufferedImage image,
+                String vehicleName,
+                String category,
+                String dates,
+                String daysLeft,
+                String location
+        ) {
+            super("");
+            this.image = image;
+            this.vehicleName = vehicleName;
+            this.category = category;
+            this.dates = dates;
+            this.daysLeft = daysLeft;
+            this.location = location;
+            setOpaque(false);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setToolTipText(vehicleName);
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+            int w = getWidth();
+            int h = getHeight();
+            Shape clip = new RoundRectangle2D.Double(0, 0, w - 1, h - 1, 16, 16);
+            g.setClip(clip);
+
+            if (image != null) {
+                ImageCard.drawImage(g, image, 0, 0, w, h, true);
+            } else {
+                g.setPaint(new GradientPaint(0, 0, new Color(12, 18, 26), w, h, new Color(3, 7, 11)));
+                g.fillRect(0, 0, w, h);
+            }
+
+            g.setPaint(new GradientPaint(0, 0, new Color(0, 0, 0, 188), w * 0.52f, 0, new Color(0, 0, 0, 30)));
+            g.fillRect(0, 0, w, h);
+
+            g.setPaint(new GradientPaint(0, h * 0.60f, new Color(0, 0, 0, 0), 0, h, new Color(0, 0, 0, 172)));
+            g.fillRect(0, 0, w, h);
+
+            if (getModel().isRollover()) {
+                g.setColor(new Color(214, 168, 91, 22));
+                g.fillRect(0, 0, w, h);
+            }
+
+            int left = Math.max(18, w / 22);
+            int top = Math.max(25, h / 9);
+
+            g.setColor(TEXT);
+            g.setFont(new Font("Segoe UI", Font.BOLD, Math.max(17, Math.min(22, w / 24))));
+            g.drawString(vehicleName, left, top);
+
+            g.setColor(GOLD_LIGHT);
+            g.setFont(new Font("Segoe UI", Font.PLAIN, Math.max(11, Math.min(13, w / 39))));
+            g.drawString(category, left, top + 23);
+
+            int infoY = top + 58;
+            drawInfoLine(g, MenuIconType.CALENDAR, dates, left, infoY);
+            drawInfoLine(g, MenuIconType.CALENDAR, daysLeft, left, infoY + 25);
+            drawInfoLine(g, MenuIconType.USER, location, left, infoY + 50);
+
+            drawStatus(g, w - 78, top - 20);
+            drawDetailsButton(g, left, h - 55);
+            drawMoreButton(g, w - 60, h - 55);
+
+            g.setClip(null);
+            g.setColor(LINE);
+            g.setStroke(new BasicStroke(1.0f));
+            g.draw(clip);
+
+            g.dispose();
+            super.paintComponent(raw);
+        }
+
+        private void drawInfoLine(Graphics2D g, MenuIconType icon, String text, int x, int y) {
+            drawMenuIcon(g, icon, x, y - 12, 14, GOLD_LIGHT);
+            g.setColor(new Color(224, 228, 234));
+            g.setFont(new Font("Segoe UI", Font.PLAIN, 11));
+            g.drawString(text, x + 22, y);
+        }
+
+        private void drawStatus(Graphics2D g, int x, int y) {
+            RoundRectangle2D pill = new RoundRectangle2D.Double(x, y, 58, 22, 11, 11);
+            g.setColor(new Color(38, 114, 48, 192));
+            g.fill(pill);
+            g.setColor(new Color(130, 224, 135, 90));
+            g.draw(pill);
+            g.setColor(new Color(225, 255, 225));
+            g.setFont(new Font("Segoe UI", Font.BOLD, 9));
+            g.drawString("Ongoing", x + 11, y + 14);
+        }
+
+        private void drawDetailsButton(Graphics2D g, int x, int y) {
+            int bw = 125;
+            int bh = 36;
+            RoundRectangle2D button = new RoundRectangle2D.Double(x, y, bw, bh, 8, 8);
+            g.setPaint(new GradientPaint(x, y, new Color(139, 91, 35, 238), x + bw, y + bh, new Color(79, 49, 19, 238)));
+            g.fill(button);
+            g.setColor(new Color(244, 211, 157, 105));
+            g.draw(button);
+            g.setColor(Color.WHITE);
+            g.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            g.drawString("View Details", x + 17, y + 23);
+            g.setColor(GOLD_LIGHT);
+            g.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.drawLine(x + bw - 27, y + 18, x + bw - 15, y + 18);
+            g.drawLine(x + bw - 20, y + 13, x + bw - 15, y + 18);
+            g.drawLine(x + bw - 20, y + 23, x + bw - 15, y + 18);
+        }
+
+        private void drawMoreButton(Graphics2D g, int x, int y) {
+            int s = 36;
+            RoundRectangle2D more = new RoundRectangle2D.Double(x, y, s, s, 9, 9);
+            g.setColor(new Color(34, 25, 18, 210));
+            g.fill(more);
+            g.setColor(new Color(214, 168, 91, 70));
+            g.draw(more);
+            g.setColor(GOLD_LIGHT);
+            g.setFont(new Font("Segoe UI", Font.BOLD, 18));
+            g.drawString("...", x + 10, y + 21);
         }
     }
 
@@ -778,7 +1111,7 @@ public class CustomerDashboard extends JFrame {
     private static final class MenuButton extends JButton {
         private final MenuIconType iconType;
         private final String label;
-        private final boolean active;
+        private boolean active;
 
         MenuButton(MenuIconType iconType, String label, boolean active) {
             this.iconType = iconType;
@@ -789,6 +1122,11 @@ public class CustomerDashboard extends JFrame {
             setBorderPainted(false);
             setFocusPainted(false);
             setPreferredSize(new Dimension(210, 42));
+        }
+
+        void setActive(boolean active) {
+            this.active = active;
+            repaint();
         }
 
         @Override
@@ -976,6 +1314,117 @@ public class CustomerDashboard extends JFrame {
         }
     }
 
+    private static final class ActionIcon extends JPanel {
+        private final MenuIconType iconType;
+        private final int size;
+
+        ActionIcon(MenuIconType iconType, int size) {
+            this.iconType = iconType;
+            this.size = size;
+            setOpaque(false);
+            setPreferredSize(new Dimension(size + 8, size + 8));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            int s = Math.min(size, Math.min(getWidth(), getHeight()) - 8);
+            int x = (getWidth() - s) / 2;
+            int y = (getHeight() - s) / 2;
+
+            if (iconType == MenuIconType.STAR) {
+                drawShield(g, x, y, s);
+            } else if (iconType == MenuIconType.DIAMOND) {
+                drawGift(g, x, y, s);
+            } else if (iconType == MenuIconType.HEADSET) {
+                drawLargeHeadset(g, x, y, s);
+            } else {
+                drawMenuIcon(g, iconType, x + 8, y + 8, s - 16, GOLD_LIGHT);
+            }
+            g.dispose();
+        }
+
+        private void drawShield(Graphics2D g, int x, int y, int s) {
+            Path2D shield = new Path2D.Double();
+            shield.moveTo(x + s * 0.50, y + s * 0.08);
+            shield.lineTo(x + s * 0.83, y + s * 0.22);
+            shield.lineTo(x + s * 0.77, y + s * 0.68);
+            shield.quadTo(x + s * 0.50, y + s * 0.93, x + s * 0.23, y + s * 0.68);
+            shield.lineTo(x + s * 0.17, y + s * 0.22);
+            shield.closePath();
+
+            g.setPaint(new GradientPaint(x, y, GOLD_LIGHT, x + s, y + s, GOLD));
+            g.fill(shield);
+            g.setColor(new Color(38, 22, 8, 150));
+            g.setStroke(new BasicStroke(1.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.draw(shield);
+
+            Path2D star = new Path2D.Double();
+            double cx = x + s * 0.50;
+            double cy = y + s * 0.47;
+            double outer = s * 0.17;
+            double inner = s * 0.075;
+            for (int i = 0; i < 10; i++) {
+                double angle = -Math.PI / 2 + i * Math.PI / 5;
+                double r = i % 2 == 0 ? outer : inner;
+                double px = cx + Math.cos(angle) * r;
+                double py = cy + Math.sin(angle) * r;
+                if (i == 0) {
+                    star.moveTo(px, py);
+                } else {
+                    star.lineTo(px, py);
+                }
+            }
+            star.closePath();
+            g.setColor(new Color(34, 20, 8));
+            g.draw(star);
+
+            g.setColor(new Color(238, 199, 140, 175));
+            g.setStroke(new BasicStroke(1.3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            for (int i = 0; i < 4; i++) {
+                int yy = y + (int) (s * (0.52 + i * 0.075));
+                g.drawArc(x + 1 + i * 2, yy, 16, 13, 96, 58);
+                g.drawArc(x + s - 17 - i * 2, yy, 16, 13, 26, 58);
+            }
+        }
+
+        private void drawGift(Graphics2D g, int x, int y, int s) {
+            int boxX = x + s / 5;
+            int boxY = y + s / 3;
+            int boxW = s * 3 / 5;
+            int boxH = s / 2;
+
+            g.setPaint(new GradientPaint(x, y, GOLD_LIGHT, x + s, y + s, GOLD));
+            g.fillRoundRect(boxX, boxY, boxW, boxH, 7, 7);
+            g.fillRoundRect(boxX - 3, boxY - 8, boxW + 6, 13, 6, 6);
+
+            g.setColor(new Color(34, 20, 8, 155));
+            g.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.drawRoundRect(boxX, boxY, boxW, boxH, 7, 7);
+            g.drawLine(x + s / 2, boxY - 8, x + s / 2, boxY + boxH);
+            g.drawLine(boxX - 3, boxY + 4, boxX + boxW + 3, boxY + 4);
+
+            g.setPaint(new GradientPaint(x, y, GOLD_LIGHT, x + s, y + s, GOLD));
+            g.draw(new Ellipse2D.Double(x + s * 0.22, y + s * 0.12, s * 0.25, s * 0.20));
+            g.draw(new Ellipse2D.Double(x + s * 0.53, y + s * 0.12, s * 0.25, s * 0.20));
+            g.drawLine(x + s / 2, y + s / 3, x + (int) (s * 0.33), y + (int) (s * 0.16));
+            g.drawLine(x + s / 2, y + s / 3, x + (int) (s * 0.67), y + (int) (s * 0.16));
+        }
+
+        private void drawLargeHeadset(Graphics2D g, int x, int y, int s) {
+            g.setColor(GOLD_LIGHT);
+            g.setStroke(new BasicStroke(4.2f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.draw(new Arc2D.Double(x + s * 0.18, y + s * 0.16, s * 0.64, s * 0.58, 0, 180, Arc2D.OPEN));
+            g.fillRoundRect(x + (int) (s * 0.10), y + (int) (s * 0.48), s / 5, s / 3, 9, 9);
+            g.fillRoundRect(x + (int) (s * 0.70), y + (int) (s * 0.48), s / 5, s / 3, 9, 9);
+            g.setStroke(new BasicStroke(2.4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g.drawLine(x + (int) (s * 0.80), y + (int) (s * 0.79), x + (int) (s * 0.70), y + (int) (s * 0.88));
+            g.drawLine(x + (int) (s * 0.70), y + (int) (s * 0.88), x + (int) (s * 0.56), y + (int) (s * 0.88));
+        }
+    }
+
     private static final class FooterSmallIcon extends JPanel {
         private final MenuIconType iconType;
         private final int size;
@@ -1114,6 +1563,33 @@ public class CustomerDashboard extends JFrame {
                 g.drawLine(x + s - 3, y + 14, x + s - 1, y + 16);
                 g.drawLine(x + s - 1, y + 16, x + s - 6, y + 16);
             }
+        }
+    }
+
+    private static final class WidthTrackingPanel extends JPanel implements Scrollable {
+        @Override
+        public Dimension getPreferredScrollableViewportSize() {
+            return getPreferredSize();
+        }
+
+        @Override
+        public int getScrollableUnitIncrement(Rectangle visibleRect, int orientation, int direction) {
+            return 18;
+        }
+
+        @Override
+        public int getScrollableBlockIncrement(Rectangle visibleRect, int orientation, int direction) {
+            return Math.max(72, visibleRect.height - 72);
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportWidth() {
+            return true;
+        }
+
+        @Override
+        public boolean getScrollableTracksViewportHeight() {
+            return false;
         }
     }
 
@@ -1264,6 +1740,55 @@ public class CustomerDashboard extends JFrame {
             g.draw(body);
             g.drawLine(x, y, x + w / 2, y + h / 2);
             g.drawLine(x + w, y, x + w / 2, y + h / 2);
+        }
+    }
+
+    private static final class WindowControlButton extends JButton {
+        private final WindowControlType type;
+
+        WindowControlButton(WindowControlType type) {
+            super("");
+            this.type = type;
+            setPreferredSize(new Dimension(31, 31));
+            setOpaque(false);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            boolean hover = getModel().isRollover();
+            boolean close = type == WindowControlType.CLOSE;
+            Color fillStart = close && hover ? new Color(118, 28, 31, 238) : new Color(7, 14, 20, 228);
+            Color fillEnd = close && hover ? new Color(180, 45, 50, 238) : new Color(2, 8, 13, 238);
+
+            g.setPaint(new GradientPaint(0, 0, fillStart, getWidth(), getHeight(), fillEnd));
+            g.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+
+            g.setColor(close && hover ? new Color(255, 120, 126, 160) : new Color(214, 168, 91, hover ? 125 : 64));
+            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+
+            g.setColor(close ? new Color(255, 174, 170) : GOLD_LIGHT);
+            g.setStroke(new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+            int cx = getWidth() / 2;
+            int cy = getHeight() / 2;
+            if (type == WindowControlType.CLOSE) {
+                g.drawLine(cx - 5, cy - 5, cx + 5, cy + 5);
+                g.drawLine(cx + 5, cy - 5, cx - 5, cy + 5);
+            } else if (type == WindowControlType.MAXIMIZE) {
+                g.drawRoundRect(cx - 6, cy - 6, 12, 12, 2, 2);
+            } else {
+                g.drawLine(cx - 7, cy, cx + 7, cy);
+            }
+
+            g.dispose();
+            super.paintComponent(raw);
         }
     }
 

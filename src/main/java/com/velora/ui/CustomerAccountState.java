@@ -5,9 +5,14 @@ import com.velora.service.VehicleService;
 import com.velora.vehicle.Vehicle;
 
 import javax.swing.SwingUtilities;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -56,19 +61,93 @@ final class CustomerAccountState {
     private static final Map<String, CustomerAccountState> STATES = new HashMap<>();
     private static final int STARTING_POINTS = 850;
     private static final int STARTING_REWARDS_USED = 12;
+    private static final double STARTING_WALLET_BALANCE = 25000.0;
+    private static final Path STORE_DIR = Path.of(System.getProperty("user.dir"), "data", "customer-accounts");
+    private static boolean persistedStatesLoaded;
 
     private final List<CustomerInvoice> invoices = new ArrayList<>();
     private final List<ChangeListener> listeners = new ArrayList<>();
+    private final String storageKey;
     private int redeemedPoints;
     private int redeemedRewards;
+    private double walletBalance = STARTING_WALLET_BALANCE;
 
-    private CustomerAccountState(Customer customer) {
-        loadDemoInvoices(customer);
+    private CustomerAccountState(Customer customer, String key) {
+        storageKey = key;
+        if (!loadSavedState()) {
+            loadDemoInvoices(customer);
+            saveState();
+        }
+    }
+
+    private CustomerAccountState(String key) {
+        storageKey = key;
+        loadSavedState();
     }
 
     static CustomerAccountState forCustomer(Customer customer) {
         String key = customerKey(customer);
-        return STATES.computeIfAbsent(key, ignored -> new CustomerAccountState(customer));
+        return STATES.computeIfAbsent(key, ignored -> new CustomerAccountState(customer, key));
+    }
+
+    static BillingMetricsBus.Metrics billingMetricsSnapshot() {
+        loadPersistedCustomerStates();
+
+        int invoiceCount = 0;
+        long paidInvoices = 0;
+        long pendingPayments = 0;
+        long overdueInvoices = 0;
+        double paidRevenue = 0;
+        double outstandingBalance = 0;
+        double lateFees = 0;
+        double grossTotal = 0;
+        double cardRevenue = 0;
+        double cashRevenue = 0;
+        double bankTransferRevenue = 0;
+        double otherRevenue = 0;
+
+        for (CustomerAccountState state : STATES.values()) {
+            for (CustomerInvoice invoice : state.invoices) {
+                invoiceCount++;
+                double total = invoice.totalAmount();
+                grossTotal += total;
+                lateFees += invoice.lateFee;
+                if ("Paid".equals(invoice.status)) {
+                    paidInvoices++;
+                    paidRevenue += total;
+                    if ("Card".equals(invoice.paymentMethod)) {
+                        cardRevenue += total;
+                    } else if ("Cash".equals(invoice.paymentMethod)) {
+                        cashRevenue += total;
+                    } else if ("Bank Transfer".equals(invoice.paymentMethod)) {
+                        bankTransferRevenue += total;
+                    } else {
+                        otherRevenue += total;
+                    }
+                } else {
+                    pendingPayments++;
+                    outstandingBalance += total;
+                    if ("Overdue".equals(invoice.status)) {
+                        overdueInvoices++;
+                    }
+                }
+            }
+        }
+
+        return new BillingMetricsBus.Metrics(
+                invoiceCount,
+                paidInvoices,
+                pendingPayments,
+                overdueInvoices,
+                paidRevenue,
+                outstandingBalance,
+                lateFees,
+                grossTotal,
+                cardRevenue,
+                cashRevenue,
+                bankTransferRevenue,
+                otherRevenue
+        );
     }
 
     void addChangeListener(ChangeListener listener) {
@@ -84,6 +163,7 @@ final class CustomerAccountState {
     void addInvoice(CustomerInvoice invoice) {
         if (invoice != null) {
             invoices.add(invoice);
+            saveState();
             notifyChanged();
         }
     }
@@ -92,10 +172,50 @@ final class CustomerAccountState {
         if (invoice == null || "Paid".equals(invoice.status)) {
             return false;
         }
+        double amount = invoice.totalAmount();
+        if (!canAfford(amount)) {
+            return false;
+        }
+        walletBalance -= amount;
         invoice.status = "Paid";
         invoice.paymentMethod = paymentMethod == null || paymentMethod.isBlank() ? "Card" : paymentMethod;
+        saveState();
         notifyChanged();
         return true;
+    }
+
+    boolean addPaidInvoice(CustomerInvoice invoice, String paymentMethod) {
+        if (invoice == null) {
+            return false;
+        }
+        double amount = invoice.totalAmount();
+        if (!canAfford(amount)) {
+            return false;
+        }
+        walletBalance -= amount;
+        invoice.status = "Paid";
+        invoice.paymentMethod = paymentMethod == null || paymentMethod.isBlank() ? "Card" : paymentMethod;
+        invoices.add(invoice);
+        saveState();
+        notifyChanged();
+        return true;
+    }
+
+    double getWalletBalance() {
+        return walletBalance;
+    }
+
+    boolean canAfford(double amount) {
+        return amount >= 0 && walletBalance + 0.001 >= amount;
+    }
+
+    void addWalletFunds(double amount) {
+        if (amount <= 0) {
+            return;
+        }
+        walletBalance += amount;
+        saveState();
+        notifyChanged();
     }
 
     boolean redeemReward(int cost) {
@@ -104,6 +224,7 @@ final class CustomerAccountState {
         }
         redeemedPoints += cost;
         redeemedRewards++;
+        saveState();
         notifyChanged();
         return true;
     }
@@ -203,6 +324,7 @@ final class CustomerAccountState {
     private void notifyChanged() {
         List<ChangeListener> snapshot = new ArrayList<>(listeners);
         SwingUtilities.invokeLater(() -> snapshot.forEach(ChangeListener::accountStateChanged));
+        BillingMetricsBus.fireChanged();
     }
 
     private void loadDemoInvoices(Customer customer) {
@@ -237,6 +359,126 @@ final class CustomerAccountState {
         }
     }
 
+    private boolean loadSavedState() {
+        Path file = storagePath(storageKey);
+        if (!Files.exists(file)) {
+            return false;
+        }
+
+        try {
+            List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+            invoices.clear();
+            redeemedPoints = 0;
+            redeemedRewards = 0;
+            walletBalance = STARTING_WALLET_BALANCE;
+
+            for (String line : lines) {
+                if (line == null || line.isBlank()) {
+                    continue;
+                }
+                String[] parts = line.split("\t", -1);
+                if (parts.length >= 4 && "STATE".equals(parts[0])) {
+                    redeemedPoints = parseInt(parts[2], 0);
+                    redeemedRewards = parseInt(parts[3], 0);
+                    if (parts.length >= 5) {
+                        walletBalance = parseDouble(parts[4], STARTING_WALLET_BALANCE);
+                    }
+                } else if (parts.length >= 11 && "INVOICE".equals(parts[0])) {
+                    invoices.add(new CustomerInvoice(
+                            decode(parts[1]),
+                            decode(parts[2]),
+                            decode(parts[3]),
+                            parseInt(parts[4], 1),
+                            parseDouble(parts[5], 0),
+                            parseDouble(parts[6], 0),
+                            decode(parts[7]),
+                            decode(parts[8]),
+                            decode(parts[9]),
+                            decode(parts[10])
+                    ));
+                }
+            }
+            return !invoices.isEmpty() || !lines.isEmpty();
+        } catch (IOException | IllegalArgumentException ex) {
+            invoices.clear();
+            redeemedPoints = 0;
+            redeemedRewards = 0;
+            walletBalance = STARTING_WALLET_BALANCE;
+            return false;
+        }
+    }
+
+    private void saveState() {
+        try {
+            Files.createDirectories(STORE_DIR);
+            List<String> lines = new ArrayList<>();
+            lines.add(String.join(
+                    "\t",
+                    "STATE",
+                    encode(storageKey),
+                    String.valueOf(redeemedPoints),
+                    String.valueOf(redeemedRewards),
+                    String.valueOf(walletBalance)
+            ));
+            for (CustomerInvoice invoice : invoices) {
+                lines.add(String.join(
+                        "\t",
+                        "INVOICE",
+                        encode(invoice.invoiceId),
+                        encode(invoice.customerName),
+                        encode(invoice.vehicleName),
+                        String.valueOf(invoice.rentalDays),
+                        String.valueOf(invoice.baseAmount),
+                        String.valueOf(invoice.lateFee),
+                        encode(invoice.status),
+                        encode(invoice.paymentMethod),
+                        encode(invoice.startDate),
+                        encode(invoice.endDate)
+                ));
+            }
+            Files.write(storagePath(storageKey), lines, StandardCharsets.UTF_8);
+        } catch (IOException ignored) {
+            // UI actions should continue even if the local persistence file is unavailable.
+        }
+    }
+
+    private static void loadPersistedCustomerStates() {
+        if (persistedStatesLoaded) {
+            return;
+        }
+        persistedStatesLoaded = true;
+        if (!Files.isDirectory(STORE_DIR)) {
+            return;
+        }
+        try {
+            try (var files = Files.list(STORE_DIR)) {
+                files.filter(path -> path.getFileName().toString().endsWith(".tsv"))
+                        .forEach(CustomerAccountState::loadPersistedCustomerState);
+            }
+        } catch (IOException ignored) {
+            // The dashboard can still use already-open states.
+        }
+    }
+
+    private static void loadPersistedCustomerState(Path file) {
+        try {
+            List<String> lines = Files.readAllLines(file, StandardCharsets.UTF_8);
+            if (lines.isEmpty()) {
+                return;
+            }
+            String[] header = lines.get(0).split("\t", -1);
+            if (header.length < 2 || !"STATE".equals(header[0])) {
+                return;
+            }
+            String key = decode(header[1]);
+            if (!key.isBlank() && !STATES.containsKey(key)) {
+                STATES.put(key, new CustomerAccountState(key));
+            }
+        } catch (IOException | IllegalArgumentException ignored) {
+            // Ignore malformed saved files instead of blocking the UI.
+        }
+    }
+
     static String resolveCustomerName(Customer currentCustomer) {
         if (currentCustomer == null) {
             return "Current Customer";
@@ -263,6 +505,40 @@ final class CustomerAccountState {
             return name.trim().toLowerCase(Locale.ROOT);
         }
         return "guest";
+    }
+
+    private static Path storagePath(String key) {
+        return STORE_DIR.resolve(safeFileName(key) + ".tsv");
+    }
+
+    private static String safeFileName(String key) {
+        String safe = key == null ? "guest" : key.trim().toLowerCase(Locale.ROOT);
+        safe = safe.replaceAll("[^a-z0-9._-]", "_");
+        return safe.isBlank() ? "guest" : safe;
+    }
+
+    private static String encode(String value) {
+        return Base64.getEncoder().encodeToString((value == null ? "" : value).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static String decode(String value) {
+        return new String(Base64.getDecoder().decode(value == null ? "" : value), StandardCharsets.UTF_8);
+    }
+
+    private static int parseInt(String value, int fallback) {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
+    }
+
+    private static double parseDouble(String value, double fallback) {
+        try {
+            return Double.parseDouble(value);
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
     }
 
     static CustomerInvoice createInvoice(Customer customer, int existingInvoiceCount, String vehicle,

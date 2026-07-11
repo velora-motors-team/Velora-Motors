@@ -138,7 +138,7 @@ public class LogoutConfirmDialog extends JDialog {
         hintLabel.setForeground(TEXT_SOFT);
         mainPanel.add(hintLabel);
 
-        PremiumButton cancelButton = new PremiumButton("Cancel", false);
+        PremiumButton cancelButton = new PremiumButton("No", false);
         cancelButton.setBounds(42, 208, 160, 42);
         cancelButton.addActionListener(e -> {
             confirmed = false;
@@ -146,7 +146,7 @@ public class LogoutConfirmDialog extends JDialog {
         });
         mainPanel.add(cancelButton);
 
-        PremiumButton logoutButton = new PremiumButton("Logout", true);
+        PremiumButton logoutButton = new PremiumButton("Yes", true);
         logoutButton.setBounds(W - 202, 208, 160, 42);
         logoutButton.addActionListener(e -> {
             confirmed = true;
