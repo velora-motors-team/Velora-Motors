@@ -1,7 +1,9 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
+import com.velora.repository.ReservationRepository;
 import com.velora.service.VehicleService;
+import com.velora.service.RentalDatabaseService;
 import com.velora.vehicle.Vehicle;
 import com.velora.vehicle.VehicleStatus;
 import com.velora.vehicle.VehicleType;
@@ -19,6 +21,8 @@ import javax.swing.JList;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.JSpinner;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.JTextField;
 import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
@@ -52,6 +56,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -72,6 +78,8 @@ public class VehicleCatalog extends JPanel {
 
     private final Customer customer;
     private final VehicleService vehicleService = new VehicleService();
+    private final RentalDatabaseService rentalDatabaseService = new RentalDatabaseService();
+    private final ReservationRepository reservationRepository = new ReservationRepository();
     private final CustomerAccountState accountState;
     private final JPanel cardsGrid = new JPanel(new GridLayout(0, 3, 14, 14));
     private final JTextField searchField = new JTextField();
@@ -172,44 +180,86 @@ public class VehicleCatalog extends JPanel {
     }
 
     private JComponent createWalletHeader() {
-        RoundedPanel header = new RoundedPanel(14, new Color(5, 11, 18, 238));
-        header.setLayout(new BorderLayout(18, 0));
-        header.setBorder(new EmptyBorder(9, 16, 9, 16));
-        header.setAlignmentX(Component.LEFT_ALIGNMENT);
-        header.setMaximumSize(new Dimension(Integer.MAX_VALUE, 80));
-        header.setPreferredSize(new Dimension(1200, 80));
+    RoundedPanel header = new RoundedPanel(14, new Color(5, 11, 18, 238));
+    header.setLayout(new BorderLayout(18, 0));
+    header.setBorder(new EmptyBorder(9, 16, 9, 16));
+    header.setAlignmentX(Component.LEFT_ALIGNMENT);
+    header.setMaximumSize(new Dimension(Integer.MAX_VALUE, 82));
+    header.setPreferredSize(new Dimension(1200, 82));
 
-        JPanel title = new JPanel();
-        title.setOpaque(false);
-        title.setLayout(new BoxLayout(title, BoxLayout.Y_AXIS));
-        title.add(label("BMW Vehicle Collection", 25, Font.BOLD, TEXT));
-        title.add(Box.createVerticalStrut(3));
-        title.add(label("Your wallet is linked with billing, rentals, loyalty, and saved activity.", 12, Font.PLAIN, MUTED));
-        header.add(title, BorderLayout.CENTER);
+    JPanel title = new JPanel();
+    title.setOpaque(false);
+    title.setLayout(new BoxLayout(title, BoxLayout.Y_AXIS));
 
-        RoundedPanel wallet = new RoundedPanel(12, new Color(14, 18, 22, 238));
-        wallet.setLayout(new BorderLayout(12, 0));
-        wallet.setBorder(new EmptyBorder(8, 13, 7, 15));
-        wallet.setPreferredSize(new Dimension(275, 62));
-        wallet.add(new MiniIcon("DIAMOND"), BorderLayout.WEST);
+    title.add(label("BMW Vehicle Collection", 25, Font.BOLD, TEXT));
+    title.add(Box.createVerticalStrut(3));
+    title.add(label(
+            "Choose your vehicle and pay directly from your Velora wallet.",
+            12,
+            Font.PLAIN,
+            MUTED
+    ));
 
-        JPanel text = new JPanel();
-        text.setOpaque(false);
-        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
-        JLabel titleLabel = label("AVAILABLE BALANCE", 10, Font.BOLD, PALE);
-        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        walletBalanceLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        walletBalanceLabel.setPreferredSize(new Dimension(180, 28));
-        walletBalanceLabel.setMinimumSize(new Dimension(180, 28));
-        walletBalanceLabel.setMaximumSize(new Dimension(220, 28));
-        text.add(titleLabel);
-        text.add(Box.createVerticalStrut(0));
-        text.add(walletBalanceLabel);
-        wallet.add(text, BorderLayout.CENTER);
+    header.add(title, BorderLayout.CENTER);
 
-        header.add(wallet, BorderLayout.EAST);
-        return header;
+    RoundedPanel wallet = new RoundedPanel(12, new Color(14, 18, 22, 238));
+    wallet.setLayout(new BorderLayout(10, 0));
+    wallet.setBorder(new EmptyBorder(7, 12, 7, 12));
+    wallet.setPreferredSize(new Dimension(390, 64));
+
+    wallet.add(new MiniIcon("DIAMOND"), BorderLayout.WEST);
+
+    JPanel text = new JPanel();
+    text.setOpaque(false);
+    text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+
+    JLabel titleLabel = label("AVAILABLE BALANCE", 10, Font.BOLD, PALE);
+    titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+    walletBalanceLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+    text.add(titleLabel);
+    text.add(Box.createVerticalStrut(1));
+    text.add(walletBalanceLabel);
+
+    wallet.add(text, BorderLayout.CENTER);
+
+    JPanel controls = new JPanel(new GridLayout(1, 2, 7, 0));
+    controls.setOpaque(false);
+
+    JButton minusButton = new GhostButton("-100");
+    JButton plusButton = new GoldButton("+100");
+
+    minusButton.setPreferredSize(new Dimension(72, 38));
+    plusButton.setPreferredSize(new Dimension(72, 38));
+
+    minusButton.addActionListener(e -> changeWalletBalance(-100));
+    plusButton.addActionListener(e -> changeWalletBalance(100));
+
+    controls.add(minusButton);
+    controls.add(plusButton);
+
+    wallet.add(controls, BorderLayout.EAST);
+
+    header.add(wallet, BorderLayout.EAST);
+
+    return header;
+}
+    
+    private void changeWalletBalance(double amount) {
+    boolean success = accountState.adjustWalletBalance(amount);
+
+    if (!success) {
+        VeloraNotificationDialog.showWarning(
+                this,
+                "Balance Limit",
+                "Your wallet balance cannot go below $0."
+        );
+        return;
     }
+
+    refreshWalletBalance();
+}
 
     private void refreshWalletBalance() {
         walletBalanceLabel.setText(formatMoney(accountState.getWalletBalance()));
@@ -427,8 +477,27 @@ public class VehicleCatalog extends JPanel {
             );
             return;
         }
-        double subtotal = vehicle.getDailyPrice() * 3;
+
+        int rentalDays = chooseRentalDays();
+        if (rentalDays <= 0) {
+            return;
+        }
+
+        LocalDateTime pickup = LocalDateTime.now();
+        LocalDateTime expectedReturn = pickup.plusDays(rentalDays);
+
+        if (reservationRepository.hasOverlap(vehicle.getId(), pickup, expectedReturn)) {
+            VeloraNotificationDialog.showWarning(
+                    this,
+                    "Reservation Conflict",
+                    "This vehicle is already reserved during the selected rental period."
+            );
+            return;
+        }
+
+        double subtotal = vehicle.getDailyPrice() * rentalDays;
         double total = subtotal * 1.10;
+
         if (!accountState.canAfford(total)) {
             VeloraNotificationDialog.showError(
                     this,
@@ -442,11 +511,30 @@ public class VehicleCatalog extends JPanel {
         boolean confirmed = VeloraNotificationDialog.showConfirm(
                 this,
                 "Confirm Rental",
-                "Rent " + FleetUiData.displayName(vehicle) + " for 3 days?\nEstimated total: "
-                        + formatMoney(total) + "\nCurrent balance: " + formatMoney(accountState.getWalletBalance()),
+                "Rent " + FleetUiData.displayName(vehicle) + " for " + rentalDays + " day(s)?\n"
+                        + "Return: " + expectedReturn.format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"))
+                        + "\nEstimated total: " + formatMoney(total)
+                        + "\nCurrent balance: " + formatMoney(accountState.getWalletBalance()),
                 "Rent Now"
         );
         if (!confirmed) {
+            return;
+        }
+
+        ReservationRepository.ReservationRecord reservation;
+        try {
+            reservation = reservationRepository.create(
+                    customer == null ? "" : customer.getEmail(),
+                    vehicle.getId(),
+                    pickup,
+                    expectedReturn
+            );
+        } catch (IllegalStateException ex) {
+            VeloraNotificationDialog.showWarning(
+                    this,
+                    "Reservation Conflict",
+                    "Another reservation already exists for the selected period."
+            );
             return;
         }
 
@@ -454,13 +542,17 @@ public class VehicleCatalog extends JPanel {
                 customer,
                 accountState.getInvoices().size(),
                 FleetUiData.displayName(vehicle),
-                3,
+                rentalDays,
                 subtotal,
                 0,
                 "Paid",
-                "Card"
+                "Card",
+                pickup,
+                expectedReturn
         );
+
         if (!accountState.addPaidInvoice(invoice, "Card")) {
+            reservationRepository.updateStatus(reservation.reservationId(), "CANCELLED");
             VeloraNotificationDialog.showError(
                     this,
                     "Payment Failed",
@@ -468,8 +560,24 @@ public class VehicleCatalog extends JPanel {
             );
             return;
         }
+
         vehicle.setStatus(VehicleStatus.RENTED);
         vehicleService.saveVehicles();
+
+        rentalDatabaseService.recordSuccessfulRental(
+                customer,
+                vehicle,
+                rentalDays,
+                invoice.invoiceId,
+                subtotal,
+                invoice.totalAmount(),
+                "Card",
+                accountState.getWalletBalance(),
+                pickup,
+                expectedReturn
+        );
+        reservationRepository.updateStatus(reservation.reservationId(), "ACTIVE");
+
         refreshWalletBalance();
         refreshCards();
 
@@ -477,10 +585,32 @@ public class VehicleCatalog extends JPanel {
                 this,
                 "Rental Completed",
                 "You rented " + FleetUiData.displayName(vehicle)
-                        + ".\nPaid: " + formatMoney(invoice.totalAmount())
+                        + " for " + rentalDays + " day(s).\nPaid: " + formatMoney(invoice.totalAmount())
                         + "\nRemaining balance: " + formatMoney(accountState.getWalletBalance())
                         + "\nInvoice: " + invoice.invoiceId
         );
+    }
+
+    private int chooseRentalDays() {
+        JSpinner daysSpinner = new JSpinner(new SpinnerNumberModel(3, 1, 30, 1));
+        daysSpinner.setFont(new Font("Segoe UI", Font.BOLD, 13));
+
+        JPanel panel = new JPanel(new BorderLayout(0, 8));
+        panel.setBorder(new EmptyBorder(8, 8, 8, 8));
+        panel.add(new JLabel("Choose rental duration (1-30 days):"), BorderLayout.NORTH);
+        panel.add(daysSpinner, BorderLayout.CENTER);
+
+        int result = JOptionPane.showConfirmDialog(
+                this,
+                panel,
+                "Rental Period",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE
+        );
+
+        return result == JOptionPane.OK_OPTION
+                ? ((Number) daysSpinner.getValue()).intValue()
+                : -1;
     }
 
     private JComponent topMetric(String icon, int value, String caption) {

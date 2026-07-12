@@ -30,8 +30,9 @@ final class CustomerAccountState {
         final String vehicleName;
         final int rentalDays;
         final double baseAmount;
-        final double lateFee;
-        final double tax;
+        double lateFee;
+        double lateFeeCharged;
+        double tax;
         String status;
         String paymentMethod;
         final String startDate;
@@ -45,12 +46,17 @@ final class CustomerAccountState {
             this.vehicleName = vehicleName;
             this.rentalDays = rentalDays;
             this.baseAmount = baseAmount;
-            this.lateFee = lateFee;
-            this.tax = (baseAmount + lateFee) * 0.10;
+            this.lateFee = Math.max(0.0, lateFee);
+            this.lateFeeCharged = "Paid".equalsIgnoreCase(status) ? this.lateFee : 0.0;
+            this.tax = (baseAmount + this.lateFee) * 0.10;
             this.status = status;
             this.paymentMethod = paymentMethod;
             this.startDate = startDate;
             this.endDate = endDate;
+        }
+
+        double taxAmount() {
+            return tax;
         }
 
         double totalAmount() {
@@ -61,7 +67,7 @@ final class CustomerAccountState {
     private static final Map<String, CustomerAccountState> STATES = new HashMap<>();
     private static final int STARTING_POINTS = 850;
     private static final int STARTING_REWARDS_USED = 12;
-    private static final double STARTING_WALLET_BALANCE = 25000.0;
+    private static final double STARTING_WALLET_BALANCE = 0.0;
     private static final Path STORE_DIR = Path.of(System.getProperty("user.dir"), "data", "customer-accounts");
     private static boolean persistedStatesLoaded;
 
@@ -72,13 +78,17 @@ final class CustomerAccountState {
     private int redeemedRewards;
     private double walletBalance = STARTING_WALLET_BALANCE;
 
-    private CustomerAccountState(Customer customer, String key) {
-        storageKey = key;
-        if (!loadSavedState()) {
-            loadDemoInvoices(customer);
-            saveState();
-        }
+ private CustomerAccountState(Customer customer, String key) {
+    storageKey = key;
+
+    if (!loadSavedState()) {
+        invoices.clear();
+        redeemedPoints = 0;
+        redeemedRewards = 0;
+        walletBalance = STARTING_WALLET_BALANCE;
+        saveState();
     }
+}
 
     private CustomerAccountState(String key) {
         storageKey = key;
@@ -160,6 +170,81 @@ final class CustomerAccountState {
         return invoices;
     }
 
+    LateFeeChargeResult applyLateFee(String invoiceId, double calculatedLateFee) {
+        if (invoiceId == null || invoiceId.isBlank()) {
+            return new LateFeeChargeResult(0.0, 0.0, Math.max(0.0, calculatedLateFee));
+        }
+
+        CustomerInvoice invoice = invoices.stream()
+                .filter(item -> item.invoiceId.equalsIgnoreCase(invoiceId))
+                .findFirst()
+                .orElse(null);
+
+        if (invoice == null) {
+            return new LateFeeChargeResult(0.0, 0.0, Math.max(0.0, calculatedLateFee));
+        }
+
+        double previousLateFee = invoice.lateFee;
+        double previousLateFeeCharged = invoice.lateFeeCharged;
+        double previousWalletBalance = walletBalance;
+        String previousStatus = invoice.status;
+
+        double targetLateFee = Math.max(invoice.lateFee, Math.max(0.0, calculatedLateFee));
+        invoice.lateFee = targetLateFee;
+        invoice.tax = (invoice.baseAmount + invoice.lateFee) * 0.10;
+
+        double outstanding = Math.max(0.0, invoice.lateFee - invoice.lateFeeCharged);
+        double chargedNow = Math.min(walletBalance, outstanding);
+
+        if (chargedNow > 0.001) {
+            walletBalance -= chargedNow;
+            invoice.lateFeeCharged += chargedNow;
+        }
+
+        double remaining = Math.max(0.0, invoice.lateFee - invoice.lateFeeCharged);
+
+        if (remaining > 0.001) {
+            invoice.status = "Overdue";
+        } else {
+            invoice.status = "Paid";
+        }
+
+        boolean changed = Math.abs(previousLateFee - invoice.lateFee) > 0.001
+                || Math.abs(previousLateFeeCharged - invoice.lateFeeCharged) > 0.001
+                || Math.abs(previousWalletBalance - walletBalance) > 0.001
+                || !java.util.Objects.equals(previousStatus, invoice.status);
+
+        if (changed) {
+            saveState();
+            notifyChanged();
+        }
+
+        return new LateFeeChargeResult(
+                chargedNow,
+                remaining,
+                invoice.lateFee
+        );
+    }
+
+    boolean isInvoiceFullyPaid(String invoiceId) {
+        if (invoiceId == null || invoiceId.isBlank()) {
+            return true;
+        }
+
+        return invoices.stream()
+                .filter(item -> item.invoiceId.equalsIgnoreCase(invoiceId))
+                .findFirst()
+                .map(invoice -> invoice.lateFeeCharged + 0.001 >= invoice.lateFee)
+                .orElse(true);
+    }
+
+    record LateFeeChargeResult(
+            double chargedNow,
+            double remainingAmount,
+            double totalLateFee
+    ) {
+    }
+
     void addInvoice(CustomerInvoice invoice) {
         if (invoice != null) {
             invoices.add(invoice);
@@ -167,6 +252,19 @@ final class CustomerAccountState {
             notifyChanged();
         }
     }
+    
+    boolean adjustWalletBalance(double amount) {
+    double newBalance = walletBalance + amount;
+
+    if (newBalance < 0) {
+        return false;
+    }
+
+    walletBalance = newBalance;
+    saveState();
+    notifyChanged();
+    return true;
+}
 
     boolean recordPayment(CustomerInvoice invoice, String paymentMethod) {
         if (invoice == null || "Paid".equals(invoice.status)) {
@@ -327,37 +425,7 @@ final class CustomerAccountState {
         BillingMetricsBus.fireChanged();
     }
 
-    private void loadDemoInvoices(Customer customer) {
-        VehicleService vehicleService = new VehicleService();
-        String currentCustomerName = resolveCustomerName(customer);
-        String[] statuses = {"Paid", "Pending", "Paid", "Overdue", "Paid", "Pending"};
-        String[] methods = {"Card", "Cash", "Bank Transfer"};
-        List<Vehicle> vehicles = vehicleService.getAllVehicles();
-        int invoiceCount = Math.min(12, vehicles.size());
-
-        for (int i = 0; i < invoiceCount; i++) {
-            Vehicle vehicle = vehicles.get(i);
-            int days = 2 + (i % 7);
-            double base = vehicle.getDailyPrice() * days;
-            String status = statuses[i % statuses.length];
-            double late = "Overdue".equals(status) ? 50 + (i % 4) * 35 : 0;
-            int startDay = 1 + (i % 9);
-            int endDay = startDay + days;
-
-            invoices.add(new CustomerInvoice(
-                    "INV-" + String.format("%04d", 1001 + i),
-                    currentCustomerName,
-                    FleetUiData.displayName(vehicle),
-                    days,
-                    base,
-                    late,
-                    status,
-                    methods[i % methods.length],
-                    String.format("%02d Jul 2026 10:00 AM", startDay),
-                    String.format("%02d Jul 2026 10:00 AM", endDay)
-            ));
-        }
-    }
+    
 
     private boolean loadSavedState() {
         Path file = storagePath(storageKey);
@@ -384,7 +452,7 @@ final class CustomerAccountState {
                         walletBalance = parseDouble(parts[4], STARTING_WALLET_BALANCE);
                     }
                 } else if (parts.length >= 11 && "INVOICE".equals(parts[0])) {
-                    invoices.add(new CustomerInvoice(
+                    CustomerInvoice invoice = new CustomerInvoice(
                             decode(parts[1]),
                             decode(parts[2]),
                             decode(parts[3]),
@@ -395,7 +463,15 @@ final class CustomerAccountState {
                             decode(parts[8]),
                             decode(parts[9]),
                             decode(parts[10])
-                    ));
+                    );
+
+                    if (parts.length >= 12) {
+                        invoice.lateFeeCharged = parseDouble(parts[11], 0);
+                    } else if ("Paid".equalsIgnoreCase(invoice.status)) {
+                        invoice.lateFeeCharged = invoice.lateFee;
+                    }
+
+                    invoices.add(invoice);
                 }
             }
             return !invoices.isEmpty() || !lines.isEmpty();
@@ -433,7 +509,8 @@ final class CustomerAccountState {
                         encode(invoice.status),
                         encode(invoice.paymentMethod),
                         encode(invoice.startDate),
-                        encode(invoice.endDate)
+                        encode(invoice.endDate),
+                        String.valueOf(invoice.lateFeeCharged)
                 ));
             }
             Files.write(storagePath(storageKey), lines, StandardCharsets.UTF_8);
@@ -544,9 +621,38 @@ final class CustomerAccountState {
     static CustomerInvoice createInvoice(Customer customer, int existingInvoiceCount, String vehicle,
                                          int days, double base, double late, String status,
                                          String paymentMethod) {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy hh:mm a", Locale.ENGLISH);
         LocalDateTime start = LocalDateTime.now();
-        LocalDateTime end = start.plusDays(days);
+        return createInvoice(
+                customer,
+                existingInvoiceCount,
+                vehicle,
+                days,
+                base,
+                late,
+                status,
+                paymentMethod,
+                start,
+                start.plusDays(days)
+        );
+    }
+
+    static CustomerInvoice createInvoice(
+            Customer customer,
+            int existingInvoiceCount,
+            String vehicle,
+            int days,
+            double base,
+            double late,
+            String status,
+            String paymentMethod,
+            LocalDateTime start,
+            LocalDateTime end
+    ) {
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy hh:mm a", Locale.ENGLISH);
+
+        LocalDateTime safeStart = start == null ? LocalDateTime.now() : start;
+        LocalDateTime safeEnd = end == null ? safeStart.plusDays(days) : end;
+
         return new CustomerInvoice(
                 "INV-" + String.format("%04d", 1001 + existingInvoiceCount),
                 resolveCustomerName(customer),
@@ -556,8 +662,8 @@ final class CustomerAccountState {
                 late,
                 status,
                 paymentMethod,
-                start.format(formatter),
-                end.format(formatter)
+                safeStart.format(formatter),
+                safeEnd.format(formatter)
         );
     }
 }

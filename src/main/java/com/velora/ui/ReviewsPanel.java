@@ -2,6 +2,7 @@ package com.velora.ui;
 
 import com.velora.authentication.Customer;
 import com.velora.repository.RatingRepository;
+import com.velora.repository.RentalRepository;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -11,6 +12,11 @@ import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
 
 public final class ReviewsPanel extends JPanel {
 
@@ -24,12 +30,20 @@ public final class ReviewsPanel extends JPanel {
 
     private final Customer customer;
     private final RatingRepository ratingRepository = new RatingRepository();
+    private final RentalRepository rentalRepository = new RentalRepository();
 
     private JComboBox<String> vehicleBox;
     private JComboBox<String> ratingBox;
     private JTextArea reviewArea;
     private JPanel reviewsList;
     private JLabel reviewCountLabel;
+    private JLabel averageRatingValue;
+    private JLabel totalReviewsValue;
+    private JLabel satisfactionValue;
+    private JLabel latestReviewValue;
+    private JLabel reviewsSharedValue;
+    private JLabel averageGivenValue;
+    private JLabel fiveStarReviewsValue;
 
     public ReviewsPanel(Customer customer) {
         this.customer = customer;
@@ -40,6 +54,15 @@ public final class ReviewsPanel extends JPanel {
 
         add(createHeader(), BorderLayout.NORTH);
         add(createBody(), BorderLayout.CENTER);
+
+        addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentShown(java.awt.event.ComponentEvent e) {
+                refreshReviewData();
+            }
+        });
+
+        SwingUtilities.invokeLater(this::refreshReviewData);
     }
 
     private JComponent createHeader() {
@@ -120,15 +143,26 @@ public final class ReviewsPanel extends JPanel {
         row.setOpaque(false);
         row.setPreferredSize(new Dimension(1000, 100));
 
-        row.add(statCard("4.9", "Average Rating", "Excellent service score"));
-        row.add(statCard("128", "Total Reviews", "Customer feedback"));
-        row.add(statCard("96%", "Satisfaction", "Positive experiences"));
-        row.add(statCard("24h", "Response Time", "Support follow-up"));
+        averageRatingValue = statValue("0.0");
+        totalReviewsValue = statValue("0");
+        satisfactionValue = statValue("0%");
+        latestReviewValue = statValue("—");
+
+        row.add(statCard(averageRatingValue, "Average Rating", "Your saved review score"));
+        row.add(statCard(totalReviewsValue, "Total Reviews", "Reviews you submitted"));
+        row.add(statCard(satisfactionValue, "Positive Ratings", "Ratings of 4 or 5 stars"));
+        row.add(statCard(latestReviewValue, "Latest Review", "Most recent saved review"));
 
         return row;
     }
 
-    private JComponent statCard(String value, String title, String desc) {
+    private JLabel statValue(String value) {
+        JLabel valueLabel = label(value, 24, Font.BOLD, PALE);
+        valueLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        return valueLabel;
+    }
+
+    private JComponent statCard(JLabel valueLabel, String title, String desc) {
         RoundedPanel card = new RoundedPanel(16, CARD);
         card.setLayout(new BorderLayout(14, 0));
         card.setBorder(new EmptyBorder(14, 16, 14, 16));
@@ -142,7 +176,7 @@ public final class ReviewsPanel extends JPanel {
 
         text.add(label(title, 13, Font.BOLD, TEXT));
         text.add(Box.createVerticalStrut(4));
-        text.add(label(value, 24, Font.BOLD, PALE));
+        text.add(valueLabel);
         text.add(Box.createVerticalStrut(3));
         text.add(label(desc, 11, Font.PLAIN, MUTED));
 
@@ -172,15 +206,9 @@ public final class ReviewsPanel extends JPanel {
         content.add(sub);
         content.add(Box.createVerticalStrut(18));
 
-        vehicleBox = new DarkComboBox<>(new String[]{
-                "BMW X7 xDrive40i",
-                "BMW M8 Competition",
-                "BMW i7 M70",
-                "Toyota Prius Hybrid",
-                "Xiaomi Electric Bike Pro",
-                "Yamaha MT-07"
-        });
+        vehicleBox = new DarkComboBox<>(new String[]{"No rented vehicles available"});
         styleCombo(vehicleBox);
+        loadVehicleChoices();
 
         ratingBox = new DarkComboBox<>(new String[]{
                 "5 Stars - Excellent",
@@ -237,9 +265,9 @@ public final class ReviewsPanel extends JPanel {
         JPanel top = new JPanel(new BorderLayout());
         top.setOpaque(false);
 
-        JLabel title = label("Recent Reviews", 22, Font.BOLD, TEXT);
+        JLabel title = label("Your Recent Reviews", 22, Font.BOLD, TEXT);
 
-        reviewCountLabel = label("3 reviews", 11, Font.BOLD, PALE);
+        reviewCountLabel = label("0 reviews", 11, Font.BOLD, PALE);
         reviewCountLabel.setHorizontalAlignment(SwingConstants.RIGHT);
 
         top.add(title, BorderLayout.WEST);
@@ -248,27 +276,6 @@ public final class ReviewsPanel extends JPanel {
         reviewsList = new JPanel();
         reviewsList.setOpaque(false);
         reviewsList.setLayout(new BoxLayout(reviewsList, BoxLayout.Y_AXIS));
-
-        reviewsList.add(reviewRow(
-                "Omar Al-Khatib",
-                "BMW X7 xDrive40i",
-                "★★★★★",
-                "Amazing luxury experience. The car was clean and powerful."
-        ));
-        reviewsList.add(Box.createVerticalStrut(12));
-        reviewsList.add(reviewRow(
-                "Sara Johnson",
-                "BMW M8 Competition",
-                "★★★★★",
-                "Fast pickup, premium service, and very professional team."
-        ));
-        reviewsList.add(Box.createVerticalStrut(12));
-        reviewsList.add(reviewRow(
-                "Ahmad Ali",
-                "Xiaomi Electric Bike Pro",
-                "★★★★☆",
-                "Battery was good and the ride was smooth. Nice experience."
-        ));
 
         JScrollPane scroll = new JScrollPane(reviewsList);
         scroll.setBorder(BorderFactory.createEmptyBorder());
@@ -305,9 +312,13 @@ public final class ReviewsPanel extends JPanel {
         JPanel metrics = new JPanel(new GridLayout(1, 3, 18, 0));
         metrics.setOpaque(false);
 
-        metrics.add(activityMetric("📝", "3", "Reviews Shared"));
-        metrics.add(activityMetric("⭐", "4.7", "Average Given"));
-        metrics.add(activityMetric("👍", "2", "Helpful Votes"));
+        reviewsSharedValue = activityValue("0");
+        averageGivenValue = activityValue("0.0");
+        fiveStarReviewsValue = activityValue("0");
+
+        metrics.add(activityMetric("REVIEWS", reviewsSharedValue, "Reviews Shared"));
+        metrics.add(activityMetric("AVERAGE", averageGivenValue, "Average Given"));
+        metrics.add(activityMetric("FIVE_STAR", fiveStarReviewsValue, "5-Star Reviews"));
 
         card.add(titlePanel, BorderLayout.NORTH);
         card.add(metrics, BorderLayout.CENTER);
@@ -315,23 +326,26 @@ public final class ReviewsPanel extends JPanel {
         return card;
     }
 
-    private JComponent activityMetric(String emoji, String value, String text) {
+    private JLabel activityValue(String value) {
+        JLabel valueLabel = label(value, 26, Font.BOLD, PALE);
+        valueLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        return valueLabel;
+    }
+
+    private JComponent activityMetric(String iconType, JLabel valueLabel, String text) {
         JPanel panel = new JPanel();
         panel.setOpaque(false);
         panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
 
-        JLabel emojiLabel = new JLabel(emoji);
-        emojiLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 24));
-        emojiLabel.setForeground(PALE);
-        emojiLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
-
-        JLabel valueLabel = label(value, 26, Font.BOLD, PALE);
-        valueLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        ReviewActivityIcon icon = new ReviewActivityIcon(iconType);
+        icon.setPreferredSize(new Dimension(34, 34));
+        icon.setMaximumSize(new Dimension(34, 34));
+        icon.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         JLabel textLabel = label(text, 12, Font.PLAIN, MUTED);
         textLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        panel.add(emojiLabel);
+        panel.add(icon);
         panel.add(Box.createVerticalStrut(3));
         panel.add(valueLabel);
         panel.add(Box.createVerticalStrut(2));
@@ -438,16 +452,19 @@ public final class ReviewsPanel extends JPanel {
             return;
         }
 
-        String customerName = customer == null ? "Customer" : customer.getFullName();
         String vehicle = String.valueOf(vehicleBox.getSelectedItem());
+        if (vehicle == null || vehicle.isBlank() || vehicle.startsWith("No rented vehicles")) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "You can only review a vehicle that exists in your rental history.",
+                    "Velora Reviews",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
         String rating = String.valueOf(ratingBox.getSelectedItem());
         int ratingValue = parseRatingValue(rating);
-
-        String stars = rating.startsWith("5") ? "★★★★★"
-                : rating.startsWith("4") ? "★★★★☆"
-                : rating.startsWith("3") ? "★★★☆☆"
-                : rating.startsWith("2") ? "★★☆☆☆"
-                : "★☆☆☆☆";
 
         try {
             ratingRepository.saveRating(customer, ratingValue, vehicle + " | " + message);
@@ -461,13 +478,8 @@ public final class ReviewsPanel extends JPanel {
             return;
         }
 
-        reviewsList.add(Box.createVerticalStrut(9), 0);
-        reviewsList.add(reviewRow(customerName, vehicle, stars, message), 0);
-
-        reviewCountLabel.setText((countReviewRows()) + " reviews");
-
-        reviewsList.revalidate();
-        reviewsList.repaint();
+        reviewArea.setText("");
+        refreshReviewData();
 
         JOptionPane.showMessageDialog(
                 this,
@@ -476,8 +488,173 @@ public final class ReviewsPanel extends JPanel {
                 "Velora Reviews",
                 JOptionPane.INFORMATION_MESSAGE
         );
+    }
 
-        reviewArea.setText("");
+    private void loadVehicleChoices() {
+        if (vehicleBox == null) {
+            return;
+        }
+
+        java.util.LinkedHashSet<String> vehicleNames = new java.util.LinkedHashSet<>();
+        for (RentalRepository.RentalRecord rental : rentalRepository.findByCustomerEmail(customerEmail())) {
+            if (rental.vehicleName() != null && !rental.vehicleName().isBlank()) {
+                vehicleNames.add(rental.vehicleName());
+            }
+        }
+
+        DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
+        if (vehicleNames.isEmpty()) {
+            model.addElement("No rented vehicles available");
+        } else {
+            vehicleNames.forEach(model::addElement);
+        }
+        vehicleBox.setModel(model);
+    }
+
+    private void refreshReviewData() {
+        loadVehicleChoices();
+
+        List<RatingRepository.StoredRating> ratings =
+                new ArrayList<>(ratingRepository.findByEmail(customerEmail()));
+
+        ratings.sort(Comparator.comparing(
+                RatingRepository.StoredRating::createdAt,
+                Comparator.nullsLast(String::compareTo)
+        ).reversed());
+
+        int count = ratings.size();
+        double average = ratings.stream()
+                .mapToInt(RatingRepository.StoredRating::rating)
+                .average()
+                .orElse(0.0);
+        long positive = ratings.stream()
+                .filter(rating -> rating.rating() >= 4)
+                .count();
+        long fiveStar = ratings.stream()
+                .filter(rating -> rating.rating() == 5)
+                .count();
+
+        int satisfaction = count == 0 ? 0 : (int) Math.round((positive * 100.0) / count);
+
+        if (averageRatingValue != null) {
+            averageRatingValue.setText(String.format(Locale.US, "%.1f", average));
+        }
+        if (totalReviewsValue != null) {
+            totalReviewsValue.setText(String.valueOf(count));
+        }
+        if (satisfactionValue != null) {
+            satisfactionValue.setText(satisfaction + "%");
+        }
+        if (latestReviewValue != null) {
+            latestReviewValue.setText(count == 0 ? "—" : formatReviewDate(ratings.get(0).createdAt()));
+        }
+
+        if (reviewsSharedValue != null) {
+            reviewsSharedValue.setText(String.valueOf(count));
+        }
+        if (averageGivenValue != null) {
+            averageGivenValue.setText(String.format(Locale.US, "%.1f", average));
+        }
+        if (fiveStarReviewsValue != null) {
+            fiveStarReviewsValue.setText(String.valueOf(fiveStar));
+        }
+
+        refreshRecentReviews(ratings);
+    }
+
+    private void refreshRecentReviews(List<RatingRepository.StoredRating> ratings) {
+        if (reviewsList == null || reviewCountLabel == null) {
+            return;
+        }
+
+        reviewsList.removeAll();
+
+        if (ratings.isEmpty()) {
+            JLabel empty = label(
+                    "No reviews yet. Submit your first review after renting a vehicle.",
+                    12,
+                    Font.PLAIN,
+                    MUTED
+            );
+            empty.setBorder(new EmptyBorder(18, 4, 0, 4));
+            reviewsList.add(empty);
+        } else {
+            int limit = Math.min(4, ratings.size());
+
+            for (int i = 0; i < limit; i++) {
+                RatingRepository.StoredRating stored = ratings.get(i);
+                ReviewText reviewText = parseStoredComment(stored.comment());
+
+                reviewsList.add(reviewRow(
+                        safeName(stored.fullName()),
+                        reviewText.vehicle(),
+                        starsFor(stored.rating()),
+                        reviewText.message()
+                ));
+
+                if (i < limit - 1) {
+                    reviewsList.add(Box.createVerticalStrut(12));
+                }
+            }
+        }
+
+        reviewCountLabel.setText(ratings.size() + (ratings.size() == 1 ? " review" : " reviews"));
+        reviewsList.revalidate();
+        reviewsList.repaint();
+    }
+
+    private ReviewText parseStoredComment(String comment) {
+        String value = comment == null ? "" : comment.trim();
+        int separator = value.indexOf(" | ");
+
+        if (separator < 0) {
+            return new ReviewText("Velora Vehicle", value);
+        }
+
+        String vehicle = value.substring(0, separator).trim();
+        String message = value.substring(separator + 3).trim();
+
+        return new ReviewText(
+                vehicle.isBlank() ? "Velora Vehicle" : vehicle,
+                message.isBlank() ? "No written comment." : message
+        );
+    }
+
+    private String starsFor(int rating) {
+        int safeRating = Math.max(1, Math.min(5, rating));
+        return "★".repeat(safeRating) + "☆".repeat(5 - safeRating);
+    }
+
+    private String formatReviewDate(String createdAt) {
+        if (createdAt == null || createdAt.isBlank()) {
+            return "—";
+        }
+
+        try {
+            LocalDateTime value = LocalDateTime.parse(createdAt);
+            return value.format(DateTimeFormatter.ofPattern("dd MMM"));
+        } catch (RuntimeException ex) {
+            return "Recent";
+        }
+    }
+
+    private String safeName(String name) {
+        return name == null || name.isBlank() ? customerName() : name.trim();
+    }
+
+    private String customerName() {
+        return customer == null || customer.getFullName() == null || customer.getFullName().isBlank()
+                ? "Velora Customer"
+                : customer.getFullName().trim();
+    }
+
+    private String customerEmail() {
+        return customer == null || customer.getEmail() == null || customer.getEmail().isBlank()
+                ? ""
+                : customer.getEmail().trim();
+    }
+
+    private record ReviewText(String vehicle, String message) {
     }
 
     private int parseRatingValue(String rating) {
@@ -714,6 +891,55 @@ public final class ReviewsPanel extends JPanel {
 
             g.dispose();
             super.paintComponent(raw);
+        }
+    }
+
+    private static final class ReviewActivityIcon extends JComponent {
+
+        private final String type;
+
+        ReviewActivityIcon(String type) {
+            this.type = type;
+            setOpaque(false);
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            int cx = getWidth() / 2;
+            int cy = getHeight() / 2;
+
+            g.setColor(new Color(214, 160, 66, 20));
+            g.fillOval(cx - 15, cy - 15, 30, 30);
+
+            g.setColor(PALE);
+            g.setStroke(new BasicStroke(1.7f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+
+            if ("REVIEWS".equals(type)) {
+                g.drawRoundRect(cx - 9, cy - 8, 18, 15, 4, 4);
+                g.drawLine(cx - 4, cy + 7, cx - 8, cy + 11);
+                g.drawLine(cx - 3, cy - 3, cx + 5, cy - 3);
+                g.drawLine(cx - 3, cy + 1, cx + 3, cy + 1);
+            } else if ("AVERAGE".equals(type)) {
+                g.drawOval(cx - 10, cy - 10, 20, 20);
+                g.drawLine(cx, cy - 6, cx, cy);
+                g.drawLine(cx, cy, cx + 5, cy + 3);
+            } else {
+                Polygon star = new Polygon();
+                for (int i = 0; i < 10; i++) {
+                    double angle = -Math.PI / 2 + i * Math.PI / 5;
+                    double radius = i % 2 == 0 ? 11 : 5;
+                    star.addPoint(
+                            (int) Math.round(cx + Math.cos(angle) * radius),
+                            (int) Math.round(cy + Math.sin(angle) * radius)
+                    );
+                }
+                g.drawPolygon(star);
+            }
+
+            g.dispose();
         }
     }
 

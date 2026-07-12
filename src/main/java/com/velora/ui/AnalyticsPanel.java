@@ -1,6 +1,7 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
+import com.velora.repository.RentalRepository;
 import com.velora.service.AuthenticationService;
 import com.velora.service.VehicleService;
 import com.velora.vehicle.Vehicle;
@@ -15,8 +16,25 @@ import javax.swing.plaf.basic.ComboPopup;
 import java.awt.*;
 import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
+import java.util.Base64;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 
@@ -30,7 +48,11 @@ public final class AnalyticsPanel extends JPanel {
     private static final Color GREEN = new Color(86, 207, 114);
 
     private final VehicleService vehicleService;
+    private static final Path CUSTOMER_ACCOUNTS_DIR =
+            Path.of(System.getProperty("user.dir"), "data", "customer-accounts");
+
     private final AuthenticationService authenticationService;
+    private final RentalRepository rentalRepository = new RentalRepository();
     private String selectedDateRange = "This Month";
 
     public AnalyticsPanel(VehicleService vehicleService, AuthenticationService authenticationService) {
@@ -45,33 +67,37 @@ public final class AnalyticsPanel extends JPanel {
 
     private void build() {
         removeAll();
+
         List<Vehicle> vehicles = vehicleService.getAllVehicles();
+        List<RentalRepository.RentalRecord> allRentals = rentalRepository.findAll();
+        List<RentalRepository.RentalRecord> visibleRentals =
+                filterRentalsByRange(allRentals, selectedDateRange);
 
-        long realRented = vehicles.stream().filter(v -> v.getStatus() == VehicleStatus.RENTED).count();
-        long available = vehicles.stream().filter(v -> v.getStatus() == VehicleStatus.AVAILABLE).count();
-        long active = vehicles.stream().filter(v -> v.getStatus() != VehicleStatus.MAINTENANCE).count();
-        int realCustomers = customerCount();
+        List<AnalyticsInvoice> allInvoices = loadCustomerInvoices();
+        List<AnalyticsInvoice> visibleInvoices =
+                filterInvoicesByRange(allInvoices, selectedDateRange);
 
-        double baseRevenue = vehicles.stream()
-                .filter(v -> v.getStatus() == VehicleStatus.RENTED)
-                .mapToDouble(Vehicle::getDailyPrice)
-                .sum();
-        if (baseRevenue <= 0) {
-            baseRevenue = vehicles.stream().mapToDouble(Vehicle::getDailyPrice).sum();
-        }
+        AnalyticsMetrics billingMetrics = metricsFromInvoices(visibleInvoices);
 
-        BillingMetricsBus.Metrics billingMetrics = BillingMetricsBus.snapshot();
-        double rangeFactor = rangeFactor(selectedDateRange);
-        long rented = scaledCount(
-                billingMetrics.invoiceCount > 0 ? billingMetrics.invoiceCount : realRented,
-                rangeFactor
-        );
-        int customers = Math.max(realCustomers, (int) Math.round(realCustomers * Math.min(rangeFactor, 2.0)));
-        double revenue = scaledMoney(
-                billingMetrics.paidRevenue > 0 ? billingMetrics.paidRevenue : baseRevenue,
-                rangeFactor
-        );
-        double avgDaily = rented == 0 ? 0 : revenue / Math.max(1, rented);
+        long available = vehicles.stream()
+                .filter(v -> v.getStatus() == VehicleStatus.AVAILABLE)
+                .count();
+
+        long activeVehicles = vehicles.stream()
+                .filter(v -> v.getStatus() != VehicleStatus.MAINTENANCE)
+                .count();
+
+        long activeRentals = visibleRentals.stream()
+                .filter(rental -> "ACTIVE".equalsIgnoreCase(rental.status())
+                        || "OVERDUE".equalsIgnoreCase(rental.status()))
+                .count();
+
+        long rentals = visibleRentals.size();
+        int customers = customerCount();
+
+        double averageRevenue = rentals == 0
+                ? 0
+                : billingMetrics.paidRevenue() / rentals;
 
         add(createHeading(), BorderLayout.NORTH);
 
@@ -84,11 +110,42 @@ public final class AnalyticsPanel extends JPanel {
         statsRow.setAlignmentX(LEFT_ALIGNMENT);
         statsRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 108));
         statsRow.setPreferredSize(new Dimension(1200, 108));
-        statsRow.add(statCard("Total Revenue", formatMoney(revenue), billingMetrics.paidInvoices + " paid invoices", "BILL"));
-        statsRow.add(statCard("Total Rentals", String.valueOf(rented), billingMetrics.pendingPayments + " pending", "CAL"));
-        statsRow.add(statCard("Total Customers", String.valueOf(customers), "Registered accounts", "USERS"));
-        statsRow.add(statCard("Active Vehicles", String.valueOf(active), available + " available", "CAR"));
-        statsRow.add(statCard("Average Revenue", formatMoney(avgDaily), "Per rental", "CHART"));
+
+        statsRow.add(statCard(
+                "Total Revenue",
+                formatMoney(billingMetrics.paidRevenue()),
+                billingMetrics.paidInvoices() + " paid invoices",
+                "BILL"
+        ));
+
+        statsRow.add(statCard(
+                "Total Rentals",
+                String.valueOf(rentals),
+                activeRentals + " active",
+                "CAL"
+        ));
+
+        statsRow.add(statCard(
+                "Total Customers",
+                String.valueOf(customers),
+                "Registered accounts",
+                "USERS"
+        ));
+
+        statsRow.add(statCard(
+                "Active Vehicles",
+                String.valueOf(activeVehicles),
+                available + " available",
+                "CAR"
+        ));
+
+        statsRow.add(statCard(
+                "Average Revenue",
+                formatMoney(averageRevenue),
+                "Per rental",
+                "CHART"
+        ));
+
         body.add(statsRow);
         body.add(Box.createVerticalStrut(14));
 
@@ -97,9 +154,11 @@ public final class AnalyticsPanel extends JPanel {
         row2.setAlignmentX(LEFT_ALIGNMENT);
         row2.setMaximumSize(new Dimension(Integer.MAX_VALUE, 310));
         row2.setPreferredSize(new Dimension(1200, 310));
-        row2.add(revenueTrendCard(vehicles, revenue));
+
+        row2.add(revenueTrendCard(visibleInvoices));
         row2.add(invoiceStatusCard(billingMetrics));
-        row2.add(topVehiclesCard(vehicles));
+        row2.add(topVehiclesCard(visibleRentals));
+
         body.add(row2);
         body.add(Box.createVerticalStrut(14));
 
@@ -108,9 +167,11 @@ public final class AnalyticsPanel extends JPanel {
         row3.setAlignmentX(LEFT_ALIGNMENT);
         row3.setMaximumSize(new Dimension(Integer.MAX_VALUE, 292));
         row3.setPreferredSize(new Dimension(1200, 292));
-        row3.add(paymentMethodCard(billingMetrics, revenue));
-        row3.add(rentalsByPeriodCard(rented));
-        row3.add(customerGrowthCard(customers));
+
+        row3.add(paymentMethodCard(billingMetrics));
+        row3.add(rentalsByPeriodCard(allRentals));
+        row3.add(customerGrowthCard(allRentals));
+
         body.add(row3);
 
         JScrollPane scroll = new JScrollPane(body);
@@ -120,6 +181,7 @@ public final class AnalyticsPanel extends JPanel {
         scroll.getVerticalScrollBar().setUnitIncrement(18);
         scroll.getVerticalScrollBar().setPreferredSize(new Dimension(7, 0));
         scroll.getVerticalScrollBar().setUI(new DarkScrollBarUI());
+
         add(scroll, BorderLayout.CENTER);
     }
 
@@ -184,12 +246,8 @@ public final class AnalyticsPanel extends JPanel {
         return card;
     }
 
-    private JComponent revenueTrendCard(List<Vehicle> vehicles, double totalRevenue) {
+    private JComponent revenueTrendCard(List<AnalyticsInvoice> invoices) {
         RoundedPanel card = panelCard();
-
-        double base = totalRevenue <= 0
-                ? Math.max(20, vehicles.stream().mapToDouble(Vehicle::getDailyPrice).average().orElse(25))
-                : totalRevenue;
 
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
@@ -201,7 +259,7 @@ public final class AnalyticsPanel extends JPanel {
         Consumer<String> redraw = mode -> {
             chartHolder.removeAll();
             chartHolder.add(new SimpleLineChart(
-                    revenueTrendValues(mode, base),
+                    revenueTrendValues(mode, invoices),
                     revenueTrendLabels(mode),
                     true
             ), BorderLayout.CENTER);
@@ -209,10 +267,15 @@ public final class AnalyticsPanel extends JPanel {
             chartHolder.repaint();
         };
 
-        header.add(styledCombo(new String[]{"Daily", "Weekly", "Monthly"}, "Weekly", redraw), BorderLayout.EAST);
+        header.add(
+                styledCombo(new String[]{"Daily", "Weekly", "Monthly"}, "Weekly", redraw),
+                BorderLayout.EAST
+        );
+
         card.add(header, BorderLayout.NORTH);
         card.add(chartHolder, BorderLayout.CENTER);
         redraw.accept("Weekly");
+
         return card;
     }
 
@@ -251,53 +314,111 @@ public final class AnalyticsPanel extends JPanel {
         return card;
     }
 
-    private JComponent invoiceStatusCard(BillingMetricsBus.Metrics metrics) {
+    private JComponent invoiceStatusCard(AnalyticsMetrics metrics) {
         RoundedPanel card = panelCard();
         card.add(label("Invoices by Status", 14, Font.BOLD, TEXT), BorderLayout.NORTH);
 
         PieSlice[] slices = new PieSlice[]{
-                new PieSlice("Paid", metrics.paidInvoices, GOLD),
-                new PieSlice("Pending", Math.max(0, metrics.pendingPayments - metrics.overdueInvoices), new Color(128, 128, 128)),
-                new PieSlice("Overdue", metrics.overdueInvoices, new Color(190, 74, 78))
+                new PieSlice("Paid", metrics.paidInvoices(), GOLD),
+                new PieSlice("Pending", Math.max(0, metrics.pendingPayments() - metrics.overdueInvoices()), new Color(128, 128, 128)),
+                new PieSlice("Overdue", metrics.overdueInvoices(), new Color(190, 74, 78))
         };
 
         JPanel content = new JPanel(new BorderLayout());
         content.setOpaque(false);
-        content.add(new DonutChartPanel(slices, String.valueOf(metrics.invoiceCount), "Invoices"), BorderLayout.CENTER);
+        content.add(new DonutChartPanel(slices, String.valueOf(metrics.invoiceCount()), "Invoices"), BorderLayout.CENTER);
         content.add(legendPanel(slices), BorderLayout.EAST);
         card.add(content, BorderLayout.CENTER);
         return card;
     }
 
-    private JComponent topVehiclesCard(List<Vehicle> vehicles) {
+    private JComponent topVehiclesCard(List<RentalRepository.RentalRecord> rentals) {
         RoundedPanel card = panelCard();
+
         JPanel top = new JPanel(new BorderLayout());
         top.setOpaque(false);
         top.add(label("Top Performing Vehicles", 14, Font.BOLD, TEXT), BorderLayout.WEST);
-        top.add(label("View All", 10, Font.PLAIN, GOLD), BorderLayout.EAST);
+        top.add(label("Real rental history", 10, Font.PLAIN, GOLD), BorderLayout.EAST);
         card.add(top, BorderLayout.NORTH);
 
-        List<Vehicle> sorted = vehicles.stream().sorted((a, b) -> Double.compare(b.getDailyPrice(), a.getDailyPrice())).limit(5).toList();
-        JPanel list = new JPanel(new GridLayout(Math.max(1, sorted.size()), 1, 0, 8));
+        Map<String, VehiclePerformance> performance = new HashMap<>();
+
+        for (RentalRepository.RentalRecord rental : rentals) {
+            String key = rental.vehicleId() == null || rental.vehicleId().isBlank()
+                    ? rental.vehicleName()
+                    : rental.vehicleId();
+
+            VehiclePerformance current = performance.get(key);
+
+            if (current == null) {
+                performance.put(
+                        key,
+                        new VehiclePerformance(
+                                rental.vehicleName(),
+                                1,
+                                rental.baseAmount()
+                        )
+                );
+            } else {
+                performance.put(
+                        key,
+                        new VehiclePerformance(
+                                current.vehicleName(),
+                                current.rentals() + 1,
+                                current.revenue() + rental.baseAmount()
+                        )
+                );
+            }
+        }
+
+        List<VehiclePerformance> sorted = performance.values().stream()
+                .sorted(
+                        Comparator.comparingInt(VehiclePerformance::rentals)
+                                .reversed()
+                                .thenComparing(
+                                        Comparator.comparingDouble(VehiclePerformance::revenue)
+                                                .reversed()
+                                )
+                )
+                .limit(5)
+                .toList();
+
+        if (sorted.isEmpty()) {
+            JPanel empty = new JPanel(new GridBagLayout());
+            empty.setOpaque(false);
+            empty.add(label("No rental data yet.", 12, Font.PLAIN, MUTED));
+            card.add(empty, BorderLayout.CENTER);
+            return card;
+        }
+
+        JPanel list = new JPanel(new GridLayout(sorted.size(), 1, 0, 8));
         list.setOpaque(false);
 
         int rank = 1;
-        for (Vehicle vehicle : sorted) {
+
+        for (VehiclePerformance vehicle : sorted) {
             JPanel row = new JPanel(new BorderLayout(10, 0));
             row.setOpaque(false);
             row.setBorder(new EmptyBorder(4, 0, 4, 0));
-            JLabel r = label(String.valueOf(rank++), 13, Font.BOLD, GOLD);
-            r.setPreferredSize(new Dimension(18, 20));
+
+            JLabel rankLabel = label(String.valueOf(rank++), 13, Font.BOLD, GOLD);
+            rankLabel.setPreferredSize(new Dimension(18, 20));
 
             JPanel center = new JPanel();
             center.setOpaque(false);
             center.setLayout(new BoxLayout(center, BoxLayout.Y_AXIS));
-            center.add(label(vehicle.getBrand() + " " + vehicle.getModel(), 12, Font.BOLD, TEXT));
-            center.add(label(vehicle.getType().name().replace('_', ' '), 10, Font.PLAIN, MUTED));
+            center.add(label(vehicle.vehicleName(), 12, Font.BOLD, TEXT));
+            center.add(label(
+                    vehicle.rentals() + (vehicle.rentals() == 1 ? " rental" : " rentals"),
+                    10,
+                    Font.PLAIN,
+                    MUTED
+            ));
 
-            row.add(r, BorderLayout.WEST);
+            row.add(rankLabel, BorderLayout.WEST);
             row.add(center, BorderLayout.CENTER);
-            row.add(label(formatMoney(vehicle.getDailyPrice() * 30), 12, Font.BOLD, PALE), BorderLayout.EAST);
+            row.add(label(formatMoney(vehicle.revenue()), 12, Font.BOLD, PALE), BorderLayout.EAST);
+
             list.add(row);
         }
 
@@ -305,25 +426,30 @@ public final class AnalyticsPanel extends JPanel {
         return card;
     }
 
-    private JComponent paymentMethodCard(BillingMetricsBus.Metrics metrics, double visibleRevenue) {
+    private JComponent paymentMethodCard(AnalyticsMetrics metrics) {
         RoundedPanel card = panelCard();
         card.add(label("Revenue by Payment Method", 14, Font.BOLD, TEXT), BorderLayout.NORTH);
-        double totalRevenue = metrics.paidRevenue;
+
         PieSlice[] slices = new PieSlice[]{
-                new PieSlice("Credit Card", totalRevenue > 0 ? metrics.cardRevenue : visibleRevenue * .60, GOLD),
-                new PieSlice("Cash", totalRevenue > 0 ? metrics.cashRevenue : visibleRevenue * .25, new Color(128, 128, 128)),
-                new PieSlice("Bank Transfer", totalRevenue > 0 ? metrics.bankTransferRevenue : visibleRevenue * .10, new Color(94, 123, 178)),
-                new PieSlice("Other", totalRevenue > 0 ? metrics.otherRevenue : visibleRevenue * .05, new Color(74, 150, 96))
+                new PieSlice("Credit Card", metrics.cardRevenue(), GOLD),
+                new PieSlice("Cash", metrics.cashRevenue(), new Color(128, 128, 128)),
+                new PieSlice("Bank Transfer", metrics.bankTransferRevenue(), new Color(94, 123, 178)),
+                new PieSlice("Other", metrics.otherRevenue(), new Color(74, 150, 96))
         };
+
         JPanel content = new JPanel(new BorderLayout());
         content.setOpaque(false);
-        content.add(new DonutChartPanel(slices, formatMoney(visibleRevenue), "Total"), BorderLayout.WEST);
+        content.add(
+                new DonutChartPanel(slices, formatMoney(metrics.paidRevenue()), "Total"),
+                BorderLayout.WEST
+        );
         content.add(legendPanel(slices), BorderLayout.CENTER);
+
         card.add(content, BorderLayout.CENTER);
         return card;
     }
 
-    private JComponent rentalsByPeriodCard(long totalRentals) {
+    private JComponent rentalsByPeriodCard(List<RentalRepository.RentalRecord> rentals) {
         RoundedPanel card = panelCard();
 
         JPanel header = new JPanel(new BorderLayout());
@@ -335,46 +461,62 @@ public final class AnalyticsPanel extends JPanel {
 
         Consumer<String> redraw = mode -> {
             chartHolder.removeAll();
-            chartHolder.add(new SimpleBarChart(
-                    rentalsValues(mode, totalRentals),
-                    periodLabels(mode)
-            ), BorderLayout.CENTER);
+            chartHolder.add(
+                    new SimpleBarChart(
+                            rentalsValues(mode, rentals),
+                            periodLabels(mode)
+                    ),
+                    BorderLayout.CENTER
+            );
             chartHolder.revalidate();
             chartHolder.repaint();
         };
 
-        header.add(styledCombo(new String[]{"Monthly", "Quarterly", "Yearly"}, "Monthly", redraw), BorderLayout.EAST);
+        header.add(
+                styledCombo(new String[]{"Monthly", "Quarterly", "Yearly"}, "Monthly", redraw),
+                BorderLayout.EAST
+        );
+
         card.add(header, BorderLayout.NORTH);
         card.add(chartHolder, BorderLayout.CENTER);
         redraw.accept("Monthly");
+
         return card;
     }
 
-    private JComponent customerGrowthCard(int totalCustomers) {
+    private JComponent customerGrowthCard(List<RentalRepository.RentalRecord> rentals) {
         RoundedPanel card = panelCard();
 
         JPanel header = new JPanel(new BorderLayout());
         header.setOpaque(false);
-        header.add(label("Customer Growth", 14, Font.BOLD, TEXT), BorderLayout.WEST);
+        header.add(label("Active Customer Trend", 14, Font.BOLD, TEXT), BorderLayout.WEST);
 
         JPanel chartHolder = new JPanel(new BorderLayout());
         chartHolder.setOpaque(false);
 
         Consumer<String> redraw = mode -> {
             chartHolder.removeAll();
-            chartHolder.add(new SimpleLineChart(
-                    customerGrowthValues(mode, totalCustomers),
-                    periodLabels(mode),
-                    false
-            ), BorderLayout.CENTER);
+            chartHolder.add(
+                    new SimpleLineChart(
+                            customerGrowthValues(mode, rentals),
+                            periodLabels(mode),
+                            false
+                    ),
+                    BorderLayout.CENTER
+            );
             chartHolder.revalidate();
             chartHolder.repaint();
         };
 
-        header.add(styledCombo(new String[]{"Monthly", "Quarterly", "Yearly"}, "Monthly", redraw), BorderLayout.EAST);
+        header.add(
+                styledCombo(new String[]{"Monthly", "Quarterly", "Yearly"}, "Monthly", redraw),
+                BorderLayout.EAST
+        );
+
         card.add(header, BorderLayout.NORTH);
         card.add(chartHolder, BorderLayout.CENTER);
         redraw.accept("Monthly");
+
         return card;
     }
 
@@ -481,74 +623,545 @@ public final class AnalyticsPanel extends JPanel {
         return panel;
     }
 
-    private double rangeFactor(String range) {
-        return switch (range) {
-            case "Today" -> 0.25;
-            case "This Week" -> 0.65;
-            case "Last 30 Days" -> 1.15;
-            case "This Year" -> 4.5;
-            default -> 1.0;
-        };
-    }
+    private List<AnalyticsInvoice> loadCustomerInvoices() {
+        List<AnalyticsInvoice> invoices = new ArrayList<>();
 
-    private long scaledCount(long value, double rangeFactor) {
-        if (value <= 0) {
-            return 0;
+        if (!Files.isDirectory(CUSTOMER_ACCOUNTS_DIR)) {
+            return invoices;
         }
-        return Math.max(1, Math.round(value * rangeFactor));
-    }
 
-    private double scaledMoney(double value, double rangeFactor) {
-        if (value <= 0) {
-            return 0;
+        try (var files = Files.list(CUSTOMER_ACCOUNTS_DIR)) {
+            files.filter(path -> path.getFileName().toString().endsWith(".tsv"))
+                    .sorted()
+                    .forEach(path -> loadInvoicesFromFile(path, invoices));
+        } catch (IOException ignored) {
+            invoices.clear();
         }
-        return value * rangeFactor;
+
+        return invoices;
     }
 
-    private double[] revenueTrendValues(String mode, double base) {
-        return switch (mode) {
-            case "Daily" -> new double[]{base * .40, base * .52, base * .45, base * .68, base * .60, base * .82, base * .74};
-            case "Monthly" -> new double[]{base * 2.2, base * 2.9, base * 3.4, base * 3.1, base * 4.0, base * 4.7};
-            default -> new double[]{base * .55, base * .72, base * .68, base * .95, base * .81, base * 1.18, base * .92};
+    private void loadInvoicesFromFile(Path file, List<AnalyticsInvoice> invoices) {
+        try {
+            for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+                if (line == null || line.isBlank()) {
+                    continue;
+                }
+
+                String[] parts = line.split("\t", -1);
+
+                if (parts.length < 11 || !"INVOICE".equals(parts[0])) {
+                    continue;
+                }
+
+                invoices.add(new AnalyticsInvoice(
+                        decode(parts[1]),
+                        decode(parts[2]),
+                        decode(parts[3]),
+                        parseInt(parts[4], 1),
+                        parseDouble(parts[5], 0),
+                        parseDouble(parts[6], 0),
+                        decode(parts[7]),
+                        decode(parts[8]),
+                        decode(parts[9]),
+                        decode(parts[10])
+                ));
+            }
+        } catch (IOException | IllegalArgumentException ignored) {
+            // Skip malformed files and continue loading the others.
+        }
+    }
+
+    private List<AnalyticsInvoice> filterInvoicesByRange(
+            List<AnalyticsInvoice> invoices,
+            String range
+    ) {
+        return invoices.stream()
+                .filter(invoice -> isWithinRange(parseDate(invoice.startDate()), range))
+                .toList();
+    }
+
+    private List<RentalRepository.RentalRecord> filterRentalsByRange(
+            List<RentalRepository.RentalRecord> rentals,
+            String range
+    ) {
+        return rentals.stream()
+                .filter(rental -> isWithinRange(parseDate(rental.startDateTime()), range))
+                .toList();
+    }
+
+    private boolean isWithinRange(LocalDate date, String range) {
+        if (date == null) {
+            return false;
+        }
+
+        LocalDate today = LocalDate.now();
+        LocalDate start = switch (range) {
+            case "Today" -> today;
+            case "This Week" -> today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+            case "Last 30 Days" -> today.minusDays(29);
+            case "This Year" -> LocalDate.of(today.getYear(), 1, 1);
+            default -> today.withDayOfMonth(1);
         };
+
+        return !date.isBefore(start) && !date.isAfter(today);
+    }
+
+    private AnalyticsMetrics metricsFromInvoices(List<AnalyticsInvoice> invoices) {
+        int invoiceCount = invoices.size();
+        long paidInvoices = 0;
+        long pendingPayments = 0;
+        long overdueInvoices = 0;
+
+        double paidRevenue = 0;
+        double outstandingBalance = 0;
+        double lateFees = 0;
+        double grossTotal = 0;
+        double cardRevenue = 0;
+        double cashRevenue = 0;
+        double bankTransferRevenue = 0;
+        double otherRevenue = 0;
+
+        for (AnalyticsInvoice invoice : invoices) {
+            double total = invoice.totalAmount();
+
+            grossTotal += total;
+            lateFees += invoice.lateFee();
+
+            if ("Paid".equalsIgnoreCase(invoice.status())) {
+                paidInvoices++;
+                paidRevenue += total;
+
+                if ("Card".equalsIgnoreCase(invoice.paymentMethod())
+                        || "Credit Card".equalsIgnoreCase(invoice.paymentMethod())) {
+                    cardRevenue += total;
+                } else if ("Cash".equalsIgnoreCase(invoice.paymentMethod())) {
+                    cashRevenue += total;
+                } else if ("Bank Transfer".equalsIgnoreCase(invoice.paymentMethod())) {
+                    bankTransferRevenue += total;
+                } else {
+                    otherRevenue += total;
+                }
+            } else {
+                pendingPayments++;
+                outstandingBalance += total;
+
+                if ("Overdue".equalsIgnoreCase(invoice.status())) {
+                    overdueInvoices++;
+                }
+            }
+        }
+
+        return new AnalyticsMetrics(
+                invoiceCount,
+                paidInvoices,
+                pendingPayments,
+                overdueInvoices,
+                paidRevenue,
+                outstandingBalance,
+                lateFees,
+                grossTotal,
+                cardRevenue,
+                cashRevenue,
+                bankTransferRevenue,
+                otherRevenue
+        );
+    }
+
+    private double[] revenueTrendValues(String mode, List<AnalyticsInvoice> invoices) {
+        LocalDate today = LocalDate.now();
+
+        if ("Daily".equals(mode)) {
+            double[] values = new double[7];
+
+            for (AnalyticsInvoice invoice : invoices) {
+                if (!"Paid".equalsIgnoreCase(invoice.status())) {
+                    continue;
+                }
+
+                LocalDate date = parseDate(invoice.startDate());
+
+                if (date == null) {
+                    continue;
+                }
+
+                for (int i = 0; i < 7; i++) {
+                    LocalDate target = today.minusDays(6L - i);
+
+                    if (date.equals(target)) {
+                        values[i] += invoice.totalAmount();
+                    }
+                }
+            }
+
+            return values;
+        }
+
+        if ("Monthly".equals(mode)) {
+            double[] values = new double[6];
+
+            for (AnalyticsInvoice invoice : invoices) {
+                if (!"Paid".equalsIgnoreCase(invoice.status())) {
+                    continue;
+                }
+
+                LocalDate date = parseDate(invoice.startDate());
+
+                if (date == null) {
+                    continue;
+                }
+
+                YearMonth invoiceMonth = YearMonth.from(date);
+
+                for (int i = 0; i < 6; i++) {
+                    YearMonth target = YearMonth.from(today).minusMonths(5L - i);
+
+                    if (invoiceMonth.equals(target)) {
+                        values[i] += invoice.totalAmount();
+                    }
+                }
+            }
+
+            return values;
+        }
+
+        double[] values = new double[7];
+
+        for (AnalyticsInvoice invoice : invoices) {
+            if (!"Paid".equalsIgnoreCase(invoice.status())) {
+                continue;
+            }
+
+            LocalDate date = parseDate(invoice.startDate());
+
+            if (date == null) {
+                continue;
+            }
+
+            for (int i = 0; i < 7; i++) {
+                LocalDate weekEnd = today.minusWeeks(6L - i);
+                LocalDate weekStart = weekEnd.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+                LocalDate end = weekStart.plusDays(6);
+
+                if (!date.isBefore(weekStart) && !date.isAfter(end)) {
+                    values[i] += invoice.totalAmount();
+                }
+            }
+        }
+
+        return values;
     }
 
     private String[] revenueTrendLabels(String mode) {
-        return switch (mode) {
-            case "Daily" -> new String[]{"Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"};
-            case "Monthly" -> new String[]{"Feb", "Mar", "Apr", "May", "Jun", "Jul"};
-            default -> new String[]{"Jun 01", "Jun 08", "Jun 15", "Jun 22", "Jun 29", "Jul 03", "Jul 06"};
-        };
+        LocalDate today = LocalDate.now();
+
+        if ("Daily".equals(mode)) {
+            String[] labels = new String[7];
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("EEE", Locale.ENGLISH);
+
+            for (int i = 0; i < 7; i++) {
+                labels[i] = today.minusDays(6L - i).format(formatter);
+            }
+
+            return labels;
+        }
+
+        if ("Monthly".equals(mode)) {
+            String[] labels = new String[6];
+            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH);
+
+            for (int i = 0; i < 6; i++) {
+                labels[i] = YearMonth.from(today)
+                        .minusMonths(5L - i)
+                        .atDay(1)
+                        .format(formatter);
+            }
+
+            return labels;
+        }
+
+        String[] labels = new String[7];
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH);
+
+        for (int i = 0; i < 7; i++) {
+            LocalDate week = today.minusWeeks(6L - i)
+                    .with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+
+            labels[i] = week.format(formatter);
+        }
+
+        return labels;
     }
 
-    private double[] rentalsValues(String mode, long totalRentals) {
-        double total = Math.max(1, totalRentals);
-        return switch (mode) {
-            case "Quarterly" -> new double[]{Math.max(1, total * .65), Math.max(1, total * .85), total};
-            case "Yearly" -> new double[]{Math.max(1, total * .35), Math.max(1, total * .50), Math.max(1, total * .72), total};
-            default -> new double[]{Math.max(0, total - 2), Math.max(0, total - 1), Math.max(1, total)};
-        };
+    private double[] rentalsValues(
+            String mode,
+            List<RentalRepository.RentalRecord> rentals
+    ) {
+        String[] labels = periodLabels(mode);
+        double[] values = new double[labels.length];
+        LocalDate today = LocalDate.now();
+
+        for (RentalRepository.RentalRecord rental : rentals) {
+            LocalDate date = parseDate(rental.startDateTime());
+
+            if (date == null) {
+                continue;
+            }
+
+            if ("Quarterly".equals(mode)) {
+                int currentQuarter = (today.getMonthValue() - 1) / 3 + 1;
+
+                for (int i = 0; i < 3; i++) {
+                    int quarterOffset = 2 - i;
+                    int absoluteQuarter = (today.getYear() * 4 + currentQuarter - 1) - quarterOffset;
+                    int year = Math.floorDiv(absoluteQuarter, 4);
+                    int quarter = Math.floorMod(absoluteQuarter, 4) + 1;
+                    int rentalQuarter = (date.getMonthValue() - 1) / 3 + 1;
+
+                    if (date.getYear() == year && rentalQuarter == quarter) {
+                        values[i]++;
+                    }
+                }
+            } else if ("Yearly".equals(mode)) {
+                for (int i = 0; i < 4; i++) {
+                    int year = today.getYear() - (3 - i);
+
+                    if (date.getYear() == year) {
+                        values[i]++;
+                    }
+                }
+            } else {
+                YearMonth rentalMonth = YearMonth.from(date);
+
+                for (int i = 0; i < 3; i++) {
+                    YearMonth target = YearMonth.from(today).minusMonths(2L - i);
+
+                    if (rentalMonth.equals(target)) {
+                        values[i]++;
+                    }
+                }
+            }
+        }
+
+        return values;
     }
 
-    private double[] customerGrowthValues(String mode, int totalCustomers) {
-        double total = Math.max(1, totalCustomers);
-        return switch (mode) {
-            case "Quarterly" -> new double[]{Math.max(1, total - 4), Math.max(1, total - 2), total};
-            case "Yearly" -> new double[]{Math.max(1, total * .25), Math.max(1, total * .45), Math.max(1, total * .70), total};
-            default -> new double[]{Math.max(0, total - 2), Math.max(0, total - 1), Math.max(1, total)};
-        };
+    private double[] customerGrowthValues(
+            String mode,
+            List<RentalRepository.RentalRecord> rentals
+    ) {
+        String[] labels = periodLabels(mode);
+        double[] values = new double[labels.length];
+        List<HashSet<String>> customersByPeriod = new ArrayList<>();
+
+        for (int i = 0; i < labels.length; i++) {
+            customersByPeriod.add(new HashSet<>());
+        }
+
+        LocalDate today = LocalDate.now();
+
+        for (RentalRepository.RentalRecord rental : rentals) {
+            LocalDate date = parseDate(rental.startDateTime());
+
+            if (date == null || rental.customerEmail() == null || rental.customerEmail().isBlank()) {
+                continue;
+            }
+
+            String email = rental.customerEmail().trim().toLowerCase(Locale.ROOT);
+
+            if ("Quarterly".equals(mode)) {
+                int currentQuarter = (today.getMonthValue() - 1) / 3 + 1;
+
+                for (int i = 0; i < 3; i++) {
+                    int quarterOffset = 2 - i;
+                    int absoluteQuarter = (today.getYear() * 4 + currentQuarter - 1) - quarterOffset;
+                    int year = Math.floorDiv(absoluteQuarter, 4);
+                    int quarter = Math.floorMod(absoluteQuarter, 4) + 1;
+                    int rentalQuarter = (date.getMonthValue() - 1) / 3 + 1;
+
+                    if (date.getYear() == year && rentalQuarter == quarter) {
+                        customersByPeriod.get(i).add(email);
+                    }
+                }
+            } else if ("Yearly".equals(mode)) {
+                for (int i = 0; i < 4; i++) {
+                    int year = today.getYear() - (3 - i);
+
+                    if (date.getYear() == year) {
+                        customersByPeriod.get(i).add(email);
+                    }
+                }
+            } else {
+                YearMonth rentalMonth = YearMonth.from(date);
+
+                for (int i = 0; i < 3; i++) {
+                    YearMonth target = YearMonth.from(today).minusMonths(2L - i);
+
+                    if (rentalMonth.equals(target)) {
+                        customersByPeriod.get(i).add(email);
+                    }
+                }
+            }
+        }
+
+        for (int i = 0; i < values.length; i++) {
+            values[i] = customersByPeriod.get(i).size();
+        }
+
+        return values;
     }
 
     private String[] periodLabels(String mode) {
-        return switch (mode) {
-            case "Quarterly" -> new String[]{"Q1 2026", "Q2 2026", "Q3 2026"};
-            case "Yearly" -> new String[]{"2023", "2024", "2025", "2026"};
-            default -> new String[]{"May 2026", "Jun 2026", "Jul 2026"};
+        LocalDate today = LocalDate.now();
+
+        if ("Quarterly".equals(mode)) {
+            String[] labels = new String[3];
+            int currentQuarter = (today.getMonthValue() - 1) / 3 + 1;
+
+            for (int i = 0; i < 3; i++) {
+                int quarterOffset = 2 - i;
+                int absoluteQuarter = (today.getYear() * 4 + currentQuarter - 1) - quarterOffset;
+                int year = Math.floorDiv(absoluteQuarter, 4);
+                int quarter = Math.floorMod(absoluteQuarter, 4) + 1;
+
+                labels[i] = "Q" + quarter + " " + year;
+            }
+
+            return labels;
+        }
+
+        if ("Yearly".equals(mode)) {
+            return new String[]{
+                    String.valueOf(today.getYear() - 3),
+                    String.valueOf(today.getYear() - 2),
+                    String.valueOf(today.getYear() - 1),
+                    String.valueOf(today.getYear())
+            };
+        }
+
+        String[] labels = new String[3];
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH);
+
+        for (int i = 0; i < 3; i++) {
+            labels[i] = YearMonth.from(today)
+                    .minusMonths(2L - i)
+                    .atDay(1)
+                    .format(formatter);
+        }
+
+        return labels;
+    }
+
+    private LocalDate parseDate(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        String text = value.trim();
+
+        try {
+            return LocalDateTime.parse(text).toLocalDate();
+        } catch (DateTimeParseException ignored) {
+        }
+
+        try {
+            return LocalDate.parse(text);
+        } catch (DateTimeParseException ignored) {
+        }
+
+        DateTimeFormatter[] formatters = {
+                DateTimeFormatter.ofPattern("dd MMM yyyy hh:mm a", Locale.ENGLISH),
+                DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm", Locale.ENGLISH),
+                DateTimeFormatter.ofPattern("dd MMM yyyy hh:mm:ss a", Locale.ENGLISH),
+                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.ENGLISH)
         };
+
+        for (DateTimeFormatter formatter : formatters) {
+            try {
+                return LocalDateTime.parse(text, formatter).toLocalDate();
+            } catch (DateTimeParseException ignored) {
+            }
+        }
+
+        return null;
     }
 
     private int customerCount() {
-        return (int) authenticationService.getAllAccounts().stream().filter(account -> account.getRole() == Customer.Role.CUSTOMER).count();
+        return (int) authenticationService.getAllAccounts().stream()
+                .filter(account -> account.getRole() == Customer.Role.CUSTOMER)
+                .map(account -> account.getEmail() == null
+                        ? ""
+                        : account.getEmail().trim().toLowerCase(Locale.ROOT))
+                .filter(email -> !email.isBlank())
+                .distinct()
+                .count();
+    }
+
+    private static String decode(String value) {
+        return new String(
+                Base64.getDecoder().decode(value == null ? "" : value),
+                StandardCharsets.UTF_8
+        );
+    }
+
+    private static int parseInt(String value, int fallback) {
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
+    }
+
+    private static double parseDouble(String value, double fallback) {
+        try {
+            return Double.parseDouble(value);
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
+    }
+
+    private record AnalyticsInvoice(
+            String invoiceId,
+            String customerName,
+            String vehicleName,
+            int rentalDays,
+            double baseAmount,
+            double lateFee,
+            String status,
+            String paymentMethod,
+            String startDate,
+            String endDate
+    ) {
+        double tax() {
+            return (baseAmount + lateFee) * 0.10;
+        }
+
+        double totalAmount() {
+            return baseAmount + lateFee + tax();
+        }
+    }
+
+    private record AnalyticsMetrics(
+            int invoiceCount,
+            long paidInvoices,
+            long pendingPayments,
+            long overdueInvoices,
+            double paidRevenue,
+            double outstandingBalance,
+            double lateFees,
+            double grossTotal,
+            double cardRevenue,
+            double cashRevenue,
+            double bankTransferRevenue,
+            double otherRevenue
+    ) {
+    }
+
+    private record VehiclePerformance(
+            String vehicleName,
+            int rentals,
+            double revenue
+    ) {
     }
 
     private String formatMoney(double value) {

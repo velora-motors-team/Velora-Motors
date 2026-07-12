@@ -67,6 +67,7 @@ public final class BillingPanel extends JPanel {
 
     private static final int PAGE_SIZE = 8;
     static final Path ADMIN_INVOICE_FILE = Path.of(System.getProperty("user.dir"), "data", "admin-billing-invoices.tsv");
+    private static final Path CUSTOMER_ACCOUNTS_DIR = Path.of(System.getProperty("user.dir"), "data", "customer-accounts");
 
     private final Customer manager;
     private final VehicleService vehicleService = new VehicleService();
@@ -101,10 +102,7 @@ public final class BillingPanel extends JPanel {
         setLayout(new BorderLayout());
         setBorder(new EmptyBorder(8, 12, 18, 22));
 
-        if (!loadSavedInvoices()) {
-            loadDemoInvoices();
-            saveInvoices();
-        }
+        loadRealCustomerInvoices();
         filteredInvoices.addAll(invoices);
 
         add(createContent(), BorderLayout.CENTER);
@@ -150,9 +148,9 @@ public final class BillingPanel extends JPanel {
         left.add(Box.createVerticalStrut(3));
         left.add(subtitle);
 
-        JButton generate = new GoldActionButton("Generate Invoice");
+        JButton generate = new GoldActionButton("Refresh Invoices");
         generate.setPreferredSize(new Dimension(165, 42));
-        generate.addActionListener(e -> addDemoInvoice());
+        generate.addActionListener(e -> refreshData());
 
         titleRow.add(left, BorderLayout.WEST);
         titleRow.add(generate, BorderLayout.EAST);
@@ -364,7 +362,7 @@ public final class BillingPanel extends JPanel {
     }
 
     public void refreshData() {
-        loadSavedInvoices();
+        loadRealCustomerInvoices();
         filteredInvoices.clear();
         filteredInvoices.addAll(invoices);
         refreshAll();
@@ -627,7 +625,16 @@ public final class BillingPanel extends JPanel {
 
         invoice.status = "Paid";
         invoice.paymentMethod = "Card";
-        saveInvoices();
+
+        if (!saveCustomerInvoice(invoice)) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "Unable to update the customer invoice file.",
+                    "Velora Billing",
+                    JOptionPane.ERROR_MESSAGE
+            );
+            return;
+        }
 
         int pageBeforeRefresh = currentPage;
         refreshMetrics();
@@ -665,7 +672,7 @@ public final class BillingPanel extends JPanel {
                     + "Rental Days: " + invoice.rentalDays + "\n\n"
                     + "Base Rental: " + formatMoney(invoice.baseAmount) + "\n"
                     + "Late Fee: " + formatMoney(invoice.lateFee) + "\n"
-                    + "Tax (5%): " + formatMoney(invoice.tax) + "\n"
+                    + "Tax (10%): " + formatMoney(invoice.tax) + "\n"
                     + "Total Amount: " + formatMoney(invoice.totalAmount()) + "\n\n"
                     + "Status: " + invoice.status + "\n"
                     + "Payment Method: " + invoice.paymentMethod + "\n";
@@ -685,6 +692,93 @@ public final class BillingPanel extends JPanel {
                     "Velora Billing",
                     JOptionPane.ERROR_MESSAGE
             );
+        }
+    }
+
+    private void loadRealCustomerInvoices() {
+        invoices.clear();
+
+        if (!Files.isDirectory(CUSTOMER_ACCOUNTS_DIR)) {
+            return;
+        }
+
+        try (var files = Files.list(CUSTOMER_ACCOUNTS_DIR)) {
+            files.filter(path -> path.getFileName().toString().endsWith(".tsv"))
+                    .sorted()
+                    .forEach(this::loadCustomerInvoicesFromFile);
+        } catch (IOException ignored) {
+            invoices.clear();
+        }
+    }
+
+    private void loadCustomerInvoicesFromFile(Path file) {
+        try {
+            for (String line : Files.readAllLines(file, StandardCharsets.UTF_8)) {
+                if (line == null || line.isBlank()) {
+                    continue;
+                }
+
+                String[] parts = line.split("\\t", -1);
+                if (parts.length < 11 || !"INVOICE".equals(parts[0])) {
+                    continue;
+                }
+
+                invoices.add(new Invoice(
+                        decode(parts[1]),
+                        decode(parts[2]),
+                        decode(parts[3]),
+                        parseInt(parts[4], 1),
+                        parseDouble(parts[5], 0),
+                        parseDouble(parts[6], 0),
+                        decode(parts[7]),
+                        decode(parts[8]),
+                        decode(parts[9]),
+                        decode(parts[10]),
+                        file
+                ));
+            }
+        } catch (IOException | IllegalArgumentException ignored) {
+            // Skip malformed customer files and continue loading the others.
+        }
+    }
+
+    private boolean saveCustomerInvoice(Invoice invoice) {
+        if (invoice == null || invoice.sourceFile == null || !Files.exists(invoice.sourceFile)) {
+            return false;
+        }
+
+        try {
+            List<String> lines = Files.readAllLines(invoice.sourceFile, StandardCharsets.UTF_8);
+            boolean updated = false;
+
+            for (int i = 0; i < lines.size(); i++) {
+                String line = lines.get(i);
+                if (line == null || line.isBlank()) {
+                    continue;
+                }
+
+                String[] parts = line.split("\\t", -1);
+                if (parts.length < 11 || !"INVOICE".equals(parts[0])) {
+                    continue;
+                }
+
+                if (invoice.invoiceId.equals(decode(parts[1]))) {
+                    parts[7] = encode(invoice.status);
+                    parts[8] = encode(invoice.paymentMethod);
+                    lines.set(i, String.join("\t", parts));
+                    updated = true;
+                    break;
+                }
+            }
+
+            if (!updated) {
+                return false;
+            }
+
+            Files.write(invoice.sourceFile, lines, StandardCharsets.UTF_8);
+            return true;
+        } catch (IOException | IllegalArgumentException ex) {
+            return false;
         }
     }
 
@@ -831,21 +925,30 @@ public final class BillingPanel extends JPanel {
         private String paymentMethod;
         private final String startDate;
         private final String endDate;
+        private final Path sourceFile;
 
         Invoice(String invoiceId, String customerName, String vehicleName, int rentalDays,
                 double baseAmount, double lateFee, String status, String paymentMethod,
                 String startDate, String endDate) {
+            this(invoiceId, customerName, vehicleName, rentalDays, baseAmount, lateFee,
+                    status, paymentMethod, startDate, endDate, null);
+        }
+
+        Invoice(String invoiceId, String customerName, String vehicleName, int rentalDays,
+                double baseAmount, double lateFee, String status, String paymentMethod,
+                String startDate, String endDate, Path sourceFile) {
             this.invoiceId = invoiceId;
             this.customerName = customerName;
             this.vehicleName = vehicleName;
             this.rentalDays = rentalDays;
             this.baseAmount = baseAmount;
             this.lateFee = lateFee;
-            this.tax = (baseAmount + lateFee) * 0.05;
+            this.tax = (baseAmount + lateFee) * 0.10;
             this.status = status;
             this.paymentMethod = paymentMethod;
             this.startDate = startDate;
             this.endDate = endDate;
+            this.sourceFile = sourceFile;
         }
 
         double totalAmount() {
@@ -1033,9 +1136,12 @@ public final class BillingPanel extends JPanel {
             downloadButton.setVisible(hasInvoice);
 
             if (hasInvoice) {
-                recordPaymentButton.setText("Paid".equals(invoice.status) ? "Payment Recorded" : "Record Payment");
-                recordPaymentButton.setEnabled(true);
-                recordPaymentButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                boolean alreadyPaid = "Paid".equals(invoice.status);
+                recordPaymentButton.setText(alreadyPaid ? "Payment Recorded" : "Record Payment");
+                recordPaymentButton.setEnabled(!alreadyPaid);
+                recordPaymentButton.setCursor(alreadyPaid
+                        ? Cursor.getDefaultCursor()
+                        : Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
                 downloadButton.setEnabled(true);
                 downloadButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             }
@@ -1106,7 +1212,7 @@ public final class BillingPanel extends JPanel {
             y += 27;
             drawMoneyRow(g, "Late Fee", invoice.lateFee, y, invoice.lateFee > 0);
             y += 27;
-            drawMoneyRow(g, "Tax (5%)", invoice.tax, y, false);
+            drawMoneyRow(g, "Tax (10%)", invoice.tax, y, false);
 
             int totalY = Math.min(y + 58, Math.max(y + 38, getHeight() - 148));
 

@@ -1,6 +1,7 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
+import com.velora.repository.RentalRepository;
 import com.velora.service.AuthenticationService;
 
 import javax.swing.*;
@@ -45,6 +46,8 @@ public final class ProfilePanel extends JPanel {
     private final Customer customer;
     private final Runnable openRentalsAction;
     private final AuthenticationService authenticationService = new AuthenticationService();
+    private final RentalRepository rentalRepository = new RentalRepository();
+    private final CustomerAccountState accountState;
 
     private JTextField nameField;
     private JTextField emailField;
@@ -53,6 +56,11 @@ public final class ProfilePanel extends JPanel {
     private JLabel activeRentalsValue;
     private JLabel loyaltyPointsValue;
     private JLabel totalSpentValue;
+    private JPanel recentRentalsList;
+    private JLabel membershipTierValue;
+    private JLabel membershipPointsValue;
+    private JLabel membershipProgressText;
+    private MembershipProgressBar membershipProgress;
 
     public ProfilePanel(Customer customer) {
         this(customer, null);
@@ -61,6 +69,7 @@ public final class ProfilePanel extends JPanel {
     public ProfilePanel(Customer customer, Runnable openRentalsAction) {
         this.customer = customer;
         this.openRentalsAction = openRentalsAction;
+        this.accountState = CustomerAccountState.forCustomer(customer);
 
         setOpaque(false);
         setLayout(new BorderLayout(0, 16));
@@ -68,6 +77,16 @@ public final class ProfilePanel extends JPanel {
 
         add(createHeader(), BorderLayout.NORTH);
         add(createBody(), BorderLayout.CENTER);
+
+        accountState.addChangeListener(this::refreshProfileData);
+        addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentShown(java.awt.event.ComponentEvent e) {
+                refreshProfileData();
+            }
+        });
+
+        SwingUtilities.invokeLater(this::refreshProfileData);
     }
 
     private JComponent createHeader() {
@@ -133,15 +152,27 @@ public final class ProfilePanel extends JPanel {
         stats.setPreferredSize(new Dimension(0, 84));
         stats.setMaximumSize(new Dimension(Integer.MAX_VALUE, 84));
 
-        stats.add(createStatCard("12", "Total Rentals", "Completed rental history"));
-        stats.add(createStatCard("2", "Active Rentals", "Currently ongoing"));
-        stats.add(createStatCard("2,450", "Loyalty Points", "Rewards balance"));
-        stats.add(createStatCard("$24,560", "Total Spent", "Lifetime spending"));
+        totalRentalsValue = createValueLabel("0");
+        activeRentalsValue = createValueLabel("0");
+        loyaltyPointsValue = createValueLabel("0");
+        totalSpentValue = createValueLabel("$0.00");
+
+        stats.add(createStatCard(totalRentalsValue, "Total Rentals", "Saved rental history"));
+        stats.add(createStatCard(activeRentalsValue, "Active Rentals", "Currently ongoing"));
+        stats.add(createStatCard(loyaltyPointsValue, "Loyalty Points", "Rewards balance"));
+        stats.add(createStatCard(totalSpentValue, "Total Spent", "Lifetime spending"));
 
         return stats;
     }
 
-    private JComponent createStatCard(String value, String title, String description) {
+    private JLabel createValueLabel(String value) {
+        JLabel valueLabel = new JLabel(value);
+        valueLabel.setFont(STAT_VALUE_FONT);
+        valueLabel.setForeground(GOLD_LIGHT);
+        return valueLabel;
+    }
+
+    private JComponent createStatCard(JLabel valueLabel, String title, String description) {
         LuxuryCard card = new LuxuryCard(18);
         card.setLayout(new BorderLayout(13, 0));
         card.setBorder(new EmptyBorder(11, 15, 11, 15));
@@ -154,10 +185,6 @@ public final class ProfilePanel extends JPanel {
         JLabel titleLabel = new JLabel(title);
         titleLabel.setFont(new Font(FONT_NAME, Font.BOLD, 12));
         titleLabel.setForeground(TEXT);
-
-        JLabel valueLabel = new JLabel(value);
-        valueLabel.setFont(STAT_VALUE_FONT);
-        valueLabel.setForeground(GOLD_LIGHT);
 
         JLabel descriptionLabel = new JLabel(description);
         descriptionLabel.setFont(SMALL_FONT);
@@ -426,19 +453,10 @@ public final class ProfilePanel extends JPanel {
         ));
 
         content.add(Box.createVerticalStrut(13));
-        content.add(createRentalItem(
-                "BMW X5 M Competition",
-                "Premium BMW Rental",
-                "Completed",
-                GREEN
-        ));
-        content.add(Box.createVerticalStrut(9));
-        content.add(createRentalItem(
-                "BMW i7 xDrive60",
-                "Premium BMW Rental",
-                "Active Rental",
-                GOLD_LIGHT
-        ));
+
+        recentRentalsList = createVerticalPanel();
+        recentRentalsList.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(recentRentalsList);
 
         card.add(content, BorderLayout.CENTER);
         return card;
@@ -532,30 +550,30 @@ public final class ProfilePanel extends JPanel {
         membershipContent.setBorder(new EmptyBorder(0, 55, 0, 0));
         membershipContent.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        JLabel member = new JLabel("GOLD MEMBER");
-        member.setFont(new Font(FONT_NAME, Font.BOLD, 18));
-        member.setForeground(GOLD_LIGHT);
+        membershipTierValue = new JLabel("BRONZE MEMBER");
+        membershipTierValue.setFont(new Font(FONT_NAME, Font.BOLD, 18));
+        membershipTierValue.setForeground(GOLD_LIGHT);
 
-        JLabel points = new JLabel("2,450 loyalty points");
-        points.setFont(BODY_FONT);
-        points.setForeground(TEXT);
+        membershipPointsValue = new JLabel("0 loyalty points");
+        membershipPointsValue.setFont(BODY_FONT);
+        membershipPointsValue.setForeground(TEXT);
 
-        membershipContent.add(member);
+        membershipContent.add(membershipTierValue);
         membershipContent.add(Box.createVerticalStrut(4));
-        membershipContent.add(points);
+        membershipContent.add(membershipPointsValue);
         membershipContent.add(Box.createVerticalStrut(10));
 
-        MembershipProgressBar progress = new MembershipProgressBar(2450, 5000);
-        progress.setPreferredSize(new Dimension(0, 8));
-        progress.setMaximumSize(new Dimension(Integer.MAX_VALUE, 8));
-        progress.setAlignmentX(Component.LEFT_ALIGNMENT);
-        membershipContent.add(progress);
+        membershipProgress = new MembershipProgressBar(0, 500);
+        membershipProgress.setPreferredSize(new Dimension(0, 8));
+        membershipProgress.setMaximumSize(new Dimension(Integer.MAX_VALUE, 8));
+        membershipProgress.setAlignmentX(Component.LEFT_ALIGNMENT);
+        membershipContent.add(membershipProgress);
         membershipContent.add(Box.createVerticalStrut(7));
 
-        JLabel progressText = new JLabel("2,550 more points to Platinum");
-        progressText.setFont(SMALL_FONT);
-        progressText.setForeground(MUTED);
-        membershipContent.add(progressText);
+        membershipProgressText = new JLabel("500 more points to Silver");
+        membershipProgressText.setFont(SMALL_FONT);
+        membershipProgressText.setForeground(MUTED);
+        membershipContent.add(membershipProgressText);
 
         content.add(membershipContent);
         card.add(content, BorderLayout.CENTER);
@@ -612,6 +630,141 @@ public final class ProfilePanel extends JPanel {
         holder.setAlignmentX(Component.LEFT_ALIGNMENT);
         holder.add(button);
         return holder;
+    }
+
+    private void refreshProfileData() {
+        java.util.List<RentalRepository.RentalRecord> rentals =
+                rentalRepository.findByCustomerEmail(customerEmail());
+
+        int totalRentals = rentals.size();
+        long activeRentals = rentals.stream()
+                .filter(rental -> "ACTIVE".equalsIgnoreCase(rental.status())
+                        || "OVERDUE".equalsIgnoreCase(rental.status()))
+                .count();
+
+        if (totalRentalsValue != null) {
+            totalRentalsValue.setText(String.valueOf(totalRentals));
+        }
+        if (activeRentalsValue != null) {
+            activeRentalsValue.setText(String.valueOf(activeRentals));
+        }
+        if (loyaltyPointsValue != null) {
+            loyaltyPointsValue.setText(String.format(java.util.Locale.US, "%,d", accountState.getLoyaltyPoints()));
+        }
+        if (totalSpentValue != null) {
+            totalSpentValue.setText(formatMoney(accountState.getTotalSpent()));
+        }
+
+        refreshRecentRentals(rentals);
+        refreshMembership();
+    }
+
+    private void refreshRecentRentals(java.util.List<RentalRepository.RentalRecord> rentals) {
+        if (recentRentalsList == null) {
+            return;
+        }
+
+        recentRentalsList.removeAll();
+
+        if (rentals == null || rentals.isEmpty()) {
+            JLabel empty = new JLabel("No rentals yet.");
+            empty.setFont(BODY_FONT);
+            empty.setForeground(MUTED);
+            recentRentalsList.add(empty);
+        } else {
+            int shown = 0;
+            for (int i = rentals.size() - 1; i >= 0 && shown < 2; i--) {
+                RentalRepository.RentalRecord rental = rentals.get(i);
+                String status = prettyRentalStatus(rental.status());
+                Color statusColor = rentalStatusColor(rental.status());
+
+                recentRentalsList.add(createRentalItem(
+                        rental.vehicleName(),
+                        rental.rentalDays() + " day(s) • " + formatMoney(rental.baseAmount()),
+                        status,
+                        statusColor
+                ));
+
+                shown++;
+                if (shown < 2 && i > 0) {
+                    recentRentalsList.add(Box.createVerticalStrut(9));
+                }
+            }
+        }
+
+        recentRentalsList.revalidate();
+        recentRentalsList.repaint();
+    }
+
+    private void refreshMembership() {
+        if (membershipTierValue == null || membershipPointsValue == null
+                || membershipProgressText == null || membershipProgress == null) {
+            return;
+        }
+
+        int points = accountState.getLoyaltyPoints();
+        String tier = accountState.getTierName();
+        int pointsToNext = accountState.getPointsToNextTier();
+        String nextTier = accountState.getNextTierName();
+
+        membershipTierValue.setText(tier.toUpperCase(java.util.Locale.ROOT) + " MEMBER");
+        membershipPointsValue.setText(String.format(java.util.Locale.US, "%,d loyalty points", points));
+
+        int maximum = nextTierThreshold(points);
+        membershipProgress.setProgress(points, maximum);
+
+        if (pointsToNext <= 0) {
+            membershipProgressText.setText("Highest membership tier reached");
+        } else {
+            membershipProgressText.setText(
+                    String.format(java.util.Locale.US, "%,d more points to %s", pointsToNext, nextTier)
+            );
+        }
+    }
+
+    private int nextTierThreshold(int points) {
+        if (points < 500) {
+            return 500;
+        }
+        if (points < 1500) {
+            return 1500;
+        }
+        if (points < 3000) {
+            return 3000;
+        }
+        return Math.max(3000, points);
+    }
+
+    private String prettyRentalStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return "Unknown";
+        }
+
+        return switch (status.toUpperCase(java.util.Locale.ROOT)) {
+            case "ACTIVE" -> "Active Rental";
+            case "COMPLETED" -> "Completed";
+            case "OVERDUE" -> "Overdue";
+            case "CANCELLED" -> "Cancelled";
+            default -> status.substring(0, 1).toUpperCase(java.util.Locale.ROOT)
+                    + status.substring(1).toLowerCase(java.util.Locale.ROOT);
+        };
+    }
+
+    private Color rentalStatusColor(String status) {
+        if (status == null) {
+            return MUTED;
+        }
+
+        return switch (status.toUpperCase(java.util.Locale.ROOT)) {
+            case "ACTIVE" -> GOLD_LIGHT;
+            case "COMPLETED" -> GREEN;
+            case "OVERDUE" -> new Color(235, 93, 98);
+            default -> MUTED;
+        };
+    }
+
+    private String formatMoney(double value) {
+        return "$" + String.format(java.util.Locale.US, "%,.2f", value);
     }
 
     private void saveProfile() {
@@ -1099,13 +1252,19 @@ public final class ProfilePanel extends JPanel {
     }
 
     private static final class MembershipProgressBar extends JComponent {
-        private final int value;
-        private final int maximum;
+        private int value;
+        private int maximum;
 
         MembershipProgressBar(int value, int maximum) {
-            this.value = value;
-            this.maximum = maximum;
+            this.value = Math.max(0, value);
+            this.maximum = Math.max(1, maximum);
             setOpaque(false);
+        }
+
+        void setProgress(int value, int maximum) {
+            this.value = Math.max(0, value);
+            this.maximum = Math.max(1, maximum);
+            repaint();
         }
 
         @Override

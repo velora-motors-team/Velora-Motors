@@ -6,7 +6,16 @@ import com.velora.service.AuthenticationService;
 import com.velora.service.VehicleService;
 import com.velora.vehicle.Vehicle;
 import com.velora.vehicle.VehicleStatus;
+import static com.velora.vehicle.VehicleStatus.AVAILABLE;
+import static com.velora.vehicle.VehicleStatus.MAINTENANCE;
+import static com.velora.vehicle.VehicleStatus.RENTED;
 import com.velora.vehicle.VehicleType;
+import static com.velora.vehicle.VehicleType.ELECTRIC_BIKE;
+import static com.velora.vehicle.VehicleType.ELECTRIC_VEHICLE;
+import static com.velora.vehicle.VehicleType.HYBRID_CAR;
+import static com.velora.vehicle.VehicleType.MOTORCYCLE;
+import static com.velora.vehicle.VehicleType.SUV;
+import static com.velora.vehicle.VehicleType.TRUCK;
 
 import javax.imageio.ImageIO;
 import javax.swing.BorderFactory;
@@ -93,6 +102,7 @@ public final class ManagerDashboard extends JFrame {
     private BillingPanel billingPanel;
     private AnalyticsPanel analyticsPanel;
     private AdminSupportInboxPanel adminSupportInboxPanel;
+    private RentalReturnPanel rentalReturnPanel;
 
     private JPanel sidebar;
     private JTextField searchField;
@@ -160,7 +170,8 @@ public final class ManagerDashboard extends JFrame {
 
     contentCards.add(createDashboardPage(), "Dashboard");
     contentCards.add(wrapPage(createVehiclesPage()), "Vehicles");
-    contentCards.add(wrapPage(new RentalReturnPanel(manager)), "Rentals");
+    rentalReturnPanel = new RentalReturnPanel(manager);
+    contentCards.add(wrapPage(rentalReturnPanel), "Rentals");
     contentCards.add(wrapPage(createCustomersPage()), "Customers");
     billingPanel = new BillingPanel(manager);
     contentCards.add(wrapPage(billingPanel), "Billing");
@@ -833,7 +844,7 @@ page.add(Box.createVerticalGlue());
 
         vehicleSorter.setRowFilter(new RowFilter<>() {
             @Override
-            public boolean include(Entry<? extends DefaultTableModel, ? extends Integer> entry) {
+            public boolean include(RowFilter.Entry<? extends DefaultTableModel, ? extends Integer> entry) {
                 Vehicle vehicle = vehicleById(String.valueOf(entry.getValue(0)));
                 if (vehicle == null) {
                     return false;
@@ -1565,6 +1576,8 @@ page.add(Box.createVerticalGlue());
         } else if ("Customers".equals(section)) {
             loadCustomerTable();
             filterVisibleTable();
+        } else if ("Rentals".equals(section) && rentalReturnPanel != null) {
+            rentalReturnPanel.refreshData();
         } else if ("Billing".equals(section) && billingPanel != null) {
             billingPanel.refreshData();
         } else if ("Analytics".equals(section) && analyticsPanel != null) {

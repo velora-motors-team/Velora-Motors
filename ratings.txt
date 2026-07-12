@@ -1,3 +1,4 @@
 # Velora Motors ratings v1
 # email	fullName	rating	comment	createdAt
 velora.e2e.customer%40velora.com	Velora+E2E+Customer	5	BMW+XM+Label+%7C+End-to-end+customer+rating+from+the+full+binding+check.	2026-07-11T10%3A06%3A10.098928700
+nassar%40gmail.com	Nassar	5	BMW+X7+M60i+%7C+The+car+is+very+nice	2026-07-11T14%3A38%3A04.777845400

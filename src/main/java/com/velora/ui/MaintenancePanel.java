@@ -69,10 +69,7 @@ public final class MaintenancePanel extends JPanel {
         setOpaque(false);
         setLayout(new BorderLayout());
         setBorder(new EmptyBorder(8, 12, 18, 22));
-        if (!loadSavedJobs()) {
-            loadDemoJobs();
-            saveJobs();
-        }
+        loadSavedJobs();
         filteredJobs.addAll(jobs);
         add(createContent(), BorderLayout.CENTER);
         refreshAll();
@@ -293,6 +290,14 @@ public final class MaintenancePanel extends JPanel {
         applyFilters();
     }
 
+    public void refreshData() {
+        jobs.clear();
+        loadSavedJobs();
+        filteredJobs.clear();
+        filteredJobs.addAll(jobs);
+        refreshAll();
+    }
+
     private void refreshMetrics() {
         totalJobsValue.setText(String.valueOf(jobs.size()));
         long inService = jobs.stream().filter(j -> j.status.equals("In Service")).count();
@@ -361,10 +366,25 @@ public final class MaintenancePanel extends JPanel {
     }
 
     private void scheduleService() {
-        JTextField vehicleField = new JTextField(vehicleService.getAllVehicles().isEmpty()
-                ? "BMW Vehicle"
-                : FleetUiData.displayName(vehicleService.getAllVehicles().get(0)));
-        JTextField technicianField = new JTextField("Adam Miller");
+        List<Vehicle> fleet = vehicleService.getAllVehicles();
+
+        if (fleet.isEmpty()) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "No vehicles are available in the fleet.",
+                    "Velora Maintenance",
+                    JOptionPane.WARNING_MESSAGE
+            );
+            return;
+        }
+
+        JComboBox<String> vehicleBox = new JComboBox<>(
+                fleet.stream()
+                        .map(FleetUiData::displayName)
+                        .toArray(String[]::new)
+        );
+
+        JTextField technicianField = new JTextField();
         JTextField costField = new JTextField("250");
         JTextField notesField = new JTextField("General service check");
         DarkComboButton typeBox = new DarkComboButton("Oil Service", "Battery Check", "Brake Inspection", "Tire Service", "Full Inspection");
@@ -373,7 +393,7 @@ public final class MaintenancePanel extends JPanel {
 
         JPanel form = new JPanel(new GridLayout(7, 2, 8, 8));
         form.setBorder(new EmptyBorder(12, 12, 12, 12));
-        form.add(new JLabel("Vehicle")); form.add(vehicleField);
+        form.add(new JLabel("Vehicle")); form.add(vehicleBox);
         form.add(new JLabel("Service Type")); form.add(typeBox);
         form.add(new JLabel("Technician")); form.add(technicianField);
         form.add(new JLabel("Priority")); form.add(priorityBox);
@@ -385,17 +405,30 @@ public final class MaintenancePanel extends JPanel {
         if (choice != JOptionPane.OK_OPTION) return;
 
         try {
-            String vehicle = vehicleField.getText().trim();
+            String vehicle = String.valueOf(vehicleBox.getSelectedItem()).trim();
             String technician = technicianField.getText().trim();
             String notes = notesField.getText().trim();
             double cost = Double.parseDouble(costField.getText().trim());
             if (vehicle.isBlank() || technician.isBlank()) throw new IllegalArgumentException("Vehicle and technician are required.");
             if (cost < 0) throw new IllegalArgumentException("Cost cannot be negative.");
 
-            int next = jobs.size() + 1;
+            int next = jobs.stream()
+                    .map(job -> job.serviceId)
+                    .filter(id -> id != null && id.startsWith("SRV-"))
+                    .map(id -> id.substring(4))
+                    .mapToInt(value -> {
+                        try {
+                            return Integer.parseInt(value);
+                        } catch (NumberFormatException ex) {
+                            return 1000;
+                        }
+                    })
+                    .max()
+                    .orElse(1000) + 1;
+
             DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd MMM yyyy hh:mm a", Locale.ENGLISH);
             ServiceJob job = new ServiceJob(
-                    "SRV-" + String.format("%04d", 1000 + next),
+                    "SRV-" + String.format("%04d", next),
                     vehicle,
                     typeBox.getSelectedValue(),
                     technician,
@@ -537,39 +570,6 @@ public final class MaintenancePanel extends JPanel {
             return Double.parseDouble(value);
         } catch (NumberFormatException ex) {
             return fallback;
-        }
-    }
-
-    private void loadDemoJobs() {
-        jobs.clear();
-
-        String[] technicians = {
-                "Adam Miller", "Lucas Smith", "Noah Brown", "James Wilson", "Michael Stone",
-                "Daniel White", "Olivia Martin", "Ethan Davis"
-        };
-        String[] priorities = {"Medium", "High", "Low", "Medium", "High"};
-        String[] statuses = {"Completed", "In Service", "Due Soon", "Scheduled", "Delayed", "Scheduled"};
-
-        List<Vehicle> vehicles = vehicleService.getAllVehicles();
-        for (int i = 0; i < vehicles.size(); i++) {
-            Vehicle vehicle = vehicles.get(i);
-            String serviceType = FleetUiData.serviceType(vehicle, i);
-            String notes = serviceType.equals("Battery Check")
-                    ? "Battery diagnostic and charging system test."
-                    : serviceType.equals("Full Inspection")
-                    ? "Premium inspection for rental readiness."
-                    : serviceType + " scheduled for fleet readiness.";
-            jobs.add(new ServiceJob(
-                    "SRV-" + String.format("%04d", 1001 + i),
-                    FleetUiData.displayName(vehicle),
-                    serviceType,
-                    technicians[i % technicians.length],
-                    String.format("%02d Jul 2026 %02d:00 AM", 7 + (i % 14), 9 + (i % 3)),
-                    priorities[i % priorities.length],
-                    statuses[i % statuses.length],
-                    Math.max(90, vehicle.getDailyPrice() * (0.55 + (i % 4) * 0.18)),
-                    notes
-            ));
         }
     }
 

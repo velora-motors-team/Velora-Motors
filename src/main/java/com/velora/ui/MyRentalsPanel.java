@@ -1,13 +1,28 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
-
+import com.velora.repository.RentalRepository;
+import com.velora.service.RentalDatabaseService;
+import com.velora.service.VehicleService;
+import com.velora.strategy.LateFeeContext;
+import com.velora.strategy.LateFeeStrategy;
+import com.velora.strategy.LateFeeStrategyFactory;
+import com.velora.vehicle.Vehicle;
+import com.velora.vehicle.VehicleStatus;
+import java.time.Duration;
+import javax.swing.plaf.basic.BasicScrollBarUI;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 
 public final class MyRentalsPanel extends JPanel {
@@ -26,9 +41,25 @@ public final class MyRentalsPanel extends JPanel {
     private static final Color GREEN = new Color(86, 207, 114);
     private static final Color RED = new Color(235, 93, 98);
     private static final Color ORANGE = new Color(242, 174, 73);
+    private static final Duration GRACE_PERIOD = Duration.ofMinutes(30);
+    
+    private JLabel nextReturnValue;
+private JLabel nextReturnVehicle;
+
+private JLabel paymentStatusValue;
+private JLabel paymentStatusDescription;
+
+private JLabel onTimeRateValue;
+private JLabel onTimeRateDescription;
 
     private final Customer customer;
     private final CustomerAccountState accountState;
+    private final RentalRepository rentalRepository = new RentalRepository();
+    private final RentalDatabaseService rentalDatabaseService = new RentalDatabaseService();
+    private final VehicleService vehicleService = new VehicleService();
+    private final LateFeeContext lateFeeContext = new LateFeeContext();
+    private final Timer countdownTimer;
+    private boolean refreshInProgress;
     private JLabel activeRentalsValue;
     private JLabel completedRentalsValue;
     private JLabel currentCostValue;
@@ -55,8 +86,30 @@ public final class MyRentalsPanel extends JPanel {
 
         add(createHeader(), BorderLayout.NORTH);
         add(createBody(), BorderLayout.CENTER);
+
         accountState.addChangeListener(this::refreshRentals);
+
+        countdownTimer = new Timer(1000, e -> refreshRentals());
+        countdownTimer.setInitialDelay(1000);
+        countdownTimer.start();
+
         refreshRentals();
+    }
+
+    @Override
+    public void addNotify() {
+        super.addNotify();
+        if (countdownTimer != null && !countdownTimer.isRunning()) {
+            countdownTimer.start();
+        }
+    }
+
+    @Override
+    public void removeNotify() {
+        if (countdownTimer != null) {
+            countdownTimer.stop();
+        }
+        super.removeNotify();
     }
 
     /* =========================================================
@@ -273,14 +326,14 @@ public final class MyRentalsPanel extends JPanel {
         rentalsArea.setPreferredSize(
                 new Dimension(
                         10,
-                        390
+                        430
                 )
         );
 
         rentalsArea.setMaximumSize(
                 new Dimension(
                         Integer.MAX_VALUE,
-                        390
+                        430
                 )
         );
 
@@ -475,84 +528,51 @@ public final class MyRentalsPanel extends JPanel {
 
     private JComponent createActiveRentalCard() {
 
-        RoundedPanel card =
-                new RoundedPanel(
-                        16,
-                        CARD
-                );
+    RoundedPanel card = new RoundedPanel(16, CARD);
+    card.setLayout(new BorderLayout());
+    card.setBorder(new EmptyBorder(18, 18, 18, 10));
 
-        card.setLayout(
-                new BorderLayout()
-        );
+    activeRentalsList = new JPanel();
+    activeRentalsList.setOpaque(false);
 
-        card.setBorder(
-                new EmptyBorder(
-                        18,
-                        18,
-                        18,
-                        18
-                )
-        );
+    activeRentalsList.setLayout(
+            new BoxLayout(
+                    activeRentalsList,
+                    BoxLayout.Y_AXIS
+            )
+    );
 
-        JPanel content = new JPanel();
-        content.setOpaque(false);
+    JScrollPane scrollPane = new JScrollPane(activeRentalsList);
 
-        content.setLayout(
-                new BoxLayout(
-                        content,
-                        BoxLayout.Y_AXIS
-                )
-        );
+    scrollPane.setOpaque(false);
+    scrollPane.getViewport().setOpaque(false);
 
-        content.add(
-                sectionHeader(
-                        "Active Rentals",
-                        "2 ongoing",
-                        GREEN
-                )
-        );
+    scrollPane.setBorder(
+            BorderFactory.createEmptyBorder()
+    );
 
-        content.add(
-                Box.createVerticalStrut(12)
-        );
+    scrollPane.setHorizontalScrollBarPolicy(
+            JScrollPane.HORIZONTAL_SCROLLBAR_NEVER
+    );
 
-        content.add(
-                rentalRow(
-                        "BMW X7 xDrive40i",
-                        "Return: 09 Jul 2026",
-                        "$475",
-                        "Active",
-                        GREEN,
-                        "BMW"
-                )
-        );
+    scrollPane.setVerticalScrollBarPolicy(
+            JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED
+    );
 
-        content.add(
-                Box.createVerticalStrut(12)
-        );
+    scrollPane.getVerticalScrollBar().setUnitIncrement(18);
 
-        content.add(
-                rentalRow(
-                        "Xiaomi Electric Bike Pro",
-                        "Return: Today 08:00 PM",
-                        "$36",
-                        "Due Today",
-                        ORANGE,
-                        "E-BIKE"
-                )
-        );
+    scrollPane.getVerticalScrollBar().setPreferredSize(
+            new Dimension(7, 0)
+    );
 
-        content.add(
-                Box.createVerticalGlue()
-        );
+    scrollPane.getVerticalScrollBar().setUI(
+            new LuxuryScrollBarUI()
+    );
 
-        card.add(
-                content,
-                BorderLayout.CENTER
-        );
+    card.add(scrollPane, BorderLayout.CENTER);
 
-        return card;
-    }
+    return card;
+}
 
     /* =========================================================
        RENTAL HISTORY
@@ -560,97 +580,15 @@ public final class MyRentalsPanel extends JPanel {
 
     private JComponent createHistoryCard() {
 
-        RoundedPanel card =
-                new RoundedPanel(
-                        16,
-                        CARD
-                );
+        RoundedPanel card = new RoundedPanel(16, CARD);
+        card.setLayout(new BorderLayout());
+        card.setBorder(new EmptyBorder(18, 18, 18, 18));
 
-        card.setLayout(
-                new BorderLayout()
-        );
+        historyList = new JPanel();
+        historyList.setOpaque(false);
+        historyList.setLayout(new BoxLayout(historyList, BoxLayout.Y_AXIS));
 
-        card.setBorder(
-                new EmptyBorder(
-                        18,
-                        18,
-                        18,
-                        18
-                )
-        );
-
-        JPanel content = new JPanel();
-        content.setOpaque(false);
-
-        content.setLayout(
-                new BoxLayout(
-                        content,
-                        BoxLayout.Y_AXIS
-                )
-        );
-
-        content.add(
-                sectionHeader(
-                        "Rental History",
-                        "5 completed",
-                        GOLD
-                )
-        );
-
-        content.add(
-                Box.createVerticalStrut(12)
-        );
-
-        content.add(
-                rentalRow(
-                        "Toyota Prius Hybrid",
-                        "Completed: 01 Jul 2026",
-                        "$180",
-                        "Returned",
-                        GREEN,
-                        "HYBRID"
-                )
-        );
-
-        content.add(
-                Box.createVerticalStrut(12)
-        );
-
-        content.add(
-                rentalRow(
-                        "Yamaha MT-07",
-                        "Completed: 28 Jun 2026",
-                        "$126",
-                        "Returned",
-                        GREEN,
-                        "MOTO"
-                )
-        );
-
-        content.add(
-                Box.createVerticalStrut(12)
-        );
-
-        content.add(
-                rentalRow(
-                        "Tesla Model 3",
-                        "Completed: 20 Jun 2026",
-                        "$320",
-                        "Returned Late",
-                        RED,
-                        "EV"
-                )
-        );
-
-        content.add(
-                Box.createVerticalGlue()
-        );
-
-        card.add(
-                content,
-                BorderLayout.CENTER
-        );
-
+        card.add(historyList, BorderLayout.CENTER);
         return card;
     }
 
@@ -952,169 +890,250 @@ public final class MyRentalsPanel extends JPanel {
 
     private JComponent createInsightsSection() {
 
-        RoundedPanel shell =
-                new RoundedPanel(
-                        16,
-                        new Color(
-                                6,
-                                13,
-                                20
-                        )
-                );
+    RoundedPanel shell =
+            new RoundedPanel(
+                    16,
+                    new Color(6, 13, 20)
+            );
 
-        shell.setLayout(
-                new BorderLayout(
-                        24,
-                        0
-                )
-        );
+    shell.setLayout(
+            new BorderLayout(24, 0)
+    );
 
-        shell.setBorder(
-                new EmptyBorder(
-                        14,
-                        18,
-                        14,
-                        18
-                )
-        );
+    shell.setBorder(
+            new EmptyBorder(14, 18, 14, 18)
+    );
 
-        shell.setPreferredSize(
-                new Dimension(
-                        10,
-                        118
-                )
-        );
+    shell.setPreferredSize(
+            new Dimension(10, 118)
+    );
 
-        shell.setMaximumSize(
-                new Dimension(
-                        Integer.MAX_VALUE,
-                        118
-                )
-        );
+    shell.setMaximumSize(
+            new Dimension(Integer.MAX_VALUE, 118)
+    );
 
-        JPanel titleArea = new JPanel();
-        titleArea.setOpaque(false);
+    JPanel titleArea = new JPanel();
+    titleArea.setOpaque(false);
 
-        titleArea.setLayout(
-                new BoxLayout(
-                        titleArea,
-                        BoxLayout.Y_AXIS
-                )
-        );
+    titleArea.setLayout(
+            new BoxLayout(
+                    titleArea,
+                    BoxLayout.Y_AXIS
+            )
+    );
 
-        titleArea.setPreferredSize(
-                new Dimension(
-                        220,
-                        82
-                )
-        );
+    titleArea.setPreferredSize(
+            new Dimension(220, 82)
+    );
 
-        JLabel eyebrow = label(
-                "RENTAL INSIGHTS",
-                11,
-                Font.BOLD,
-                GOLD
-        );
+    JLabel eyebrow = label(
+            "RENTAL INSIGHTS",
+            11,
+            Font.BOLD,
+            GOLD
+    );
 
-        JLabel title = label(
-                "Your rental snapshot",
-                18,
-                Font.BOLD,
-                TEXT
-        );
+    JLabel title = label(
+            "Your rental snapshot",
+            18,
+            Font.BOLD,
+            TEXT
+    );
 
-        JLabel sub = label(
-                "Quick status at a glance",
-                11,
-                Font.PLAIN,
-                MUTED
-        );
+    JLabel sub = label(
+            "Quick status at a glance",
+            11,
+            Font.PLAIN,
+            MUTED
+    );
 
-        eyebrow.setAlignmentX(
-                Component.LEFT_ALIGNMENT
-        );
+    eyebrow.setAlignmentX(Component.LEFT_ALIGNMENT);
+    title.setAlignmentX(Component.LEFT_ALIGNMENT);
+    sub.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        title.setAlignmentX(
-                Component.LEFT_ALIGNMENT
-        );
+    titleArea.add(Box.createVerticalGlue());
+    titleArea.add(eyebrow);
+    titleArea.add(Box.createVerticalStrut(4));
+    titleArea.add(title);
+    titleArea.add(Box.createVerticalStrut(4));
+    titleArea.add(sub);
+    titleArea.add(Box.createVerticalGlue());
 
-        sub.setAlignmentX(
-                Component.LEFT_ALIGNMENT
-        );
 
-        titleArea.add(
-                Box.createVerticalGlue()
-        );
+    /*
+     * Dynamic labels
+     */
 
-        titleArea.add(eyebrow);
+    nextReturnValue = label(
+            "No active rentals",
+            17,
+            Font.BOLD,
+            TEXT
+    );
 
-        titleArea.add(
-                Box.createVerticalStrut(4)
-        );
+    nextReturnVehicle = label(
+            "Nothing scheduled",
+            10,
+            Font.PLAIN,
+            MUTED
+    );
 
-        titleArea.add(title);
 
-        titleArea.add(
-                Box.createVerticalStrut(4)
-        );
+    paymentStatusValue = label(
+            "-",
+            17,
+            Font.BOLD,
+            TEXT
+    );
 
-        titleArea.add(sub);
+    paymentStatusDescription = label(
+            "No payment data",
+            10,
+            Font.PLAIN,
+            MUTED
+    );
 
-        titleArea.add(
-                Box.createVerticalGlue()
-        );
 
-        JPanel metrics = new JPanel(
-                new GridLayout(
-                        1,
-                        3,
-                        16,
-                        0
-                )
-        );
+    onTimeRateValue = label(
+            "-",
+            17,
+            Font.BOLD,
+            TEXT
+    );
 
-        metrics.setOpaque(false);
+    onTimeRateDescription = label(
+            "No completed rentals yet",
+            10,
+            Font.PLAIN,
+            MUTED
+    );
 
-        metrics.add(
-                insightCard(
-                        "Today, 08:00 PM",
-                        "Next Return",
-                        "Xiaomi Electric Bike Pro",
-                        ORANGE
-                )
-        );
 
-        metrics.add(
-                insightCard(
-                        "Paid",
-                        "Payment Status",
-                        "All current fees covered",
-                        GREEN
-                )
-        );
+    JPanel metrics = new JPanel(
+            new GridLayout(1, 3, 16, 0)
+    );
 
-        metrics.add(
-                insightCard(
-                        "92%",
-                        "On-time Return Rate",
-                        "Excellent rental record",
-                        GOLD
-                )
-        );
+    metrics.setOpaque(false);
 
-        shell.add(
-                titleArea,
-                BorderLayout.WEST
-        );
 
-        shell.add(
-                metrics,
-                BorderLayout.CENTER
-        );
+    metrics.add(
+            dynamicInsightCard(
+                    nextReturnValue,
+                    "Next Return",
+                    nextReturnVehicle,
+                    ORANGE
+            )
+    );
 
-        return shell;
-    }
 
+    metrics.add(
+            dynamicInsightCard(
+                    paymentStatusValue,
+                    "Payment Status",
+                    paymentStatusDescription,
+                    GREEN
+            )
+    );
+
+
+    metrics.add(
+            dynamicInsightCard(
+                    onTimeRateValue,
+                    "On-time Return Rate",
+                    onTimeRateDescription,
+                    GOLD
+            )
+    );
+
+
+    shell.add(
+            titleArea,
+            BorderLayout.WEST
+    );
+
+    shell.add(
+            metrics,
+            BorderLayout.CENTER
+    );
+
+    return shell;
+}
+
+    private JComponent dynamicInsightCard(
+        JLabel valueLabel,
+        String title,
+        JLabel descriptionLabel,
+        Color accent
+) {
+
+    RoundedPanel card =
+            new RoundedPanel(
+                    14,
+                    CARD_DARK
+            );
+
+    card.setLayout(
+            new BorderLayout(12, 0)
+    );
+
+    card.setBorder(
+            new EmptyBorder(
+                    12,
+                    14,
+                    12,
+                    14
+            )
+    );
+
+    AccentDot dot =
+            new AccentDot(accent);
+
+    dot.setPreferredSize(
+            new Dimension(14, 14)
+    );
+
+    JPanel text = new JPanel();
+    text.setOpaque(false);
+
+    text.setLayout(
+            new BoxLayout(
+                    text,
+                    BoxLayout.Y_AXIS
+            )
+    );
+
+    JLabel titleLabel = label(
+            title,
+            11,
+            Font.BOLD,
+            MUTED
+    );
+
+    titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+    valueLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+    descriptionLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+    text.add(Box.createVerticalGlue());
+    text.add(titleLabel);
+    text.add(Box.createVerticalStrut(4));
+    text.add(valueLabel);
+    text.add(Box.createVerticalStrut(4));
+    text.add(descriptionLabel);
+    text.add(Box.createVerticalGlue());
+
+    card.add(
+            dot,
+            BorderLayout.WEST
+    );
+
+    card.add(
+            text,
+            BorderLayout.CENTER
+    );
+
+    return card;
+}
+        
     private JComponent insightCard(
             String value,
             String title,
@@ -1242,49 +1261,815 @@ public final class MyRentalsPanel extends JPanel {
         );
     }
 
+    public void refreshData() {
+        refreshRentals();
+    }
+
     private void refreshRentals() {
+
+        if (refreshInProgress) {
+            return;
+        }
 
         if (activeRentalsValue == null
                 || completedRentalsValue == null
                 || currentCostValue == null
-                || lateReturnsValue == null) {
+                || lateReturnsValue == null
+                || activeRentalsList == null
+                || historyList == null) {
             return;
         }
 
-        activeRentalsValue.setText(
-                String.format(
-                        Locale.US,
-                        "%,d",
-                        accountState.getActiveRentals()
-                )
+        refreshInProgress = true;
+
+        try {
+            processRentalTimingUpdates();
+
+            List<RentalRepository.RentalRecord> rentals = customer == null
+                    ? List.of()
+                    : rentalRepository.findByCustomerEmail(customer.getEmail()).stream()
+                            .sorted(Comparator.comparing(
+                                    RentalRepository.RentalRecord::startDateTime,
+                                    Comparator.reverseOrder()
+                            ))
+                            .toList();
+
+            List<RentalRepository.RentalRecord> active = rentals.stream()
+                    .filter(this::isActiveRental)
+                    .toList();
+
+            List<RentalRepository.RentalRecord> history = rentals.stream()
+                    .filter(r -> !isActiveRental(r))
+                    .toList();
+
+            long lateCount = rentals.stream()
+                    .filter(r -> r.lateFee() > 0
+                            || "OVERDUE".equalsIgnoreCase(r.status())
+                            || "LATE".equalsIgnoreCase(r.status()))
+                    .count();
+
+            double currentCost = active.stream()
+                    .mapToDouble(r -> r.baseAmount() + r.lateFee())
+                    .sum();
+
+            activeRentalsValue.setText(String.format(Locale.US, "%,d", active.size()));
+            completedRentalsValue.setText(String.format(Locale.US, "%,d", history.size()));
+            currentCostValue.setText(String.format(Locale.US, "$%,.0f", currentCost));
+            lateReturnsValue.setText(String.format(Locale.US, "%,d", lateCount));
+
+            rebuildRentalList(activeRentalsList, "Active Rentals", active, true, GREEN);
+            rebuildRentalList(historyList, "Rental History", history, false, GOLD);
+            refreshInsights(rentals, active);
+
+            revalidate();
+            repaint();
+        } finally {
+            refreshInProgress = false;
+        }
+    }
+    
+    private void refreshInsights(
+        List<RentalRepository.RentalRecord> allRentals,
+        List<RentalRepository.RentalRecord> activeRentals
+) {
+
+    if (nextReturnValue == null
+            || nextReturnVehicle == null
+            || paymentStatusValue == null
+            || paymentStatusDescription == null
+            || onTimeRateValue == null
+            || onTimeRateDescription == null) {
+        return;
+    }
+
+
+    /*
+     * =========================================
+     * NEXT RETURN
+     * =========================================
+     */
+
+    RentalRepository.RentalRecord nearestRental =
+            activeRentals.stream()
+                    .filter(r ->
+                            parseRentalDateTime(
+                                    r.expectedReturnDateTime()
+                            ) != null
+                    )
+                    .min(
+                            Comparator.comparing(
+                                    r -> parseRentalDateTime(
+                                            r.expectedReturnDateTime()
+                                    )
+                            )
+                    )
+                    .orElse(null);
+
+
+    if (nearestRental == null) {
+
+        nextReturnValue.setText(
+                "No active rentals"
         );
 
-        int completedRentals = Math.max(
-                0,
-                accountState.getTotalRentals()
-                        - accountState.getActiveRentals()
+        nextReturnValue.setForeground(MUTED);
+
+        nextReturnVehicle.setText(
+                "Nothing scheduled"
         );
 
-        completedRentalsValue.setText(
-                String.format(
-                        Locale.US,
-                        "%,d",
-                        completedRentals
-                )
+    } else {
+
+        LocalDateTime expectedReturn =
+                parseRentalDateTime(
+                        nearestRental.expectedReturnDateTime()
+                );
+
+        LocalDateTime now =
+                LocalDateTime.now();
+
+
+        if (expectedReturn != null
+                && expectedReturn.isBefore(now)) {
+
+            Duration overdue =
+                    Duration.between(
+                            expectedReturn,
+                            now
+                    );
+
+            nextReturnValue.setText(
+                    "Overdue by "
+                            + formatShortDuration(overdue)
+            );
+
+            nextReturnValue.setForeground(RED);
+
+        } else if (expectedReturn != null) {
+
+            nextReturnValue.setText(
+                    expectedReturn.format(
+                            DateTimeFormatter.ofPattern(
+                                    "dd MMM, hh:mm a",
+                                    Locale.ENGLISH
+                            )
+                    )
+            );
+
+            nextReturnValue.setForeground(TEXT);
+        }
+
+
+        nextReturnVehicle.setText(
+                nearestRental.vehicleName()
+        );
+    }
+
+
+    /*
+     * =========================================
+     * PAYMENT STATUS
+     * =========================================
+     */
+
+    if (activeRentals.isEmpty()) {
+
+        paymentStatusValue.setText(
+                "No Active Rentals"
         );
 
-        currentCostValue.setText(
-                String.format(
-                        Locale.US,
-                        "$%,.0f",
-                        accountState.getTotalSpent()
-                )
+        paymentStatusValue.setForeground(MUTED);
+
+        paymentStatusDescription.setText(
+                "No current payment required"
         );
 
-        lateReturnsValue.setText("0");
+    } else {
 
-        revalidate();
-        repaint();
+        boolean allPaid =
+                activeRentals.stream()
+                        .allMatch(
+                                r -> "PAID".equalsIgnoreCase(
+                                        r.paymentStatus()
+                                )
+                        );
+
+
+        if (allPaid) {
+
+            paymentStatusValue.setText(
+                    "Paid"
+            );
+
+            paymentStatusValue.setForeground(GREEN);
+
+            paymentStatusDescription.setText(
+                    "All current rental fees covered"
+            );
+
+        } else {
+
+            paymentStatusValue.setText(
+                    "Payment Due"
+            );
+
+            paymentStatusValue.setForeground(ORANGE);
+
+            paymentStatusDescription.setText(
+                    "One or more payments require attention"
+            );
+        }
+    }
+
+
+    /*
+     * =========================================
+     * ON-TIME RETURN RATE
+     * =========================================
+     */
+
+    List<RentalRepository.RentalRecord> completedRentals =
+            allRentals.stream()
+                    .filter(this::isCompletedRental)
+                    .toList();
+
+
+    if (completedRentals.isEmpty()) {
+
+        onTimeRateValue.setText("-");
+
+        onTimeRateValue.setForeground(MUTED);
+
+        onTimeRateDescription.setText(
+                "No completed rentals yet"
+        );
+
+    } else {
+
+        long onTimeReturns =
+                completedRentals.stream()
+                        .filter(r ->
+                                r.lateFee() <= 0.001
+                        )
+                        .count();
+
+
+        int rate =
+                (int) Math.round(
+                        onTimeReturns
+                                * 100.0
+                                / completedRentals.size()
+                );
+
+
+        onTimeRateValue.setText(
+                rate + "%"
+        );
+
+
+        if (rate >= 90) {
+
+            onTimeRateValue.setForeground(GREEN);
+
+            onTimeRateDescription.setText(
+                    "Excellent rental record"
+            );
+
+        } else if (rate >= 70) {
+
+            onTimeRateValue.setForeground(GOLD);
+
+            onTimeRateDescription.setText(
+                    "Good rental record"
+            );
+
+        } else {
+
+            onTimeRateValue.setForeground(RED);
+
+            onTimeRateDescription.setText(
+                    "Return timing needs improvement"
+            );
+        }
+    }
+}
+    
+    private LocalDateTime parseRentalDateTime(String value) {
+
+    if (value == null || value.isBlank()) {
+        return null;
+    }
+
+    try {
+        return LocalDateTime.parse(value);
+    } catch (DateTimeParseException ex) {
+        return null;
+    }
+}
+    
+    private boolean isCompletedRental(
+        RentalRepository.RentalRecord rental
+) {
+
+    if (rental == null
+            || rental.status() == null) {
+        return false;
+    }
+
+    String status =
+            rental.status()
+                    .trim()
+                    .toUpperCase(Locale.ROOT);
+
+    return "RETURNED".equals(status)
+            || "COMPLETED".equals(status);
+}
+    
+    private String formatShortDuration(Duration duration) {
+
+    if (duration == null
+            || duration.isNegative()
+            || duration.isZero()) {
+        return "0m";
+    }
+
+    long totalMinutes =
+            duration.toMinutes();
+
+    long days =
+            totalMinutes / (24 * 60);
+
+    long hours =
+            (totalMinutes % (24 * 60)) / 60;
+
+    long minutes =
+            totalMinutes % 60;
+
+
+    if (days > 0) {
+        return days + "d " + hours + "h";
+    }
+
+    if (hours > 0) {
+        return hours + "h " + minutes + "m";
+    }
+
+    return minutes + "m";
+}
+
+    private void processRentalTimingUpdates() {
+        if (customer == null) {
+            return;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        for (RentalRepository.RentalRecord rental
+                : rentalRepository.findByCustomerEmail(customer.getEmail())) {
+
+            if (!isActiveRental(rental)) {
+                continue;
+            }
+
+            LocalDateTime expectedReturn = parseDateTime(rental.expectedReturnDateTime());
+
+            if (expectedReturn == null || now.isBefore(expectedReturn)) {
+                continue;
+            }
+
+            LocalDateTime graceEndsAt = expectedReturn.plus(GRACE_PERIOD);
+
+            if (now.isBefore(graceEndsAt)) {
+                if (!"RETURN_DUE".equalsIgnoreCase(rental.status())) {
+                    rentalDatabaseService.markReturnDue(rental.rentalId());
+                }
+                continue;
+            }
+
+            Vehicle vehicle = findVehicle(rental.vehicleId());
+
+            if (vehicle == null) {
+                continue;
+            }
+
+            Duration overdueAfterGrace = Duration.between(graceEndsAt, now);
+
+            // Client chooses the concrete strategy for this vehicle.
+            LateFeeStrategy selectedStrategy = LateFeeStrategyFactory.forVehicle(vehicle);
+
+            // Context stores the selected strategy.
+            lateFeeContext.setStrategy(selectedStrategy);
+
+            // Context delegates the calculation to the active strategy.
+            double calculatedLateFee = lateFeeContext.calculateLateFee(
+                    vehicle,
+                    overdueAfterGrace
+            );
+
+            CustomerAccountState.LateFeeChargeResult charge =
+                    accountState.applyLateFee(rental.invoiceId(), calculatedLateFee);
+
+            rentalDatabaseService.recordLateFeeCharge(
+                    customer,
+                    rental,
+                    charge.totalLateFee(),
+                    charge.chargedNow(),
+                    accountState.getWalletBalance()
+            );
+        }
+    }
+
+    private void rebuildRentalList(
+            JPanel target,
+            String title,
+            List<RentalRepository.RentalRecord> rentals,
+            boolean activeSection,
+            Color badgeColor
+    ) {
+        target.removeAll();
+
+        String badgeText = rentals.size() + (activeSection ? " ongoing" : " completed");
+        target.add(sectionHeader(title, badgeText, badgeColor));
+        target.add(Box.createVerticalStrut(12));
+
+        if (rentals.isEmpty()) {
+            JLabel empty = label(
+                    activeSection ? "No active rentals yet." : "No completed rentals yet.",
+                    13,
+                    Font.PLAIN,
+                    MUTED
+            );
+            empty.setAlignmentX(Component.LEFT_ALIGNMENT);
+            target.add(Box.createVerticalStrut(24));
+            target.add(empty);
+            target.add(Box.createVerticalGlue());
+            return;
+        }
+
+        int visible = rentals.size();
+        for (int i = 0; i < visible; i++) {
+            RentalRepository.RentalRecord rental = rentals.get(i);
+            target.add(activeSection
+                    ? activeRentalRow(rental)
+                    : rentalRow(
+                            rental.vehicleName(),
+                            formatRentalDate(rental, false),
+                            String.format(Locale.US, "$%,.0f", rental.baseAmount() + rental.lateFee()),
+                            prettyRentalStatus(rental),
+                            rentalStatusColor(rental),
+                            vehicleCategory(rental)
+                    ));
+            if (i < visible - 1) {
+                target.add(Box.createVerticalStrut(12));
+            }
+        }
+
+        target.add(Box.createVerticalGlue());
+        target.revalidate();
+        target.repaint();
+    }
+
+    private JComponent activeRentalRow(RentalRepository.RentalRecord rental) {
+
+        HoverRoundedPanel row = new HoverRoundedPanel(
+                12,
+                CARD_DARK,
+                new Color(9, 18, 27)
+        );
+
+        row.setLayout(new BorderLayout(14, 0));
+        row.setBorder(new EmptyBorder(10, 13, 10, 13));
+        row.setPreferredSize(new Dimension(10, 110));
+        row.setMaximumSize(new Dimension(Integer.MAX_VALUE, 110));
+
+        String category = vehicleCategory(rental);
+
+        VehicleIcon vehicleIcon = new VehicleIcon(category);
+        vehicleIcon.setPreferredSize(new Dimension(50, 50));
+
+        JPanel info = new JPanel();
+        info.setOpaque(false);
+        info.setLayout(new BoxLayout(info, BoxLayout.Y_AXIS));
+
+        JPanel topLine = new JPanel();
+        topLine.setOpaque(false);
+        topLine.setLayout(new BoxLayout(topLine, BoxLayout.X_AXIS));
+        topLine.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel vehicleLabel = label(
+                rental.vehicleName(),
+                14,
+                Font.BOLD,
+                TEXT
+        );
+
+        RoundedLabel categoryBadge = new RoundedLabel(
+                category,
+                GOLD,
+                new Color(214, 160, 66, 18)
+        );
+        categoryBadge.setFont(new Font("Segoe UI", Font.BOLD, 9));
+
+        topLine.add(vehicleLabel);
+        topLine.add(Box.createHorizontalStrut(8));
+        topLine.add(categoryBadge);
+        topLine.add(Box.createHorizontalGlue());
+
+        JLabel returnDateLabel = label(
+                formatRentalDate(rental, true),
+                11,
+                Font.PLAIN,
+                MUTED
+        );
+
+        JLabel statusLabel = label(
+                "●  " + prettyRentalStatus(rental),
+                11,
+                Font.BOLD,
+                rentalStatusColor(rental)
+        );
+
+        JLabel countdownLabel = label(
+                countdownText(rental),
+                11,
+                Font.BOLD,
+                countdownColor(rental)
+        );
+
+        info.add(topLine);
+        info.add(Box.createVerticalStrut(4));
+        info.add(returnDateLabel);
+        info.add(Box.createVerticalStrut(3));
+        info.add(statusLabel);
+        info.add(Box.createVerticalStrut(3));
+        info.add(countdownLabel);
+
+        JPanel actions = new JPanel();
+        actions.setOpaque(false);
+        actions.setLayout(new BoxLayout(actions, BoxLayout.Y_AXIS));
+
+        JLabel priceLabel = label(
+                String.format(Locale.US, "$%,.0f", rental.baseAmount() + rental.lateFee()),
+                17,
+                Font.BOLD,
+                PALE
+        );
+        priceLabel.setAlignmentX(Component.RIGHT_ALIGNMENT);
+
+        ReturnVehicleButton returnButton = new ReturnVehicleButton("RETURN VEHICLE");
+        returnButton.setAlignmentX(Component.RIGHT_ALIGNMENT);
+        returnButton.setPreferredSize(new Dimension(132, 32));
+        returnButton.setMaximumSize(new Dimension(132, 32));
+
+        boolean canReturn = isReturnButtonEnabled(rental);
+        returnButton.setEnabled(canReturn);
+        returnButton.setToolTipText(
+                canReturn
+                        ? "Return this vehicle now."
+                        : "The return button activates when the rental time reaches zero."
+        );
+        returnButton.addActionListener(e -> returnVehicle(rental));
+
+        actions.add(priceLabel);
+        actions.add(Box.createVerticalStrut(8));
+        actions.add(returnButton);
+
+        row.add(vehicleIcon, BorderLayout.WEST);
+        row.add(info, BorderLayout.CENTER);
+        row.add(actions, BorderLayout.EAST);
+
+        return row;
+    }
+
+    private boolean isReturnButtonEnabled(RentalRepository.RentalRecord rental) {
+        LocalDateTime expectedReturn = parseDateTime(rental.expectedReturnDateTime());
+        return expectedReturn != null && !LocalDateTime.now().isBefore(expectedReturn);
+    }
+
+    private String countdownText(RentalRepository.RentalRecord rental) {
+        LocalDateTime expectedReturn = parseDateTime(rental.expectedReturnDateTime());
+
+        if (expectedReturn == null) {
+            return "Time remaining unavailable";
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        if (now.isBefore(expectedReturn)) {
+            return "Time left: " + formatDuration(Duration.between(now, expectedReturn));
+        }
+
+        LocalDateTime graceEndsAt = expectedReturn.plus(GRACE_PERIOD);
+
+        if (now.isBefore(graceEndsAt)) {
+            return "Grace period: " + formatDuration(Duration.between(now, graceEndsAt));
+        }
+
+        return "Late by: "
+                + formatDuration(Duration.between(graceEndsAt, now))
+                + "  •  Fee "
+                + String.format(Locale.US, "$%,.2f", rental.lateFee());
+    }
+
+    private Color countdownColor(RentalRepository.RentalRecord rental) {
+        LocalDateTime expectedReturn = parseDateTime(rental.expectedReturnDateTime());
+
+        if (expectedReturn == null) {
+            return MUTED;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        if (now.isBefore(expectedReturn)) {
+            Duration remaining = Duration.between(now, expectedReturn);
+            return remaining.compareTo(Duration.ofHours(1)) <= 0 ? ORANGE : GREEN;
+        }
+
+        if (now.isBefore(expectedReturn.plus(GRACE_PERIOD))) {
+            return ORANGE;
+        }
+
+        return RED;
+    }
+
+    private String formatDuration(Duration duration) {
+        long totalSeconds = Math.max(0L, duration.getSeconds());
+
+        long days = totalSeconds / 86400;
+        long hours = (totalSeconds % 86400) / 3600;
+        long minutes = (totalSeconds % 3600) / 60;
+        long seconds = totalSeconds % 60;
+
+        if (days > 0) {
+            return String.format(Locale.US, "%dd %02dh %02dm %02ds", days, hours, minutes, seconds);
+        }
+
+        if (hours > 0) {
+            return String.format(Locale.US, "%02dh %02dm %02ds", hours, minutes, seconds);
+        }
+
+        return String.format(Locale.US, "%02dm %02ds", minutes, seconds);
+    }
+
+    private LocalDateTime parseDateTime(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+
+        try {
+            return LocalDateTime.parse(value.trim());
+        } catch (DateTimeParseException ex) {
+            return null;
+        }
+    }
+
+    private Vehicle findVehicle(String vehicleId) {
+        if (vehicleId == null || vehicleId.isBlank()) {
+            return null;
+        }
+
+        return vehicleService.getAllVehicles().stream()
+                .filter(vehicle -> vehicle.getId().equalsIgnoreCase(vehicleId))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private void returnVehicle(RentalRepository.RentalRecord rental) {
+        RentalRepository.RentalRecord latest = rentalRepository.findById(rental.rentalId())
+                .orElse(rental);
+
+        if (!isReturnButtonEnabled(latest)) {
+            VeloraNotificationDialog.showInfo(
+                    this,
+                    "Return Not Available Yet",
+                    "The return button becomes available when the rental countdown reaches zero."
+            );
+            return;
+        }
+
+        processRentalTimingUpdates();
+
+        latest = rentalRepository.findById(rental.rentalId()).orElse(latest);
+
+        boolean confirmed = VeloraNotificationDialog.showConfirm(
+                this,
+                "Return Vehicle",
+                "Return " + latest.vehicleName() + " now?\n"
+                        + "Late fee: " + String.format(Locale.US, "$%,.2f", latest.lateFee())
+                        + "\nThe vehicle will become available again.",
+                "Return Vehicle"
+        );
+
+        if (!confirmed) {
+            return;
+        }
+
+        boolean returned = rentalDatabaseService.markRentalReturned(
+                customer,
+                latest.rentalId(),
+                latest.lateFee()
+        );
+
+        if (!returned) {
+            VeloraNotificationDialog.showError(
+                    this,
+                    "Return Failed",
+                    "The rental could not be updated. Please try again."
+            );
+            return;
+        }
+
+        Vehicle vehicle = findVehicle(latest.vehicleId());
+
+        if (vehicle != null) {
+            vehicle.setStatus(VehicleStatus.AVAILABLE);
+            vehicleService.saveVehicles();
+        }
+
+        refreshRentals();
+
+        VeloraNotificationDialog.showSuccess(
+                this,
+                "Vehicle Returned",
+                latest.vehicleName()
+                        + " has been returned successfully.\nFinal late fee: "
+                        + String.format(Locale.US, "$%,.2f", latest.lateFee())
+        );
+    }
+
+    private boolean isActiveRental(RentalRepository.RentalRecord rental) {
+        String status = rental.status() == null ? "" : rental.status().trim().toUpperCase(Locale.ROOT);
+        return "ACTIVE".equals(status)
+                || "RETURN_DUE".equals(status)
+                || "OVERDUE".equals(status)
+                || "LATE".equals(status);
+    }
+
+    private String prettyRentalStatus(RentalRepository.RentalRecord rental) {
+        String status = rental.status() == null ? "" : rental.status().trim().toUpperCase(Locale.ROOT);
+        return switch (status) {
+            case "ACTIVE" -> "Active";
+            case "RETURN_DUE" -> "Return Due";
+            case "OVERDUE", "LATE" -> "Late";
+            case "COMPLETED", "RETURNED" -> rental.lateFee() > 0 ? "Returned Late" : "Returned";
+            case "CANCELLED" -> "Cancelled";
+            default -> status.isBlank() ? "Unknown" : status;
+        };
+    }
+
+    private Color rentalStatusColor(RentalRepository.RentalRecord rental) {
+        String status = prettyRentalStatus(rental);
+        if (status.contains("Late")) {
+            return RED;
+        }
+        if ("Active".equals(status)) {
+            return GREEN;
+        }
+        if ("Return Due".equals(status)) {
+            return ORANGE;
+        }
+        if ("Cancelled".equals(status)) {
+            return MUTED;
+        }
+        return GREEN;
+    }
+
+    private String formatRentalDate(RentalRepository.RentalRecord rental, boolean activeSection) {
+        String raw = activeSection ? rental.expectedReturnDateTime() : rental.actualReturnDateTime();
+        if (raw == null || raw.isBlank()) {
+            raw = rental.expectedReturnDateTime();
+        }
+
+        String prefix = activeSection ? "Return: " : "Completed: ";
+        try {
+            LocalDateTime dateTime = LocalDateTime.parse(raw);
+            return prefix + dateTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy"));
+        } catch (DateTimeParseException ex) {
+            return prefix + (raw == null || raw.isBlank() ? "-" : raw);
+        }
+    }
+
+    private String vehicleCategory(RentalRepository.RentalRecord rental) {
+        for (Vehicle vehicle : vehicleService.getAllVehicles()) {
+            if (vehicle.getId().equalsIgnoreCase(rental.vehicleId())) {
+                return switch (vehicle.getType()) {
+                    case ELECTRIC_BIKE -> "E-BIKE";
+                    case MOTORCYCLE -> "MOTO";
+                    case HYBRID_CAR -> "HYBRID";
+                    case ELECTRIC_VEHICLE -> "EV";
+                    case SUV -> "SUV";
+                    case TRUCK -> "TRUCK";
+                    default -> "CAR";
+                };
+            }
+        }
+
+        String name = rental.vehicleName() == null ? "" : rental.vehicleName().toLowerCase(Locale.ROOT);
+        if (name.contains("bike")) return "E-BIKE";
+        if (name.contains("motor") || name.contains("yamaha")) return "MOTO";
+        if (name.contains("hybrid") || name.contains("prius")) return "HYBRID";
+        if (name.contains("electric") || name.contains("tesla") || name.contains(" i")) return "EV";
+        return "CAR";
     }
 
     /* =========================================================
@@ -1318,6 +2103,62 @@ public final class MyRentalsPanel extends JPanel {
         CHECK,
         MONEY,
         CLOCK
+    }
+
+    private static final class ReturnVehicleButton extends JButton {
+
+        ReturnVehicleButton(String text) {
+            super(text);
+
+            setOpaque(false);
+            setContentAreaFilled(false);
+            setBorderPainted(false);
+            setFocusPainted(false);
+            setFont(new Font("Segoe UI", Font.BOLD, 10));
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        }
+
+        @Override
+        protected void paintComponent(Graphics raw) {
+            Graphics2D g = (Graphics2D) raw.create();
+
+            g.setRenderingHint(
+                    RenderingHints.KEY_ANTIALIASING,
+                    RenderingHints.VALUE_ANTIALIAS_ON
+            );
+
+            Color fillColor;
+            Color borderColor;
+            Color textColor;
+
+            if (isEnabled()) {
+                fillColor = getModel().isRollover()
+                        ? new Color(72, 224, 116)
+                        : GREEN;
+                borderColor = new Color(122, 244, 151);
+                textColor = new Color(8, 28, 15);
+            } else {
+                fillColor = new Color(42, 49, 57);
+                borderColor = new Color(95, 103, 114);
+                textColor = new Color(150, 157, 168);
+            }
+
+            g.setColor(fillColor);
+            g.fillRoundRect(0, 0, getWidth(), getHeight(), 10, 10);
+
+            g.setColor(borderColor);
+            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, 10, 10);
+
+            g.setColor(textColor);
+            g.setFont(getFont());
+
+            FontMetrics metrics = g.getFontMetrics();
+            int x = (getWidth() - metrics.stringWidth(getText())) / 2;
+            int y = (getHeight() + metrics.getAscent() - metrics.getDescent()) / 2;
+
+            g.drawString(getText(), x, y);
+            g.dispose();
+        }
     }
 
     /* =========================================================
@@ -2195,4 +3036,146 @@ public final class MyRentalsPanel extends JPanel {
             );
         }
     }
+    
+    private static final class LuxuryScrollBarUI
+        extends BasicScrollBarUI {
+
+    @Override
+    protected void configureScrollBarColors() {
+
+        thumbColor = new Color(
+                214,
+                160,
+                66,
+                150
+        );
+
+        trackColor = new Color(
+                7,
+                14,
+                21
+        );
+    }
+
+    @Override
+    protected JButton createDecreaseButton(
+            int orientation
+    ) {
+
+        JButton button = new JButton();
+
+        button.setPreferredSize(
+                new Dimension(0, 0)
+        );
+
+        button.setMinimumSize(
+                new Dimension(0, 0)
+        );
+
+        button.setMaximumSize(
+                new Dimension(0, 0)
+        );
+
+        return button;
+    }
+
+    @Override
+    protected JButton createIncreaseButton(
+            int orientation
+    ) {
+
+        JButton button = new JButton();
+
+        button.setPreferredSize(
+                new Dimension(0, 0)
+        );
+
+        button.setMinimumSize(
+                new Dimension(0, 0)
+        );
+
+        button.setMaximumSize(
+                new Dimension(0, 0)
+        );
+
+        return button;
+    }
+
+    @Override
+    protected void paintThumb(
+            Graphics g,
+            JComponent c,
+            Rectangle thumbBounds
+    ) {
+
+        if (thumbBounds.isEmpty()
+                || !scrollbar.isEnabled()) {
+            return;
+        }
+
+        Graphics2D g2 =
+                (Graphics2D) g.create();
+
+        g2.setRenderingHint(
+                RenderingHints.KEY_ANTIALIASING,
+                RenderingHints.VALUE_ANTIALIAS_ON
+        );
+
+        g2.setColor(
+                new Color(
+                        214,
+                        160,
+                        66,
+                        170
+                )
+        );
+
+        g2.fillRoundRect(
+                thumbBounds.x + 1,
+                thumbBounds.y,
+                Math.max(
+                        4,
+                        thumbBounds.width - 2
+                ),
+                thumbBounds.height,
+                7,
+                7
+        );
+
+        g2.dispose();
+    }
+
+    @Override
+    protected void paintTrack(
+            Graphics g,
+            JComponent c,
+            Rectangle trackBounds
+    ) {
+
+        Graphics2D g2 =
+                (Graphics2D) g.create();
+
+        g2.setColor(
+                new Color(
+                        10,
+                        18,
+                        25
+                )
+        );
+
+        g2.fillRoundRect(
+                trackBounds.x + 2,
+                trackBounds.y,
+                Math.max(
+                        2,
+                        trackBounds.width - 4
+                ),
+                trackBounds.height,
+                6,
+                6
+        );
+
+        g2.dispose();
+    }
+}
 }

@@ -10,3 +10,5 @@ admin%40velora.com	System+Admin		MANAGER	Admin%40123
 ahmad%40gmail.com	Ahmad+Ali		CUSTOMER	Ahmad%40123
 sara%40gmail.com	sara	0599326499	CUSTOMER	Sara%40123
 velora.e2e.customer%40velora.com	Velora+E2E+Customer	0599001122	CUSTOMER	Velora%40123
+nassar%40gmail.com	Nassar	0594929316	CUSTOMER	Nassar%40123321
+rami%40gmail.com	Rami	0591111111	CUSTOMER	Rami%40123321

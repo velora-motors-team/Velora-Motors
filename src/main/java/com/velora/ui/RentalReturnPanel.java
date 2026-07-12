@@ -1,6 +1,8 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
+import com.velora.repository.CustomerRepository;
+import com.velora.repository.RentalRepository;
 import com.velora.service.VehicleService;
 import com.velora.vehicle.Vehicle;
 import com.velora.vehicle.VehicleStatus;
@@ -19,7 +21,6 @@ import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
-import javax.swing.RowFilter;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingConstants;
 import javax.swing.Timer;
@@ -28,7 +29,6 @@ import javax.swing.plaf.basic.BasicScrollBarUI;
 import javax.swing.table.AbstractTableModel;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.JTableHeader;
-import javax.swing.table.TableRowSorter;
 
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
@@ -51,14 +51,13 @@ import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Comparator;
+import java.time.Duration;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.List;
-import java.util.regex.Pattern;
 
 public final class RentalReturnPanel extends JPanel {
 
@@ -73,10 +72,10 @@ public final class RentalReturnPanel extends JPanel {
     private static final Color BLUE = new Color(67, 132, 207);
 
     private static final int PAGE_SIZE = 8;
-    private static final Path RENTALS_FILE = Path.of(System.getProperty("user.dir"), "data", "rental-returns.tsv");
-
     private final Customer manager;
     private final VehicleService vehicleService = new VehicleService();
+    private final RentalRepository rentalRepository = new RentalRepository();
+    private final CustomerRepository customerRepository = new CustomerRepository();
     private final List<RentalRecord> allRentals = new ArrayList<>();
     private final List<RentalRecord> filteredRentals = new ArrayList<>();
     private final List<RentalRecord> pageRentals = new ArrayList<>();
@@ -101,10 +100,7 @@ public final class RentalReturnPanel extends JPanel {
         setLayout(new BorderLayout());
         setBorder(new EmptyBorder(12, 14, 14, 18));
 
-        if (!loadSavedRentals()) {
-            loadDemoData();
-            saveRentals();
-        }
+        loadSavedRentals();
         filteredRentals.addAll(allRentals);
         updatePageData();
 
@@ -173,7 +169,8 @@ public final class RentalReturnPanel extends JPanel {
         row.setPreferredSize(new Dimension(900, 96));
 
         int active = (int) allRentals.stream().filter(r -> r.status.equals("Active")).count();
-        int dueToday = (int) allRentals.stream().filter(r -> r.expectedReturn.contains("07 Jul")).count();
+        String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy"));
+        int dueToday = (int) allRentals.stream().filter(r -> r.expectedReturn.contains(today)).count();
         int late = (int) allRentals.stream().filter(r -> r.status.equals("Late")).count();
         int lateFees = allRentals.stream().mapToInt(r -> r.lateFee).sum();
 
@@ -474,11 +471,28 @@ public final class RentalReturnPanel extends JPanel {
         );
 
         if (result == JOptionPane.YES_OPTION) {
-            record.status = "Returned";
-            record.actualReturn = "07 Jul 2026\nNow";
-            record.lateDuration = record.lateDuration.equals("-") ? "-" : record.lateDuration;
+            LocalDateTime actualReturn = LocalDateTime.now();
+            double lateFee = record.lateFee;
+
+            boolean updated = rentalRepository.updateStatus(
+                    record.id,
+                    "COMPLETED",
+                    actualReturn.toString(),
+                    lateFee
+            );
+
+            if (!updated) {
+                JOptionPane.showMessageDialog(
+                        this,
+                        "The rental could not be updated in rentals.tsv.",
+                        "Velora Motors",
+                        JOptionPane.ERROR_MESSAGE
+                );
+                return;
+            }
+
             markVehicleAvailable(record.vehicleFullName);
-            saveRentals();
+            loadSavedRentals();
             applyFilters();
         }
     }
@@ -496,104 +510,111 @@ public final class RentalReturnPanel extends JPanel {
         }
     }
 
+    public void refreshData() {
+        loadSavedRentals();
+        applyFilters();
+    }
+
     private boolean loadSavedRentals() {
-        if (!Files.exists(RENTALS_FILE)) {
-            return false;
+        allRentals.clear();
+
+        for (RentalRepository.RentalRecord stored : rentalRepository.findAll()) {
+            Vehicle vehicle = findVehicleById(stored.vehicleId());
+            Customer customer = customerRepository.findByEmail(stored.customerEmail())
+                    .map(CustomerRepository.StoredCustomer::customer)
+                    .orElse(null);
+
+            String expected = formatDateTime(stored.expectedReturnDateTime());
+            String actual = stored.actualReturnDateTime() == null || stored.actualReturnDateTime().isBlank()
+                    ? "-"
+                    : formatDateTime(stored.actualReturnDateTime());
+
+            String lateDuration = calculateLateDuration(
+                    stored.expectedReturnDateTime(),
+                    stored.actualReturnDateTime(),
+                    stored.status()
+            );
+
+            allRentals.add(new RentalRecord(
+                    stored.rentalId(),
+                    stored.customerName(),
+                    stored.vehicleName(),
+                    vehicle == null ? "-" : FleetUiData.color(vehicle),
+                    expected,
+                    actual,
+                    lateDuration,
+                    (int) Math.round(stored.lateFee()),
+                    toUiStatus(stored.status()),
+                    stored.customerEmail(),
+                    customer == null ? "" : customer.getPhone(),
+                    vehicle == null ? "" : FleetUiData.imagePath(vehicle),
+                    stored.vehicleName(),
+                    vehicle == null ? stored.vehicleId() : FleetUiData.vin(vehicle),
+                    (int) Math.round(stored.baseAmount()),
+                    0,
+                    0
+            ));
         }
 
+        allRentals.sort((a, b) -> b.id.compareToIgnoreCase(a.id));
+        return !allRentals.isEmpty();
+    }
+
+    private Vehicle findVehicleById(String vehicleId) {
+        for (Vehicle vehicle : vehicleService.getAllVehicles()) {
+            if (vehicle.getId().equalsIgnoreCase(vehicleId)) {
+                return vehicle;
+            }
+        }
+        return null;
+    }
+
+    private static String toUiStatus(String status) {
+        String normalized = status == null ? "" : status.trim().toUpperCase();
+        return switch (normalized) {
+            case "ACTIVE" -> "Active";
+            case "OVERDUE", "LATE" -> "Late";
+            case "COMPLETED", "RETURNED" -> "Returned";
+            case "CANCELLED" -> "Returned";
+            default -> normalized.isBlank() ? "Active" : normalized;
+        };
+    }
+
+    private static String formatDateTime(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "-";
+        }
         try {
-            List<String> lines = Files.readAllLines(RENTALS_FILE, StandardCharsets.UTF_8);
-            allRentals.clear();
+            return LocalDateTime.parse(raw)
+                    .format(DateTimeFormatter.ofPattern("dd MMM yyyy\nhh:mm a"));
+        } catch (DateTimeParseException ex) {
+            return raw;
+        }
+    }
 
-            for (String line : lines) {
-                if (line == null || line.isBlank()) {
-                    continue;
-                }
+    private static String calculateLateDuration(String expectedRaw, String actualRaw, String status) {
+        try {
+            LocalDateTime expected = LocalDateTime.parse(expectedRaw);
+            LocalDateTime end;
 
-                String[] parts = line.split("\t", -1);
-                if (parts.length < 18 || !"RENTAL".equals(parts[0])) {
-                    continue;
-                }
-
-                allRentals.add(new RentalRecord(
-                        decode(parts[1]),
-                        decode(parts[2]),
-                        decode(parts[3]),
-                        decode(parts[4]),
-                        decode(parts[5]),
-                        decode(parts[6]),
-                        decode(parts[7]),
-                        parseInt(parts[8], 0),
-                        decode(parts[9]),
-                        decode(parts[10]),
-                        decode(parts[11]),
-                        decode(parts[12]),
-                        decode(parts[13]),
-                        decode(parts[14]),
-                        parseInt(parts[15], 0),
-                        parseInt(parts[16], 0),
-                        parseInt(parts[17], 0)
-                ));
+            if (actualRaw != null && !actualRaw.isBlank()) {
+                end = LocalDateTime.parse(actualRaw);
+            } else if ("OVERDUE".equalsIgnoreCase(status) || "LATE".equalsIgnoreCase(status)) {
+                end = LocalDateTime.now();
+            } else {
+                return "-";
             }
 
-            allRentals.sort(Comparator.comparing(r -> r.id));
-            return !allRentals.isEmpty() || !lines.isEmpty();
-        } catch (IOException | IllegalArgumentException ex) {
-            allRentals.clear();
-            return false;
-        }
-    }
-
-    private void saveRentals() {
-        try {
-            Files.createDirectories(RENTALS_FILE.getParent());
-            List<String> lines = new ArrayList<>();
-
-            for (RentalRecord rental : allRentals) {
-                lines.add(String.join("\t",
-                        "RENTAL",
-                        encode(rental.id),
-                        encode(rental.customer),
-                        encode(rental.vehicle),
-                        encode(rental.color),
-                        encode(rental.expectedReturn),
-                        encode(rental.actualReturn),
-                        encode(rental.lateDuration),
-                        String.valueOf(rental.lateFee),
-                        encode(rental.status),
-                        encode(rental.email),
-                        encode(rental.phone),
-                        encode(rental.imagePath),
-                        encode(rental.vehicleFullName),
-                        encode(rental.vin),
-                        String.valueOf(rental.baseRental),
-                        String.valueOf(rental.insurance),
-                        String.valueOf(rental.taxes)
-                ));
+            if (!end.isAfter(expected)) {
+                return "-";
             }
 
-            Files.write(RENTALS_FILE, lines, StandardCharsets.UTF_8);
-        } catch (IOException ignored) {
-        }
-    }
-
-    private static String encode(String value) {
-        String safe = value == null ? "" : value;
-        return Base64.getEncoder().encodeToString(safe.getBytes(StandardCharsets.UTF_8));
-    }
-
-    private static String decode(String value) {
-        if (value == null || value.isBlank()) {
-            return "";
-        }
-        return new String(Base64.getDecoder().decode(value), StandardCharsets.UTF_8);
-    }
-
-    private static int parseInt(String value, int fallback) {
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException ex) {
-            return fallback;
+            Duration delay = Duration.between(expected, end);
+            long hours = delay.toHours();
+            long minutes = delay.minusHours(hours).toMinutes();
+            return hours + "h " + minutes + "m";
+        } catch (DateTimeParseException ex) {
+            return "-";
         }
     }
 

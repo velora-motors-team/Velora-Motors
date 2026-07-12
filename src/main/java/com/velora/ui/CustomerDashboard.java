@@ -2,6 +2,7 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
+import com.velora.repository.NotificationRepository;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -12,7 +13,9 @@ import java.awt.event.MouseEvent;
 import java.awt.geom.*;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
@@ -26,6 +29,7 @@ public class CustomerDashboard extends JFrame {
 
     private final Customer customer;
     private final CustomerAccountState accountState;
+    private final NotificationRepository notificationRepository = new NotificationRepository();
     private final CardLayout pageLayout = new CardLayout();
     private final JPanel pageCards = new JPanel(pageLayout);
     private final Map<String, MenuButton> menuButtons = new LinkedHashMap<>();
@@ -35,6 +39,9 @@ public class CustomerDashboard extends JFrame {
     private JLabel activeRentalsValue;
     private JLabel loyaltyPointsValue;
     private JLabel totalSpentValue;
+    private TopBadgeIcon notificationBell;
+    private MyRentalsPanel myRentalsPanel;
+    private LoyaltyPointsPanel loyaltyPointsPanel;
 
     private final BufferedImage iconImage;
     private final BufferedImage heroImage;
@@ -152,11 +159,13 @@ public class CustomerDashboard extends JFrame {
         vehicleCatalog = new VehicleCatalog(customer);
         supportPanel = new SupportPanel(customer);
         pageCards.add(vehicleCatalog, "Vehicles");
-        pageCards.add(wrapPage(new MyRentalsPanel(customer)), "My Rentals");
+        myRentalsPanel = new MyRentalsPanel(customer);
+        loyaltyPointsPanel = new LoyaltyPointsPanel(customer);
+        pageCards.add(wrapPage(myRentalsPanel), "My Rentals");
         pageCards.add(wrapPage(new CustomerBillingPanel(customer)), "Billing & Invoices");
         pageCards.add(wrapPage(supportPanel), "Support");
         pageCards.add(wrapPage(new ReviewsPanel(customer)), "Reviews");
-        pageCards.add(wrapPage(new LoyaltyPointsPanel(customer)), "Loyalty Points");
+        pageCards.add(wrapPage(loyaltyPointsPanel), "Loyalty Points");
         pageCards.add(
                 wrapPage(new ProfilePanel(
                         customer,
@@ -251,8 +260,13 @@ public class CustomerDashboard extends JFrame {
             vehicleCatalog.refreshData();
         } else if ("Support".equals(section) && supportPanel != null) {
             supportPanel.refreshData();
+        } else if ("My Rentals".equals(section) && myRentalsPanel != null) {
+            myRentalsPanel.refreshData();
+        } else if ("Loyalty Points".equals(section) && loyaltyPointsPanel != null) {
+            loyaltyPointsPanel.refreshData();
         }
         refreshCustomerMetrics();
+        refreshNotificationBadge();
         pageLayout.show(pageCards, section);
         setActiveMenu(section);
     }
@@ -273,11 +287,11 @@ public class CustomerDashboard extends JFrame {
         JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 14, 0));
         right.setOpaque(false);
 
-        TopBadgeIcon bell = new TopBadgeIcon(BadgeIconType.BELL, 3);
-        bell.addMouseListener(new MouseAdapter() {
+        notificationBell = new TopBadgeIcon(BadgeIconType.BELL, unreadNotificationCount());
+        notificationBell.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                showMessage("Notifications:\n• Rental reminder will appear here.\n• Booking updates will appear here.");
+                showNotificationInbox();
             }
         });
 
@@ -289,7 +303,7 @@ public class CustomerDashboard extends JFrame {
             }
         });
 
-        right.add(bell);
+        right.add(notificationBell);
         right.add(mail);
         right.add(createProfileBlock());
         right.add(createWindowControls());
@@ -298,6 +312,88 @@ public class CustomerDashboard extends JFrame {
         top.add(right, BorderLayout.EAST);
 
         return top;
+    }
+
+    private int unreadNotificationCount() {
+        if (customer == null || customer.getEmail() == null || customer.getEmail().isBlank()) {
+            return 0;
+        }
+        return notificationRepository.findUnreadByCustomerEmail(customer.getEmail()).size();
+    }
+
+    private void refreshNotificationBadge() {
+        if (notificationBell != null) {
+            notificationBell.setCount(unreadNotificationCount());
+        }
+    }
+
+    private void showNotificationInbox() {
+        if (customer == null) {
+            VeloraNotificationDialog.showInfo(this, "Notifications", "No customer account is active.");
+            return;
+        }
+
+        List<NotificationRepository.NotificationRecord> notifications = notificationRepository
+                .findByCustomerEmail(customer.getEmail()).stream()
+                .sorted(Comparator.comparing(
+                        NotificationRepository.NotificationRecord::createdAt,
+                        Comparator.reverseOrder()
+                ))
+                .limit(6)
+                .toList();
+
+        if (notifications.isEmpty()) {
+            VeloraNotificationDialog.showInfo(this, "Notifications", "You have no notifications yet.");
+            refreshNotificationBadge();
+            return;
+        }
+
+        JPanel list = new JPanel();
+        list.setBackground(new Color(5, 12, 18));
+        list.setLayout(new BoxLayout(list, BoxLayout.Y_AXIS));
+        list.setBorder(new EmptyBorder(10, 12, 10, 12));
+
+        for (NotificationRepository.NotificationRecord notification : notifications) {
+            JLabel title = new JLabel((notification.read() ? "" : "●  ") + notification.title());
+            title.setForeground(notification.read() ? MUTED : GOLD_LIGHT);
+            title.setFont(new Font("Segoe UI", Font.BOLD, 13));
+            title.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+            JTextArea message = new JTextArea(notification.message());
+            message.setEditable(false);
+            message.setFocusable(false);
+            message.setOpaque(false);
+            message.setForeground(TEXT);
+            message.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            message.setLineWrap(true);
+            message.setWrapStyleWord(true);
+            message.setMaximumSize(new Dimension(500, 48));
+            message.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+            list.add(title);
+            list.add(Box.createVerticalStrut(3));
+            list.add(message);
+            list.add(Box.createVerticalStrut(10));
+
+            if (!notification.read()) {
+                notificationRepository.markRead(notification.notificationId());
+            }
+        }
+
+        JScrollPane scroll = new JScrollPane(list);
+        scroll.setPreferredSize(new Dimension(540, 330));
+        scroll.setBorder(BorderFactory.createLineBorder(new Color(214, 168, 91, 90)));
+        scroll.getViewport().setBackground(new Color(5, 12, 18));
+        scroll.getVerticalScrollBar().setUnitIncrement(16);
+
+        JOptionPane.showMessageDialog(
+                this,
+                scroll,
+                "Velora Notifications",
+                JOptionPane.PLAIN_MESSAGE
+        );
+
+        refreshNotificationBadge();
     }
 
     private JComponent createWindowControls() {
@@ -1684,7 +1780,7 @@ public class CustomerDashboard extends JFrame {
 
     private static final class TopBadgeIcon extends JPanel {
         private final BadgeIconType type;
-        private final int count;
+        private int count;
 
         TopBadgeIcon(BadgeIconType type, int count) {
             this.type = type;
@@ -1692,6 +1788,11 @@ public class CustomerDashboard extends JFrame {
             setOpaque(false);
             setPreferredSize(new Dimension(42, 42));
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        }
+
+        void setCount(int count) {
+            this.count = Math.max(0, count);
+            repaint();
         }
 
         @Override

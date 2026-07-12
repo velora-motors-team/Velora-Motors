@@ -1,6 +1,7 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
+import com.velora.repository.LoyaltyTransactionRepository;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
@@ -8,7 +9,11 @@ import java.awt.*;
 import java.awt.geom.Path2D;
 import java.awt.geom.RoundRectangle2D;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 
 public final class LoyaltyPointsPanel extends JPanel {
@@ -25,6 +30,7 @@ public final class LoyaltyPointsPanel extends JPanel {
 
     private final Customer customer;
     private final CustomerAccountState accountState;
+    private final LoyaltyTransactionRepository loyaltyRepository = new LoyaltyTransactionRepository();
 
     private int points;
 
@@ -343,15 +349,12 @@ public final class LoyaltyPointsPanel extends JPanel {
 
         historyList = new JPanel();
         historyList.setOpaque(false);
-        historyList.setLayout(new GridLayout(3, 1, 0, 8));
-
-        historyList.add(historyRow("+120", "BMW X7 rental completed", "08 Jul 2026", GREEN));
-        historyList.add(historyRow("-300", "Redeemed 10% rental discount", "04 Jul 2026", RED));
-        historyList.add(historyRow("+80", "Toyota Prius rental completed", "01 Jul 2026", GREEN));
+        historyList.setLayout(new BoxLayout(historyList, BoxLayout.Y_AXIS));
 
         card.add(title, BorderLayout.NORTH);
         card.add(historyList, BorderLayout.CENTER);
 
+        refreshHistory();
         return card;
     }
 
@@ -396,9 +399,24 @@ public final class LoyaltyPointsPanel extends JPanel {
             return;
         }
 
-        accountState.redeemReward(cost);
+        if (!accountState.redeemReward(cost)) {
+            JOptionPane.showMessageDialog(
+                    this,
+                    "The reward could not be redeemed.",
+                    "Velora Loyalty",
+                    JOptionPane.ERROR_MESSAGE
+            );
+            return;
+        }
 
-        addHistory("-" + cost, "Redeemed " + rewardName, RED);
+        loyaltyRepository.add(
+                customer == null ? "" : customer.getEmail(),
+                -cost,
+                "REDEEMED",
+                "Redeemed " + rewardName,
+                rewardName
+        );
+        refreshHistory();
 
         JOptionPane.showMessageDialog(
                 this,
@@ -408,19 +426,64 @@ public final class LoyaltyPointsPanel extends JPanel {
         );
     }
 
-    private void addHistory(String value, String title, Color color) {
-        historyList.remove(historyList.getComponentCount() - 1);
+    public void refreshData() {
+        refreshTier();
+        refreshHistory();
+    }
 
-        JPanel newRow = (JPanel) historyRow(
-                value,
-                title,
-                LocalDate.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy")),
-                color
-        );
+    private void refreshHistory() {
+        if (historyList == null) {
+            return;
+        }
 
-        historyList.add(newRow, 0);
+        historyList.removeAll();
+
+        List<LoyaltyTransactionRepository.LoyaltyTransaction> transactions = customer == null
+                ? List.of()
+                : loyaltyRepository.findByCustomerEmail(customer.getEmail()).stream()
+                        .sorted(Comparator.comparing(
+                                LoyaltyTransactionRepository.LoyaltyTransaction::createdAt,
+                                Comparator.reverseOrder()
+                        ))
+                        .limit(3)
+                        .toList();
+
+        if (transactions.isEmpty()) {
+            JLabel empty = label("No loyalty activity yet.", 12, Font.PLAIN, MUTED);
+            empty.setAlignmentX(Component.LEFT_ALIGNMENT);
+            historyList.add(Box.createVerticalStrut(18));
+            historyList.add(empty);
+        } else {
+            for (int i = 0; i < transactions.size(); i++) {
+                LoyaltyTransactionRepository.LoyaltyTransaction tx = transactions.get(i);
+                String value = (tx.points() >= 0 ? "+" : "") + tx.points();
+                Color color = tx.points() >= 0 ? GREEN : RED;
+                historyList.add(historyRow(
+                        value,
+                        tx.description(),
+                        formatTransactionDate(tx.createdAt()),
+                        color
+                ));
+                if (i < transactions.size() - 1) {
+                    historyList.add(Box.createVerticalStrut(8));
+                }
+            }
+        }
+
         historyList.revalidate();
         historyList.repaint();
+    }
+
+    private static String formatTransactionDate(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return "-";
+        }
+        try {
+            return LocalDateTime.parse(raw)
+                    .format(DateTimeFormatter.ofPattern("dd MMM yyyy"));
+        } catch (DateTimeParseException ex) {
+            return raw;
+        }
     }
 
     private void refreshTier() {
