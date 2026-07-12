@@ -1982,8 +1982,7 @@ private JLabel onTimeRateDescription;
         Vehicle vehicle = findVehicle(latest.vehicleId());
 
         if (vehicle != null) {
-            vehicle.setStatus(VehicleStatus.AVAILABLE);
-            vehicleService.saveVehicles();
+            vehicleService.changeStatus(vehicle, VehicleStatus.AVAILABLE);
         }
 
         refreshRentals();

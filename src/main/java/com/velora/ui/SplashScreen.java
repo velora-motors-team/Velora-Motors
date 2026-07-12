@@ -1,6 +1,7 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
+import com.velora.service.VehicleService;
 
 import javax.imageio.ImageIO;
 import javax.swing.JFrame;
@@ -84,7 +85,11 @@ public final class SplashScreen extends JFrame {
             if (account.getRole() == Customer.Role.MANAGER) {
                 new ManagerDashboard(account).setVisible(true);
             } else {
-                new CustomerDashboard(account).setVisible(true);
+                // Reconcile first so availability mail and toast are ready before the dashboard opens.
+                new VehicleService().notifyWaitlistsForAvailableVehicles();
+                CustomerDashboard dashboard = new CustomerDashboard(account);
+                dashboard.setVisible(true);
+                dashboard.showAvailabilityToast();
             }
 
             frame.dispose();

@@ -1,6 +1,7 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
+import com.velora.observer.VehicleAvailabilitySubject;
 import com.velora.repository.ReservationRepository;
 import com.velora.service.VehicleService;
 import com.velora.service.RentalDatabaseService;
@@ -80,6 +81,7 @@ public class VehicleCatalog extends JPanel {
     private final VehicleService vehicleService = new VehicleService();
     private final RentalDatabaseService rentalDatabaseService = new RentalDatabaseService();
     private final ReservationRepository reservationRepository = new ReservationRepository();
+    private final VehicleAvailabilitySubject availabilitySubject = new VehicleAvailabilitySubject();
     private final CustomerAccountState accountState;
     private final JPanel cardsGrid = new JPanel(new GridLayout(0, 3, 14, 14));
     private final JTextField searchField = new JTextField();
@@ -591,6 +593,27 @@ public class VehicleCatalog extends JPanel {
         );
     }
 
+    private void toggleAvailabilityNotification(Vehicle vehicle) {
+        if (customer == null || customer.getEmail().isBlank()) {
+            VeloraNotificationDialog.showWarning(
+                    this,
+                    "Sign In Required",
+                    "Sign in as a customer to receive vehicle availability notifications."
+            );
+            return;
+        }
+
+        if (!availabilitySubject.hasObserver(vehicle, customer)
+                && availabilitySubject.addObserver(vehicle, customer)) {
+            VeloraNotificationDialog.showSuccess(
+                    this,
+                    "Notification Enabled",
+                    "You will be notified when this vehicle becomes available."
+            );
+        }
+        refreshCards();
+    }
+
     private int chooseRentalDays() {
         JSpinner daysSpinner = new JSpinner(new SpinnerNumberModel(3, 1, 30, 1));
         daysSpinner.setFont(new Font("Segoe UI", Font.BOLD, 13));
@@ -776,7 +799,7 @@ public class VehicleCatalog extends JPanel {
         private final Vehicle vehicle;
         private final BufferedImage image;
         private final JButton details = new GhostButton("View Details");
-        private final JButton rent = new GoldButton("Rent Now");
+        private final JButton action = new GoldButton("Rent Now");
 
         VehicleCard(Vehicle vehicle) {
             super(10, CARD);
@@ -786,9 +809,9 @@ public class VehicleCatalog extends JPanel {
             setPreferredSize(new Dimension(395, 205));
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             details.addActionListener(e -> showDetails(vehicle));
-            rent.addActionListener(e -> rentVehicle(vehicle));
+            configureAction();
             add(details);
-            add(rent);
+            add(action);
             addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
@@ -799,11 +822,30 @@ public class VehicleCatalog extends JPanel {
             });
         }
 
+        private void configureAction() {
+            if (vehicle.getStatus() == VehicleStatus.AVAILABLE) {
+                action.setText("Rent Now");
+                action.addActionListener(e -> rentVehicle(vehicle));
+                return;
+            }
+            if (vehicle.getStatus() == VehicleStatus.RENTED) {
+                boolean subscribed = availabilitySubject.hasObserver(vehicle, customer);
+                action.setText(subscribed ? "🔕 Waiting..." : "🔔 Notify Me");
+                action.setEnabled(!subscribed);
+                if (!subscribed) {
+                    action.addActionListener(e -> toggleAvailabilityNotification(vehicle));
+                }
+                return;
+            }
+            action.setText("Unavailable");
+            action.setEnabled(false);
+        }
+
         @Override
         public void doLayout() {
             int y = getHeight() - 42;
-            details.setBounds(getWidth() - 218, y, 98, 30);
-            rent.setBounds(getWidth() - 108, y, 92, 30);
+            details.setBounds(getWidth() - 282, y, 104, 30);
+            action.setBounds(getWidth() - 168, y, 152, 30);
         }
 
         @Override

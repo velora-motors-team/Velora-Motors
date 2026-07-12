@@ -1,6 +1,7 @@
 package com.velora.ui;
 
 import com.velora.authentication.Customer;
+import com.velora.observer.VehicleAvailabilitySubject;
 import com.velora.repository.CustomerRepository;
 import com.velora.repository.RentalRepository;
 import com.velora.service.VehicleService;
@@ -76,6 +77,7 @@ public final class RentalReturnPanel extends JPanel {
     private final VehicleService vehicleService = new VehicleService();
     private final RentalRepository rentalRepository = new RentalRepository();
     private final CustomerRepository customerRepository = new CustomerRepository();
+    private final VehicleAvailabilitySubject availabilitySubject = new VehicleAvailabilitySubject();
     private final List<RentalRecord> allRentals = new ArrayList<>();
     private final List<RentalRecord> filteredRentals = new ArrayList<>();
     private final List<RentalRecord> pageRentals = new ArrayList<>();
@@ -491,20 +493,29 @@ public final class RentalReturnPanel extends JPanel {
                 return;
             }
 
-            markVehicleAvailable(record.vehicleFullName);
+            String vehicleId = rentalRepository.findById(record.id)
+                    .map(RentalRepository.RentalRecord::vehicleId)
+                    .orElse("");
+            markVehicleAvailable(vehicleId, record.vehicleFullName);
             loadSavedRentals();
             applyFilters();
         }
     }
 
-    private void markVehicleAvailable(String vehicleName) {
-        if (vehicleName == null || vehicleName.isBlank()) {
+    private void markVehicleAvailable(String vehicleId, String vehicleName) {
+        if ((vehicleId == null || vehicleId.isBlank())
+                && (vehicleName == null || vehicleName.isBlank())) {
             return;
         }
         for (Vehicle vehicle : vehicleService.getAllVehicles()) {
-            if (FleetUiData.displayName(vehicle).equalsIgnoreCase(vehicleName.trim())) {
+            boolean matchesId = vehicleId != null && !vehicleId.isBlank()
+                    && vehicle.getId().equalsIgnoreCase(vehicleId.trim());
+            boolean matchesName = vehicleName != null && !vehicleName.isBlank()
+                    && FleetUiData.displayName(vehicle).equalsIgnoreCase(vehicleName.trim());
+            if (matchesId || matchesName) {
                 vehicle.setStatus(VehicleStatus.AVAILABLE);
                 vehicleService.saveVehicles();
+                availabilitySubject.notifyObservers(vehicle);
                 return;
             }
         }

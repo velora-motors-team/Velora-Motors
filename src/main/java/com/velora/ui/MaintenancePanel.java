@@ -491,8 +491,7 @@ public final class MaintenancePanel extends JPanel {
         }
         for (Vehicle vehicle : vehicleService.getAllVehicles()) {
             if (FleetUiData.displayName(vehicle).equalsIgnoreCase(vehicleName.trim())) {
-                vehicle.setStatus(status);
-                vehicleService.saveVehicles();
+                vehicleService.changeStatus(vehicle, status);
                 return;
             }
         }

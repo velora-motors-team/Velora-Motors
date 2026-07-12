@@ -2,6 +2,7 @@ package com.velora.ui;
 
 import com.velora.authentication.Customer;
 import com.velora.repository.RatingRepository;
+import com.velora.repository.VehicleWaitlistRepository;
 import com.velora.service.AuthenticationService;
 import com.velora.service.VehicleService;
 import com.velora.vehicle.Vehicle;
@@ -94,6 +95,7 @@ public final class ManagerDashboard extends JFrame {
     private final VehicleService vehicleService = new VehicleService();
     private final AuthenticationService authenticationService = new AuthenticationService();
     private final RatingRepository ratingRepository = new RatingRepository();
+    private final VehicleWaitlistRepository waitlistRepository = new VehicleWaitlistRepository();
     private final Map<String, MenuButton> menuButtons = new LinkedHashMap<>();
 
     private final CardLayout contentLayout = new CardLayout();
@@ -964,6 +966,11 @@ page.add(Box.createVerticalGlue());
         panel.add(rate);
         panel.add(Box.createVerticalStrut(12));
 
+        if (vehicle.getStatus() == VehicleStatus.RENTED) {
+            panel.add(createVehicleWaitlistPanel(vehicle));
+            panel.add(Box.createVerticalStrut(12));
+        }
+
         JButton edit = actionButton("EDIT VEHICLE", e -> editSelectedVehicle());
         edit.setAlignmentX(Component.LEFT_ALIGNMENT);
         edit.setMaximumSize(new Dimension(Integer.MAX_VALUE, 42));
@@ -990,6 +997,51 @@ page.add(Box.createVerticalGlue());
         bottomActions.add(delete);
         panel.add(bottomActions);
         return panel;
+    }
+
+    private JComponent createVehicleWaitlistPanel(Vehicle vehicle) {
+        List<VehicleWaitlistRepository.WaitlistRecord> observers =
+                waitlistRepository.findByVehicleId(vehicle.getId());
+
+        RoundedPanel waitlist = new RoundedPanel(12, new Color(9, 18, 27, 245));
+        waitlist.setLayout(new BoxLayout(waitlist, BoxLayout.Y_AXIS));
+        waitlist.setBorder(new EmptyBorder(11, 13, 11, 13));
+        waitlist.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel heading = label(
+                "NOTIFY ME WAITLIST  (" + observers.size() + ")",
+                10,
+                Font.BOLD,
+                PALE
+        );
+        heading.setAlignmentX(Component.LEFT_ALIGNMENT);
+        waitlist.add(heading);
+        waitlist.add(Box.createVerticalStrut(7));
+
+        if (observers.isEmpty()) {
+            JLabel empty = label("No customers are waiting for this vehicle.", 10, Font.PLAIN, MUTED);
+            empty.setAlignmentX(Component.LEFT_ALIGNMENT);
+            waitlist.add(empty);
+        } else {
+            int visible = Math.min(4, observers.size());
+            for (int i = 0; i < visible; i++) {
+                VehicleWaitlistRepository.WaitlistRecord observer = observers.get(i);
+                String name = observer.customerName().isBlank() ? "Customer" : observer.customerName();
+                JLabel customer = label("• " + name + "  —  " + observer.customerEmail(), 10, Font.PLAIN, TEXT);
+                customer.setAlignmentX(Component.LEFT_ALIGNMENT);
+                waitlist.add(customer);
+                if (i < visible - 1) {
+                    waitlist.add(Box.createVerticalStrut(4));
+                }
+            }
+            if (observers.size() > visible) {
+                waitlist.add(Box.createVerticalStrut(5));
+                JLabel more = label("+ " + (observers.size() - visible) + " more observer(s)", 9, Font.PLAIN, MUTED);
+                more.setAlignmentX(Component.LEFT_ALIGNMENT);
+                waitlist.add(more);
+            }
+        }
+        return waitlist;
     }
 
     private JComponent vehicleDetailItem(String title, String value, String icon) {
@@ -1827,9 +1879,16 @@ page.add(Box.createVerticalGlue());
                 vehicle.getStatus()
         );
         if (status != null) {
-            vehicle.setStatus(status);
-            vehicleService.saveVehicles();
+            int notified = vehicleService.changeStatus(vehicle, status);
             loadVehicleTable();
+            if (notified > 0) {
+                VeloraNotificationDialog.showSuccess(
+                        this,
+                        "Observers Notified",
+                        notified + " waiting customer(s) were notified that "
+                                + vehicle.getDisplayName() + " is available."
+                );
+            }
         }
     }
 

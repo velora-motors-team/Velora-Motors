@@ -40,6 +40,7 @@ public class CustomerDashboard extends JFrame {
     private JLabel loyaltyPointsValue;
     private JLabel totalSpentValue;
     private TopBadgeIcon notificationBell;
+    private TopBadgeIcon mailIcon;
     private MyRentalsPanel myRentalsPanel;
     private LoyaltyPointsPanel loyaltyPointsPanel;
 
@@ -74,6 +75,27 @@ public class CustomerDashboard extends JFrame {
         setContentPane(createRoot());
         accountState.addChangeListener(this::refreshCustomerMetrics);
         refreshCustomerMetrics();
+    }
+
+    public void showVehicleCatalog() {
+        showSection("Vehicles");
+    }
+
+    public void showAvailabilityToast() {
+        if (customer == null) {
+            return;
+        }
+        List<NotificationRepository.NotificationRecord> available = notificationRepository
+                .findUnreadByCustomerEmail(customer.getEmail()).stream()
+                .filter(notification -> "VEHICLE_AVAILABLE".equalsIgnoreCase(notification.type()))
+                .sorted(Comparator.comparing(
+                        NotificationRepository.NotificationRecord::createdAt,
+                        Comparator.reverseOrder()
+                ))
+                .toList();
+        if (!available.isEmpty()) {
+            new AvailabilityToast(available.get(0), available.size()).showToast();
+        }
     }
 
     private JPanel createRoot() {
@@ -295,16 +317,16 @@ public class CustomerDashboard extends JFrame {
             }
         });
 
-        TopBadgeIcon mail = new TopBadgeIcon(BadgeIconType.MAIL, 2);
-        mail.addMouseListener(new MouseAdapter() {
+        mailIcon = new TopBadgeIcon(BadgeIconType.MAIL, unreadMailCount());
+        mailIcon.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                showMessage("Messages:\n• Support replies and invoices will appear here.");
+                showInbox(true);
             }
         });
 
         right.add(notificationBell);
-        right.add(mail);
+        right.add(mailIcon);
         right.add(createProfileBlock());
         right.add(createWindowControls());
 
@@ -318,23 +340,43 @@ public class CustomerDashboard extends JFrame {
         if (customer == null || customer.getEmail() == null || customer.getEmail().isBlank()) {
             return 0;
         }
-        return notificationRepository.findUnreadByCustomerEmail(customer.getEmail()).size();
+        return (int) notificationRepository.findUnreadByCustomerEmail(customer.getEmail()).stream()
+                .filter(notification -> !"ADMIN_EMAIL".equalsIgnoreCase(notification.type()))
+                .count();
+    }
+
+    private int unreadMailCount() {
+        if (customer == null || customer.getEmail() == null || customer.getEmail().isBlank()) {
+            return 0;
+        }
+        return (int) notificationRepository.findUnreadByCustomerEmail(customer.getEmail()).stream()
+                .filter(notification -> "ADMIN_EMAIL".equalsIgnoreCase(notification.type()))
+                .count();
     }
 
     private void refreshNotificationBadge() {
         if (notificationBell != null) {
             notificationBell.setCount(unreadNotificationCount());
         }
+        if (mailIcon != null) {
+            mailIcon.setCount(unreadMailCount());
+        }
     }
 
     private void showNotificationInbox() {
+        showInbox(false);
+    }
+
+    private void showInbox(boolean mailOnly) {
         if (customer == null) {
-            VeloraNotificationDialog.showInfo(this, "Notifications", "No customer account is active.");
+            VeloraNotificationDialog.showInfo(this, mailOnly ? "Inbox" : "Notifications", "No customer account is active.");
             return;
         }
 
         List<NotificationRepository.NotificationRecord> notifications = notificationRepository
                 .findByCustomerEmail(customer.getEmail()).stream()
+                .filter(notification -> mailOnly
+                        == "ADMIN_EMAIL".equalsIgnoreCase(notification.type()))
                 .sorted(Comparator.comparing(
                         NotificationRepository.NotificationRecord::createdAt,
                         Comparator.reverseOrder()
@@ -343,7 +385,11 @@ public class CustomerDashboard extends JFrame {
                 .toList();
 
         if (notifications.isEmpty()) {
-            VeloraNotificationDialog.showInfo(this, "Notifications", "You have no notifications yet.");
+            VeloraNotificationDialog.showInfo(
+                    this,
+                    mailOnly ? "Admin Inbox" : "Notifications",
+                    mailOnly ? "You have no messages from administration yet." : "You have no notifications yet."
+            );
             refreshNotificationBadge();
             return;
         }
@@ -389,11 +435,118 @@ public class CustomerDashboard extends JFrame {
         JOptionPane.showMessageDialog(
                 this,
                 scroll,
-                "Velora Notifications",
+                mailOnly ? "Velora Administration Inbox" : "Velora Notifications",
                 JOptionPane.PLAIN_MESSAGE
         );
 
         refreshNotificationBadge();
+    }
+
+    private final class AvailabilityToast extends JWindow {
+        private final NotificationRepository.NotificationRecord notification;
+        private float opacity = 1f;
+
+        AvailabilityToast(NotificationRepository.NotificationRecord notification, int total) {
+            super(CustomerDashboard.this);
+            this.notification = notification;
+            setAlwaysOnTop(true);
+            setFocusableWindowState(false);
+            setBackground(new Color(0, 0, 0, 0));
+            setSize(430, total > 1 ? 154 : 136);
+            setContentPane(createToastContent(total));
+        }
+
+        void showToast() {
+            Rectangle owner = CustomerDashboard.this.getBounds();
+            setLocation(owner.x + owner.width - getWidth() - 28, owner.y + 78);
+            setVisible(true);
+
+            Timer stay = new Timer(5_000, event -> startFade());
+            stay.setRepeats(false);
+            stay.start();
+        }
+
+        private JComponent createToastContent(int total) {
+            JPanel card = new JPanel(new BorderLayout(14, 0)) {
+                @Override
+                protected void paintComponent(Graphics raw) {
+                    Graphics2D g = (Graphics2D) raw.create();
+                    g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    g.setColor(new Color(0, 0, 0, 105));
+                    g.fillRoundRect(7, 8, getWidth() - 14, getHeight() - 14, 22, 22);
+                    g.setPaint(new GradientPaint(0, 0, new Color(18, 29, 38), getWidth(), getHeight(), new Color(4, 10, 16)));
+                    g.fillRoundRect(0, 0, getWidth() - 8, getHeight() - 8, 20, 20);
+                    g.setColor(new Color(214, 168, 91, 145));
+                    g.drawRoundRect(0, 0, getWidth() - 9, getHeight() - 9, 20, 20);
+                    g.dispose();
+                }
+            };
+            card.setOpaque(false);
+            card.setBorder(new EmptyBorder(15, 18, 17, 20));
+
+            JLabel bell = new JLabel("🔔", SwingConstants.CENTER);
+            bell.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 28));
+            bell.setPreferredSize(new Dimension(44, 44));
+            card.add(bell, BorderLayout.WEST);
+
+            JPanel text = new JPanel();
+            text.setOpaque(false);
+            text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
+            JLabel title = new JLabel("Vehicle Available");
+            title.setForeground(GOLD_LIGHT);
+            title.setFont(new Font("Segoe UI", Font.BOLD, 15));
+            JTextArea message = new JTextArea(notification.message());
+            message.setOpaque(false);
+            message.setEditable(false);
+            message.setFocusable(false);
+            message.setForeground(TEXT);
+            message.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            message.setLineWrap(true);
+            message.setWrapStyleWord(true);
+            text.add(title);
+            text.add(Box.createVerticalStrut(5));
+            text.add(message);
+            if (total > 1) {
+                JLabel more = new JLabel("+ " + (total - 1) + " more availability notification(s)");
+                more.setForeground(MUTED);
+                more.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                text.add(more);
+            }
+            card.add(text, BorderLayout.CENTER);
+
+            JButton view = new JButton("View");
+            view.setForeground(GOLD_LIGHT);
+            view.setFont(new Font("Segoe UI", Font.BOLD, 11));
+            view.setOpaque(false);
+            view.setContentAreaFilled(false);
+            view.setBorderPainted(false);
+            view.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            view.addActionListener(event -> {
+                dispose();
+                showVehicleCatalog();
+            });
+            card.add(view, BorderLayout.EAST);
+            return card;
+        }
+
+        private void startFade() {
+            Timer fade = new Timer(45, null);
+            fade.addActionListener(event -> {
+                opacity -= 0.07f;
+                if (opacity <= 0f) {
+                    fade.stop();
+                    dispose();
+                    return;
+                }
+                try {
+                    setOpacity(opacity);
+                } catch (UnsupportedOperationException | IllegalComponentStateException ex) {
+                    fade.stop();
+                    dispose();
+                }
+            });
+            fade.start();
+        }
     }
 
     private JComponent createWindowControls() {
