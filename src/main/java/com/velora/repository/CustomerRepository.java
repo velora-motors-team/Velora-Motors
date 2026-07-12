@@ -16,22 +16,53 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
-public final class CustomerRepository {
+
+/**
+ * Manages customer accounts for Velora Motors.
+ */
+public final class CustomerRepository {   
+
+/**
+* Stores the header of the accounts file.
+  */
 
     private static final String HEADER = "# Velora Motors accounts v1"
             + System.lineSeparator()
             + "# email\tfullName\tphone\trole\tpassword";
 
+ /**
+* Stores the path of the accounts file.
+  */
+
     private final Path accountsFile;
+    
+  /**
+* Creates the repository using the default accounts file.
+  */
 
     public CustomerRepository() {
         this(defaultAccountsFile());
     }
+    
+ /**
+* Creates a repository with a specific file.
+* @param accountsFile the accounts file
+  */
+
 
     public CustomerRepository(Path accountsFile) {
         this.accountsFile = accountsFile.toAbsolutePath().normalize();
         initializeStorage();
     }
+    
+ /**
+* Finds a customer by email.
+* @param email the email
+* @return the customer if found
+* @throws IllegalStateException if the file cannot be read
+  */
+
+
 
     public synchronized Optional<StoredCustomer> findByEmail(String email) {
         String normalizedEmail = normalizeEmail(email);
@@ -40,6 +71,15 @@ public final class CustomerRepository {
                 .filter(account -> account.customer().getEmail().equals(normalizedEmail))
                 .findFirst();
     }
+    
+ /**
+* Saves a new customer.
+* @param customer the customer
+* @param password the password
+* @throws IllegalArgumentException if the email exists
+* @throws IllegalStateException if saving fails
+  */
+
 
     public synchronized void save(Customer customer, String password) {
         if (findByEmail(customer.getEmail()).isPresent()) {
@@ -50,6 +90,13 @@ public final class CustomerRepository {
         accounts.add(new StoredCustomer(customer, password));
         writeAll(accounts);
     }
+/**
+* Changes the password.
+* @param email the email
+* @param newPassword the password
+* @return true if changed
+* @throws IllegalStateException if an error happens
+  */
 
     public synchronized boolean updatePassword(String email, String newPassword) {
         String normalizedEmail = normalizeEmail(email);
@@ -72,6 +119,15 @@ public final class CustomerRepository {
 
         return updated;
     }
+/**
+* Updates the customer profile.
+* @param email the email
+* @param fullName the name
+* @param phone the phone
+* @return true if updated
+* @throws IllegalArgumentException if the name is empty
+* @throws IllegalStateException if an error happens
+  */
 
     public synchronized boolean updateProfile(String email, String fullName, String phone) {
         String normalizedEmail = normalizeEmail(email);
@@ -108,6 +164,12 @@ public final class CustomerRepository {
 
         return updated;
     }
+/**
+* Deletes a customer by email.
+* @param email the email
+* @return true if deleted
+* @throws IllegalStateException if an error happens
+  */
 
     public synchronized boolean deleteByEmail(String email) {
         String normalizedEmail = normalizeEmail(email);
@@ -122,20 +184,39 @@ public final class CustomerRepository {
 
         return removed;
     }
+/**
+* Gets all customers.
+* @return the customer list
+* @throws IllegalStateException if an error happens
+  */
 
     public synchronized List<Customer> findAll() {
         return readAll().stream()
                 .map(StoredCustomer::customer)
                 .toList();
     }
+/**
+* Gets all stored customers.
+* @return the stored customer list
+* @throws IllegalStateException if an error happens
+  */
 
     public synchronized List<StoredCustomer> findAllStored() {
         return readAll();
     }
+/**
+* Gets the accounts file path.
+* @return the file path
+  */
 
     public Path getAccountsFile() {
         return accountsFile;
     }
+   /**
+* Creates the accounts file if needed.
+* @throws IllegalStateException if an error happens
+  */
+
 
     private void initializeStorage() {
         try {
@@ -156,6 +237,11 @@ public final class CustomerRepository {
             throw new IllegalStateException("Unable to initialize the accounts file.", ex);
         }
     }
+/**
+* Reads all saved customers.
+* @return the customer list
+* @throws IllegalStateException if an error happens
+  */
 
     private List<StoredCustomer> readAll() {
         try {
@@ -197,6 +283,11 @@ public final class CustomerRepository {
             throw new IllegalStateException("Unable to read saved accounts.", ex);
         }
     }
+/**
+* Saves all customer accounts.
+* @param accounts the accounts
+* @throws IllegalStateException if an error happens
+  */
 
     private void writeAll(List<StoredCustomer> accounts) {
         StringBuilder content = new StringBuilder(HEADER).append(System.lineSeparator());
@@ -239,6 +330,10 @@ public final class CustomerRepository {
             throw new IllegalStateException("Unable to save account information.", ex);
         }
     }
+/**
+* Creates the default file content.
+* @return the default content
+  */
 
     private static String defaultFileContent() {
         return HEADER + System.lineSeparator()
@@ -247,6 +342,10 @@ public final class CustomerRepository {
                 + "ahmad%40gmail.com\tAhmad+Ali\t\tCUSTOMER\tAhmad%40123" + System.lineSeparator()
                 + "sara%40gmail.com\tsara\t0599326499\tCUSTOMER\tSara%40123" + System.lineSeparator();
     }
+/**
+* Gets the default file path.
+* @return the default path
+  */
 
     private static Path defaultAccountsFile() {
         String override = System.getProperty("velora.accounts.file");
@@ -257,18 +356,40 @@ public final class CustomerRepository {
 
         return Path.of(System.getProperty("user.dir"), "accounts.txt");
     }
+/**
+ * Formats the email.
+ * @param email the email
+ * @return the formatted email
+ */
 
     private static String normalizeEmail(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
     }
+/**
+* Encodes a value.
+* @param value the value
+* @return the encoded value
+  */
 
     private static String encode(String value) {
         return URLEncoder.encode(value == null ? "" : value, StandardCharsets.UTF_8);
     }
+  /**
+* Decodes a value.
+* @param value the value
+* @return the decoded value
+  */
+
 
     private static String decode(String value) {
         return URLDecoder.decode(value == null ? "" : value, StandardCharsets.UTF_8);
     }
+    
+/**
+* Stores customer and password.
+* @param customer the customer
+* @param password the password
+  */
 
     public record StoredCustomer(
             Customer customer,
