@@ -56,4 +56,133 @@ public void testCarStrategy() {
 
     assertTrue(res instanceof StandardLateFeeStrategy);//تأكد إن المتغير res يحمل object من نوع StandardLateFeeStrategy.
 }
+ @Test
+public void testCarStrategy_SUV() {
+
+    Vehicle vehicle = new Vehicle(
+            "V001",
+            "Toyota",
+            "Corolla",
+            VehicleType.SUV,
+            VehicleStatus.AVAILABLE,
+            200.0
+    );
+
+    LateFeeStrategy res = LateFeeStrategyFactory.forVehicle(vehicle);
+
+    assertTrue(res instanceof StandardLateFeeStrategy);//تأكد إن المتغير res يحمل object من نوع StandardLateFeeStrategy.
 }
+
+@Test
+public void testHybridCarStrategy() {
+
+    Vehicle vehicle = new Vehicle(
+            "V004",
+            "Toyota",
+            "Prius",
+            VehicleType.HYBRID_CAR,
+            VehicleStatus.AVAILABLE,
+            220.0
+    );
+
+    LateFeeStrategy res = LateFeeStrategyFactory.forVehicle(vehicle);
+
+    assertTrue(res instanceof ElectricLateFeeStrategy);
+}
+@Test
+public void testElectricVehicleStrategy() {
+
+    Vehicle vehicle = new Vehicle(
+            "V003",
+            "BMW",
+            "i4",
+            VehicleType.ELECTRIC_VEHICLE,
+            VehicleStatus.AVAILABLE,
+            300.0
+    );
+
+    LateFeeStrategy res = LateFeeStrategyFactory.forVehicle(vehicle);
+
+    assertTrue(res instanceof ElectricLateFeeStrategy);
+}
+
+@Test
+public void testMotorcycleStrategy() {
+
+    Vehicle vehicle = new Vehicle(
+            "V005",
+            "Honda",
+            "CBR",
+            VehicleType.MOTORCYCLE,
+            VehicleStatus.AVAILABLE,
+            150.0
+    );
+
+    LateFeeStrategy res = LateFeeStrategyFactory.forVehicle(vehicle);
+
+    assertTrue(res instanceof MotorcycleLateFeeStrategy);
+}
+
+@Test
+public void testElectricBikeStrategy() {
+
+    Vehicle vehicle = new Vehicle(
+            "V006",
+            "Xiaomi",
+            "E-Bike",
+            VehicleType.ELECTRIC_BIKE,
+            VehicleStatus.AVAILABLE,
+            80.0
+    );
+
+    LateFeeStrategy res = LateFeeStrategyFactory.forVehicle(vehicle);
+
+    assertTrue(res instanceof MotorcycleLateFeeStrategy);
+}
+
+@Test
+public void testTruckStrategy() {
+
+    Vehicle vehicle = new Vehicle(
+            "V007",
+            "Volvo",
+            "FH",
+            VehicleType.TRUCK,
+            VehicleStatus.AVAILABLE,
+            400.0
+    );
+
+    LateFeeStrategy res = LateFeeStrategyFactory.forVehicle(vehicle);
+
+    assertTrue(res instanceof TruckLateFeeStrategy);
+}
+
+@Test
+public void testNullVehicleStrategy() {
+
+    Vehicle vehicle = null;
+
+    LateFeeStrategy res = LateFeeStrategyFactory.forVehicle(vehicle);
+
+    assertTrue(res instanceof StandardLateFeeStrategy);
+}
+
+@Test
+public void testNullVehicleTypeStrategy() {
+
+    Vehicle vehicle = new Vehicle(
+            "V008",
+            "Unknown",
+            "Unknown",
+            null,
+            VehicleStatus.AVAILABLE,
+            100.0
+    );
+
+    LateFeeStrategy res = LateFeeStrategyFactory.forVehicle(vehicle);
+
+    assertTrue(res instanceof StandardLateFeeStrategy);
+}
+
+}
+
