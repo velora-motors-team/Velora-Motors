@@ -7,40 +7,24 @@ import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public class SupportMessageRepositoryTest {
 
-    private static final Path FILE = Path.of("support_messages.txt");
+    @TempDir
+    Path tempDirectory;
 
-    private boolean originalFileExisted;
-    private byte[] originalFileContent;
-
+    private Path file;
     private SupportMessageRepository repository;
 
     @BeforeEach
-    public void setUp() throws IOException {
-        originalFileExisted = Files.exists(FILE);
-        originalFileContent = originalFileExisted
-                ? Files.readAllBytes(FILE)
-                : null;
-
-        Files.deleteIfExists(FILE);
-
-        repository = new SupportMessageRepository();
-    }
-
-    @AfterEach
-    public void tearDown() throws IOException {
-        Files.deleteIfExists(FILE);
-
-        if (originalFileExisted) {
-            Files.write(FILE, originalFileContent);
-        }
+    public void setUp() {
+        file = tempDirectory.resolve("support_messages.txt");
+        repository = new SupportMessageRepository(file);
     }
 
     private SupportMessage createMessage(
@@ -127,7 +111,7 @@ public class SupportMessageRepositoryTest {
                         + "|Line1\\nLine2|2026-07-14 10:00|false|OPEN";
 
         Files.writeString(
-                FILE,
+                file,
                 line + System.lineSeparator(),
                 StandardCharsets.UTF_8
         );
@@ -153,7 +137,7 @@ public class SupportMessageRepositoryTest {
                         + System.lineSeparator();
 
         Files.writeString(
-                FILE,
+                file,
                 content,
                 StandardCharsets.UTF_8
         );

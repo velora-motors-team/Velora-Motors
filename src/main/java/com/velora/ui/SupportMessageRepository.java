@@ -10,18 +10,29 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 public class SupportMessageRepository {
 
-    private static final String FILE_PATH = "support_messages.txt";
+    private static final Path DEFAULT_FILE_PATH = Paths.get("support_messages.txt");
+
+    private final Path filePath;
 
     private static final DateTimeFormatter FORMATTER =
             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
+    public SupportMessageRepository() {
+        this(DEFAULT_FILE_PATH);
+    }
+
+    public SupportMessageRepository(Path filePath) {
+        this.filePath = Objects.requireNonNull(filePath, "filePath");
+    }
+
     public void saveMessage(SupportMessage message) {
         try {
             Files.write(
-                    Paths.get(FILE_PATH),
+                    filePath,
                     (message.toString() + System.lineSeparator())
                             .getBytes(StandardCharsets.UTF_8),
                     StandardOpenOption.CREATE,
@@ -38,7 +49,7 @@ public class SupportMessageRepository {
 
     List<SupportMessage> messages = new ArrayList<>();
 
-    Path path = Paths.get(FILE_PATH);
+    Path path = filePath;
 
     if (!Files.exists(path)) {
         return messages;
@@ -180,7 +191,7 @@ public class SupportMessageRepository {
     return messages;
 }
     public void saveAllMessages(List<SupportMessage> messages) {
-        Path path = Paths.get(FILE_PATH);
+        Path path = filePath;
 
         List<String> lines = new ArrayList<>();
 
