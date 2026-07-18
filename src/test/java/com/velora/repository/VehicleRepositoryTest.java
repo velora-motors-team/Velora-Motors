@@ -91,14 +91,14 @@ public class VehicleRepositoryTest {
     }
 
     @Test
-    public void testLoadVehiclesReturnsThirtyDefaultVehiclesWhenFileMissing()
+    public void testLoadVehiclesReturnsThirtyEightDefaultVehiclesWhenFileMissing()
             throws Exception {
 
         Files.deleteIfExists(vehicleFile);
 
         List<Vehicle> vehicles = invokeLoadVehicles();
 
-        assertEquals(30, vehicles.size());
+        assertEquals(38, vehicles.size());
 
         Vehicle first = vehicles.get(0);
 
@@ -108,6 +108,34 @@ public class VehicleRepositoryTest {
         assertEquals(VehicleType.SUV, first.getType());
         assertEquals(VehicleStatus.AVAILABLE, first.getStatus());
         assertEquals(520.0, first.getDailyPrice(), 0.0001);
+    }
+
+    @Test
+    public void testDefaultFleetContainsMotorcyclesTrucksAndElectricBike()
+            throws Exception {
+        Files.deleteIfExists(vehicleFile);
+
+        List<Vehicle> vehicles = invokeLoadVehicles();
+
+        assertEquals(
+                4,
+                vehicles.stream()
+                        .filter(vehicle -> vehicle.getType() == VehicleType.MOTORCYCLE)
+                        .count()
+        );
+        assertEquals(
+                3,
+                vehicles.stream()
+                        .filter(vehicle -> vehicle.getType() == VehicleType.TRUCK)
+                        .count()
+        );
+
+        Vehicle ce04 = vehicles.stream()
+                .filter(vehicle -> vehicle.getId().equals("VM-0035"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals(VehicleType.ELECTRIC_BIKE, ce04.getType());
+        assertEquals(92, ce04.getBatteryLevel());
     }
 
     @Test
@@ -301,7 +329,7 @@ public class VehicleRepositoryTest {
     public void testSaveVehiclesAndLoadSavedVehiclesRoundTrip()
             throws Exception {
 
-        Vehicle normalVehicle = new Vehicle(
+        Vehicle normalVehicle = Vehicle.create(
                 "V001",
                 "BMW",
                 "M3 Competition",
@@ -310,7 +338,7 @@ public class VehicleRepositoryTest {
                 385.0
         );
 
-        Vehicle electricVehicle = new Vehicle(
+        Vehicle electricVehicle = Vehicle.create(
                 "EV001",
                 "BMW",
                 "i7 M70",
@@ -339,7 +367,7 @@ public class VehicleRepositoryTest {
     public void testSaveVehiclesPreservesSpecialCharacters()
             throws Exception {
 
-        Vehicle vehicle = new Vehicle(
+        Vehicle vehicle = Vehicle.create(
                 "V-特殊-1",
                 "BMW & Co",
                 "M3 / Competition + Special",
@@ -409,6 +437,49 @@ public class VehicleRepositoryTest {
                 invokeParseDouble("410.75"),
                 0.0001
         );
+    }
+
+    @Test
+    public void testLoadSavedVehiclesSkipsWrongRecordType()
+            throws Exception {
+        writeVehicleFile(
+                "NOT_A_VEHICLE\t1\t2\t3\t4\t5\t6"
+        );
+
+        assertTrue(invokeLoadSavedVehicles().isEmpty());
+    }
+
+    @Test
+    public void testLoadSavedVehicleWithSevenColumnsHasNoBattery()
+            throws Exception {
+        writeVehicleFile(String.join(
+                "\t",
+                "VEHICLE",
+                encode("V-7"),
+                encode("BMW"),
+                encode("M3"),
+                VehicleType.CAR.name(),
+                VehicleStatus.AVAILABLE.name(),
+                "300.0"
+        ));
+
+        List<Vehicle> loaded = invokeLoadSavedVehicles();
+
+        assertEquals(1, loaded.size());
+        assertNull(loaded.get(0).getBatteryLevel());
+    }
+
+    @Test
+    public void testSaveVehiclesIgnoresIoFailure() throws Exception {
+        Files.deleteIfExists(vehicleFile);
+        Files.createDirectories(vehicleFile);
+
+        assertDoesNotThrow(() -> invokeSaveVehicles(List.of(
+                Vehicle.create(
+                        "V-1", "BMW", "M3", VehicleType.CAR,
+                        VehicleStatus.AVAILABLE, 300.0
+                )
+        )));
     }
 
     private Path getVehicleFile() throws Exception {

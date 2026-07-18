@@ -10,12 +10,32 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 public class LoginControllerTest {
+
+    @Test
+    public void testDefaultConstructor(@TempDir Path tempDirectory) {
+        String previous = System.getProperty("velora.accounts.file");
+
+        try {
+            System.setProperty(
+                    "velora.accounts.file",
+                    tempDirectory.resolve("accounts.txt").toString()
+            );
+            assertNotNull(new LoginController());
+        } finally {
+            if (previous == null) {
+                System.clearProperty("velora.accounts.file");
+            } else {
+                System.setProperty("velora.accounts.file", previous);
+            }
+        }
+    }
 
     private AuthenticationService authenticationService;
     private LoginController controller;

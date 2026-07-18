@@ -22,7 +22,7 @@ public class VehicleServiceTest {
             String model,
             VehicleStatus status
     ) {
-        return new Vehicle(
+        return Vehicle.create(
                 id,
                 brand,
                 model,

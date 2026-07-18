@@ -54,6 +54,8 @@ public final class RentalDatabaseService {
             String paymentMethod,
             double walletBalanceAfter
     ) {
+        validateRentalDays(rentalDays);
+
         LocalDateTime start = LocalDateTime.now();
 
         return recordSuccessfulRental(
@@ -82,6 +84,31 @@ public final class RentalDatabaseService {
             LocalDateTime start,
             LocalDateTime expectedReturn
     ) {
+        return recordSuccessfulRental(
+                customer, vehicle, rentalDays, invoiceId, baseAmount,
+                totalAmount, paymentMethod, walletBalanceAfter,
+                start, expectedReturn, 0, false
+        );
+    }
+
+    /**
+     * Records a rental after enforcing the concrete vehicle's eligibility rule.
+     * Restricted vehicles must use this overload so the service cannot be bypassed.
+     */
+    public RentalRepository.RentalRecord recordSuccessfulRental(
+            Customer customer,
+            Vehicle vehicle,
+            int rentalDays,
+            String invoiceId,
+            double baseAmount,
+            double totalAmount,
+            String paymentMethod,
+            double walletBalanceAfter,
+            LocalDateTime start,
+            LocalDateTime expectedReturn,
+            int driverAge,
+            boolean hasSpecialLicense
+    ) {
         if (customer == null) {
             throw new IllegalArgumentException("Customer is required.");
         }
@@ -90,13 +117,15 @@ public final class RentalDatabaseService {
             throw new IllegalArgumentException("Vehicle is required.");
         }
 
-        if (rentalDays <= 0) {
-            throw new IllegalArgumentException("Rental days must be greater than zero.");
-        }
+        validateRentalDays(rentalDays);
+
+        validateRentalEligibility(vehicle, driverAge, hasSpecialLicense);
 
         if (start == null || expectedReturn == null || !expectedReturn.isAfter(start)) {
             throw new IllegalArgumentException("A valid rental period is required.");
         }
+
+        validateAvailability(vehicle);
 
         String email = customer.getEmail();
         String customerName = customer.getFullName();
@@ -152,6 +181,62 @@ public final class RentalDatabaseService {
         );
 
         return rental;
+    }
+
+    public static void validateRentalEligibility(
+            Vehicle vehicle,
+            int driverAge,
+            boolean hasSpecialLicense
+    ) {
+        if (vehicle == null) {
+            throw new IllegalArgumentException("Vehicle is required.");
+        }
+        if (vehicle.canBeRentedBy(driverAge, hasSpecialLicense)) {
+            return;
+        }
+
+        String message = switch (vehicle.getType()) {
+            case TRUCK -> "A special truck license is required.";
+            case MOTORCYCLE -> "The motorcycle driver must be at least 21 years old.";
+            case ELECTRIC_BIKE -> vehicle.getBatteryLevel() == null || vehicle.getBatteryLevel() < 30
+                    ? "The electric motorcycle needs at least 30% battery."
+                    : "The motorcycle driver must be at least 21 years old.";
+            case ELECTRIC_VEHICLE -> "The electric vehicle needs at least 30% battery.";
+            default -> "The driver is not eligible to rent this vehicle.";
+        };
+        throw new IllegalArgumentException(message);
+    }
+
+    /** Safe preflight used by UIs before reserving funds or creating an invoice. */
+    public void validateRentalRequest(
+            Vehicle vehicle,
+            int rentalDays,
+            int driverAge,
+            boolean hasSpecialLicense
+    ) {
+        if (vehicle == null) {
+            throw new IllegalArgumentException("Vehicle is required.");
+        }
+        validateRentalDays(rentalDays);
+        validateRentalEligibility(vehicle, driverAge, hasSpecialLicense);
+        validateAvailability(vehicle);
+    }
+
+    private void validateAvailability(Vehicle vehicle) {
+        if (!vehicle.isAvailable()) {
+            throw new IllegalStateException("Vehicle is not available for rental.");
+        }
+        if (rentalRepository.hasActiveRentalForVehicle(vehicle.getId())) {
+            throw new IllegalStateException("Vehicle already has an active rental.");
+        }
+    }
+
+    private static void validateRentalDays(int rentalDays) {
+        if (rentalDays < 1 || rentalDays > 30) {
+            throw new IllegalArgumentException(
+                    "Rental days must be between 1 and 30."
+            );
+        }
     }
 
     public boolean markReturnDue(String rentalId) {

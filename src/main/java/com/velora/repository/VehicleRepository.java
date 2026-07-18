@@ -39,7 +39,7 @@ public class VehicleRepository {
 
         List<Vehicle> vehicles = new ArrayList<>();
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0001",
                 "BMW",
                 "XM Label",
@@ -48,7 +48,7 @@ public class VehicleRepository {
                 520.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0002",
                 "BMW",
                 "XM 50e",
@@ -57,7 +57,7 @@ public class VehicleRepository {
                 430.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0003",
                 "BMW",
                 "X7 M60i",
@@ -66,7 +66,7 @@ public class VehicleRepository {
                 390.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0004",
                 "BMW",
                 "X6 M Competition",
@@ -75,7 +75,7 @@ public class VehicleRepository {
                 470.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0005",
                 "BMW",
                 "X6 M60i",
@@ -84,7 +84,7 @@ public class VehicleRepository {
                 360.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0006",
                 "BMW",
                 "X5 M Competition",
@@ -93,7 +93,7 @@ public class VehicleRepository {
                 440.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0007",
                 "BMW",
                 "X5 M60e xDrive",
@@ -102,7 +102,7 @@ public class VehicleRepository {
                 340.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0008",
                 "BMW",
                 "X3 M50",
@@ -111,7 +111,7 @@ public class VehicleRepository {
                 260.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0009",
                 "BMW",
                 "X2 M35i",
@@ -120,7 +120,7 @@ public class VehicleRepository {
                 210.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0010",
                 "BMW",
                 "X1 M35i",
@@ -129,7 +129,7 @@ public class VehicleRepository {
                 190.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0011",
                 "BMW",
                 "iX M70",
@@ -139,7 +139,7 @@ public class VehicleRepository {
                 92
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0012",
                 "BMW",
                 "i7 M70 xDrive",
@@ -149,7 +149,7 @@ public class VehicleRepository {
                 78
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0013",
                 "BMW",
                 "M760e xDrive",
@@ -158,7 +158,7 @@ public class VehicleRepository {
                 455.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0014",
                 "BMW",
                 "M5 Sedan",
@@ -167,7 +167,7 @@ public class VehicleRepository {
                 430.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0015",
                 "BMW",
                 "M5 Touring",
@@ -176,7 +176,7 @@ public class VehicleRepository {
                 440.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0016",
                 "BMW",
                 "i5 M60 Sedan",
@@ -186,7 +186,7 @@ public class VehicleRepository {
                 88
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0017",
                 "BMW",
                 "i5 M60 Touring",
@@ -196,7 +196,7 @@ public class VehicleRepository {
                 81
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0018",
                 "BMW",
                 "M4 Coupe",
@@ -205,7 +205,7 @@ public class VehicleRepository {
                 360.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0019",
                 "BMW",
                 "M4 Competition Coupe",
@@ -214,7 +214,7 @@ public class VehicleRepository {
                 395.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0020",
                 "BMW",
                 "M4 Competition Convertible",
@@ -223,7 +223,7 @@ public class VehicleRepository {
                 410.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0021",
                 "BMW",
                 "M440i Gran Coupe",
@@ -232,7 +232,7 @@ public class VehicleRepository {
                 275.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0022",
                 "BMW",
                 "i4 M60 xDrive",
@@ -242,7 +242,7 @@ public class VehicleRepository {
                 73
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0023",
                 "BMW",
                 "M3 Sedan",
@@ -251,7 +251,7 @@ public class VehicleRepository {
                 350.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0024",
                 "BMW",
                 "M3 Competition Sedan",
@@ -260,7 +260,7 @@ public class VehicleRepository {
                 385.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0025",
                 "BMW",
                 "M3 Competition Touring",
@@ -269,7 +269,7 @@ public class VehicleRepository {
                 400.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0026",
                 "BMW",
                 "M340i Sedan",
@@ -278,7 +278,7 @@ public class VehicleRepository {
                 245.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0027",
                 "BMW",
                 "M2",
@@ -287,7 +287,7 @@ public class VehicleRepository {
                 300.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0028",
                 "BMW",
                 "M2 CS",
@@ -296,7 +296,7 @@ public class VehicleRepository {
                 340.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0029",
                 "BMW",
                 "Z4 M40i",
@@ -305,13 +305,86 @@ public class VehicleRepository {
                 285.0
         ));
 
-        vehicles.add(new Vehicle(
+        vehicles.add(Vehicle.create(
                 "VM-0030",
                 "BMW",
                 "Z4 Final Edition",
                 VehicleType.CAR,
                 VehicleStatus.MAINTENANCE,
                 310.0
+        ));
+
+        vehicles.add(Vehicle.create(
+                "VM-0031",
+                "BMW",
+                "S 1000 RR",
+                VehicleType.MOTORCYCLE,
+                VehicleStatus.AVAILABLE,
+                190.0
+        ));
+
+        vehicles.add(Vehicle.create(
+                "VM-0032",
+                "BMW",
+                "M 1000 R",
+                VehicleType.MOTORCYCLE,
+                VehicleStatus.AVAILABLE,
+                175.0
+        ));
+
+        vehicles.add(Vehicle.create(
+                "VM-0033",
+                "BMW",
+                "R 1250 GS",
+                VehicleType.MOTORCYCLE,
+                VehicleStatus.RENTED,
+                165.0
+        ));
+
+        vehicles.add(Vehicle.create(
+                "VM-0034",
+                "BMW",
+                "K 1600 GTL",
+                VehicleType.MOTORCYCLE,
+                VehicleStatus.AVAILABLE,
+                230.0
+        ));
+
+        vehicles.add(Vehicle.create(
+                "VM-0035",
+                "BMW",
+                "CE 04",
+                VehicleType.ELECTRIC_BIKE,
+                VehicleStatus.AVAILABLE,
+                120.0,
+                92
+        ));
+
+        vehicles.add(Vehicle.create(
+                "VM-0036",
+                "BMW",
+                "XD Distribution",
+                VehicleType.TRUCK,
+                VehicleStatus.AVAILABLE,
+                520.0
+        ));
+
+        vehicles.add(Vehicle.create(
+                "VM-0037",
+                "BMW",
+                "XM Long Haul",
+                VehicleType.TRUCK,
+                VehicleStatus.RENTED,
+                680.0
+        ));
+
+        vehicles.add(Vehicle.create(
+                "VM-0038",
+                "BMW",
+                "X7 Heavy Duty",
+                VehicleType.TRUCK,
+                VehicleStatus.MAINTENANCE,
+                750.0
         ));
 
         return vehicles;
@@ -333,7 +406,7 @@ public class VehicleRepository {
                     continue;
                 }
                 String battery = parts[6];
-                vehicles.add(new Vehicle(
+                vehicles.add(Vehicle.create(
                         decode(parts[1]),
                         decode(parts[2]),
                         decode(parts[3]),

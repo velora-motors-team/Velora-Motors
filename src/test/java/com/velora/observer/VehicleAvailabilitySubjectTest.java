@@ -20,7 +20,7 @@ import static org.mockito.Mockito.*;
 public class VehicleAvailabilitySubjectTest {
 
     private Vehicle createVehicle(String id, VehicleStatus status) {
-        return new Vehicle(
+        return Vehicle.create(
                 id,
                 "BMW",
                 "X5",
@@ -210,6 +210,19 @@ public class VehicleAvailabilitySubjectTest {
                 "V001",
                 "hamada@email.com"
         );
+    }
+
+    @Test
+    public void testHasObserverFalseWhenRepositoryReturnsFalse() {
+        VehicleWaitlistRepository repository = mock(VehicleWaitlistRepository.class);
+        VehicleAvailabilitySubject subject = new VehicleAvailabilitySubject(repository);
+        Vehicle vehicle = createVehicle("V001", VehicleStatus.RENTED);
+        Customer customer = createCustomer("Hamada", "hamada@email.com");
+
+        when(repository.isSubscribed("V001", "hamada@email.com"))
+                .thenReturn(false);
+
+        assertFalse(subject.hasObserver(vehicle, customer));
     }
 
     @Test

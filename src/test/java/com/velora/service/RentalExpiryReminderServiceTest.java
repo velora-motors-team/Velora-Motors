@@ -18,6 +18,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 public class RentalExpiryReminderServiceTest {
 
@@ -128,6 +132,84 @@ public class RentalExpiryReminderServiceTest {
         );
     }
 
+    @Test
+    void defaultConstructorCreatesService() {
+        assertNotNull(new RentalExpiryReminderService());
+    }
+
+    @Test
+    void rejectsEachNullDependency() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new RentalExpiryReminderService(null, emailService, fixedClock)
+        );
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new RentalExpiryReminderService(rentalRepository, null, fixedClock)
+        );
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> new RentalExpiryReminderService(rentalRepository, emailService, null)
+        );
+    }
+
+    @Test
+    void blankCustomerEmailReturnsZeroWithoutRepositoryCall() {
+        assertEquals(0, service.sendUpcomingReminders(null));
+        assertEquals(0, service.sendUpcomingReminders("   "));
+        verifyNoInteractions(rentalRepository, emailService);
+    }
+
+    @Test
+    void rejectsNullAndNegativeReminderWindows() {
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.sendUpcomingReminders("customer@velora.com", null)
+        );
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> service.sendUpcomingReminders(
+                        "customer@velora.com", Duration.ofMinutes(-1)
+                )
+        );
+    }
+
+    @Test
+    void skipsNullBlankAndMalformedExpectedReturnTimes() {
+        RentalRecord nullDate = createRentalWithRawDate("ACTIVE", null);
+        RentalRecord blankDate = createRentalWithRawDate(" ACTIVE ", "   ");
+        RentalRecord malformedDate = createRentalWithRawDate("active", "not-a-date");
+
+        when(rentalRepository.findByCustomerEmail("customer@velora.com"))
+                .thenReturn(List.of(nullDate, blankDate, malformedDate));
+
+        assertEquals(0, service.sendUpcomingReminders("customer@velora.com"));
+        verify(emailService, never()).hasRentalExpiryReminder(anyString(), anyString());
+        verify(emailService, never()).sendRentalExpiryReminder(
+                anyString(), anyString(), anyString(), any(LocalDateTime.class)
+        );
+    }
+
+    @Test
+    void skipsNullStatusAndAcceptsReturnExactlyAtWindowLimit() {
+        RentalRecord nullStatus = createRentalWithRawDate(
+                null, LocalDateTime.of(2026, 7, 18, 11, 0).toString()
+        );
+        RentalRecord atLimit = createRentalWithRawDate(
+                " active ", LocalDateTime.of(2026, 7, 18, 12, 0).toString()
+        );
+
+        when(rentalRepository.findByCustomerEmail("customer@velora.com"))
+                .thenReturn(List.of(nullStatus, atLimit));
+        when(emailService.hasRentalExpiryReminder(
+                "customer@velora.com", "RNT-1"
+        )).thenReturn(false);
+
+        assertEquals(1, service.sendUpcomingReminders(
+                "customer@velora.com", Duration.ofHours(2)
+        ));
+    }
+
     private RentalRecord createRental(
             String status,
             LocalDateTime expectedReturn
@@ -140,6 +222,26 @@ public class RentalExpiryReminderServiceTest {
                 "BMW X5",
                 LocalDateTime.of(2026, 7, 17, 10, 0).toString(),
                 expectedReturn.toString(),
+                "",
+                status,
+                2,
+                250.0,
+                500.0,
+                0.0,
+                "INV-1",
+                "PAID"
+        );
+    }
+
+    private RentalRecord createRentalWithRawDate(String status, String expectedReturn) {
+        return new RentalRecord(
+                "RNT-1",
+                "customer@velora.com",
+                "Test Customer",
+                "VEH-1",
+                "BMW X5",
+                "2026-07-17T10:00:00",
+                expectedReturn,
                 "",
                 status,
                 2,

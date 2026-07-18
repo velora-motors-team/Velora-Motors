@@ -65,7 +65,7 @@ public class LateFeeContextTest {
 
         LateFeeContext context = new LateFeeContext();
 
-        Vehicle vehicle = new Vehicle(
+        Vehicle vehicle = Vehicle.create(
                 "V001",
                 "Toyota",
                 "Corolla",
@@ -89,7 +89,7 @@ public class LateFeeContextTest {
         LateFeeContext context =
                 new LateFeeContext(new StandardLateFeeStrategy());
 
-        Vehicle vehicle = new Vehicle(
+        Vehicle vehicle = Vehicle.create(
                 "V001",
                 "Toyota",
                 "Corolla",

@@ -288,6 +288,7 @@ public final class AnalyticsPanel extends JPanel {
         counts.put("Electric", 0);
         counts.put("Hybrid", 0);
         counts.put("Bikes / Motorcycles", 0);
+        counts.put("Trucks", 0);
 
         for (Vehicle v : vehicles) {
             VehicleType type = v.getType();
@@ -295,6 +296,7 @@ public final class AnalyticsPanel extends JPanel {
                 case ELECTRIC_VEHICLE -> counts.put("Electric", counts.get("Electric") + 1);
                 case HYBRID_CAR -> counts.put("Hybrid", counts.get("Hybrid") + 1);
                 case ELECTRIC_BIKE, MOTORCYCLE -> counts.put("Bikes / Motorcycles", counts.get("Bikes / Motorcycles") + 1);
+                case TRUCK -> counts.put("Trucks", counts.get("Trucks") + 1);
                 default -> counts.put("Cars / SUV", counts.get("Cars / SUV") + 1);
             }
         }
@@ -303,7 +305,8 @@ public final class AnalyticsPanel extends JPanel {
                 new PieSlice("Cars / SUV", counts.get("Cars / SUV"), GOLD),
                 new PieSlice("Electric", counts.get("Electric"), new Color(120, 120, 120)),
                 new PieSlice("Hybrid", counts.get("Hybrid"), new Color(75, 170, 92)),
-                new PieSlice("Bikes / Motorcycles", counts.get("Bikes / Motorcycles"), new Color(70, 95, 150))
+                new PieSlice("Bikes / Motorcycles", counts.get("Bikes / Motorcycles"), new Color(70, 95, 150)),
+                new PieSlice("Trucks", counts.get("Trucks"), new Color(170, 105, 55))
         };
 
         JPanel content = new JPanel(new BorderLayout());

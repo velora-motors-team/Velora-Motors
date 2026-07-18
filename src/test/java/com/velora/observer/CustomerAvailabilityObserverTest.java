@@ -13,6 +13,11 @@ import static org.mockito.Mockito.*;
 public class CustomerAvailabilityObserverTest {
 
     @Test
+    public void testEmailOnlyConstructorCreatesObserver() {
+        assertNotNull(new CustomerAvailabilityObserver("customer@email.com"));
+    }
+
+    @Test
     public void testVehicleAvailableCreatesTwoNotifications() {
         NotificationRepository repository = mock(NotificationRepository.class);
 
@@ -23,7 +28,7 @@ public class CustomerAvailabilityObserverTest {
                         repository
                 );
 
-        Vehicle vehicle = new Vehicle(
+        Vehicle vehicle = Vehicle.create(
                 "V001",
                 "BMW",
                 "X5",
@@ -63,7 +68,7 @@ public class CustomerAvailabilityObserverTest {
                         repository
                 );
 
-        Vehicle vehicle = new Vehicle(
+        Vehicle vehicle = Vehicle.create(
                 "V002",
                 "Tesla",
                 "Model 3",
@@ -94,7 +99,7 @@ public class CustomerAvailabilityObserverTest {
                         repository
                 );
 
-        Vehicle vehicle = new Vehicle(
+        Vehicle vehicle = Vehicle.create(
                 "V003",
                 "Toyota",
                 "Corolla",
@@ -125,7 +130,7 @@ public class CustomerAvailabilityObserverTest {
                         repository
                 );
 
-        Vehicle vehicle = new Vehicle(
+        Vehicle vehicle = Vehicle.create(
                 "V004",
                 "BMW",
                 "i4",
@@ -155,7 +160,7 @@ public class CustomerAvailabilityObserverTest {
                         repository
                 );
 
-        Vehicle vehicle = new Vehicle(
+        Vehicle vehicle = Vehicle.create(
                 "V005",
                 "Honda",
                 "CBR",

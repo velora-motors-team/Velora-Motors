@@ -399,7 +399,7 @@ public final class LoyaltyPointsPanel extends JPanel {
             return;
         }
 
-        if (!accountState.redeemReward(cost)) {
+        if (!accountState.redeemReward(rewardName, cost)) {
             JOptionPane.showMessageDialog(
                     this,
                     "The reward could not be redeemed.",
@@ -420,7 +420,11 @@ public final class LoyaltyPointsPanel extends JPanel {
 
         JOptionPane.showMessageDialog(
                 this,
-                "Reward redeemed successfully.\nRemaining points: " + accountState.getLoyaltyPoints(),
+                "Reward redeemed successfully.\n"
+                        + ("10% Rental Discount".equalsIgnoreCase(rewardName)
+                        ? "The 10% discount will be applied automatically to your next rental.\n"
+                        : "")
+                        + "Remaining points: " + accountState.getLoyaltyPoints(),
                 "Velora Loyalty",
                 JOptionPane.INFORMATION_MESSAGE
         );

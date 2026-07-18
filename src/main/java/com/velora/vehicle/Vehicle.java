@@ -1,6 +1,6 @@
 package com.velora.vehicle;
 
-public class Vehicle {
+public abstract class Vehicle {
 
     private String id;
     private String brand;
@@ -10,11 +10,11 @@ public class Vehicle {
     private double dailyPrice;
     private Integer batteryLevel;
 
-    public Vehicle() {
+    protected Vehicle() {
     }
 
-    public Vehicle(String id, String brand, String model,
-                   VehicleType type, VehicleStatus status, double dailyPrice) {
+    protected Vehicle(String id, String brand, String model,
+                      VehicleType type, VehicleStatus status, double dailyPrice) {
         this.id = id;
         this.brand = brand;
         this.model = model;
@@ -24,9 +24,9 @@ public class Vehicle {
         this.batteryLevel = null;
     }
 
-    public Vehicle(String id, String brand, String model,
-                   VehicleType type, VehicleStatus status,
-                   double dailyPrice, Integer batteryLevel) {
+    protected Vehicle(String id, String brand, String model,
+                      VehicleType type, VehicleStatus status,
+                      double dailyPrice, Integer batteryLevel) {
         this.id = id;
         this.brand = brand;
         this.model = model;
@@ -104,4 +104,33 @@ public class Vehicle {
     public String getDisplayName() {
         return brand + " " + model;
     }
+
+    /**
+     * Compatibility factory used by callers that only know the stored vehicle type.
+     * The returned object is always one of the concrete vehicle subclasses.
+     */
+    public static Vehicle create() {
+        return VehicleFactory.create();
+    }
+
+    public static Vehicle create(String id, String brand, String model,
+                                 VehicleType type, VehicleStatus status,
+                                 double dailyPrice) {
+        return VehicleFactory.create(
+                id, brand, model, type, status, dailyPrice, null
+        );
+    }
+
+    public static Vehicle create(String id, String brand, String model,
+                                 VehicleType type, VehicleStatus status,
+                                 double dailyPrice, Integer batteryLevel) {
+        return VehicleFactory.create(
+                id, brand, model, type, status, dailyPrice, batteryLevel
+        );
+    }
+
+    public abstract boolean canBeRentedBy(
+            int driverAge,
+            boolean hasSpecialLicense
+    );
 }

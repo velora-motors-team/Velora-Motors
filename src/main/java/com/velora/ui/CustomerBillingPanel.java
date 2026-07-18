@@ -748,7 +748,7 @@ private void downloadInvoice(CustomerAccountState.CustomerInvoice invoice) {
                 + "Vehicle: " + invoice.vehicleName + "\n"
                 + "Rental Period: " + invoice.startDate + " -> " + invoice.endDate + "\n"
                 + "Rental Days: " + invoice.rentalDays + "\n\n"
-                + "Base Rental: " + formatMoney(invoice.baseAmount) + "\n"
+                + pricingLines(invoice)
                 + "Late Fee: " + formatMoney(invoice.lateFee) + "\n"
                 + "Tax (10%): " + formatMoney(invoice.tax) + "\n"
                 + "Total Amount: " + formatMoney(invoice.totalAmount()) + "\n\n"
@@ -771,6 +771,28 @@ private void downloadInvoice(CustomerAccountState.CustomerInvoice invoice) {
     }
 }
 
+private String pricingLines(CustomerAccountState.CustomerInvoice invoice) {
+    double discount = inferredDiscount(invoice);
+    double regular = invoice.baseAmount + discount;
+    return "Regular Rental: " + formatMoney(regular) + "\n"
+            + (discount > 0.001
+            ? "Promotions & Rewards: -" + formatMoney(discount) + "\n"
+            : "")
+            + "Rental Subtotal: " + formatMoney(invoice.baseAmount) + "\n";
+}
+
+private double inferredDiscount(CustomerAccountState.CustomerInvoice invoice) {
+    if (invoice == null) {
+        return 0.0;
+    }
+    double regular = vehicleService.getAllVehicles().stream()
+            .filter(vehicle -> FleetUiData.displayName(vehicle).equalsIgnoreCase(invoice.vehicleName))
+            .findFirst()
+            .map(vehicle -> vehicle.getDailyPrice() * invoice.rentalDays)
+            .orElse(invoice.baseAmount);
+    return Math.round(Math.max(0.0, regular - invoice.baseAmount) * 100.0) / 100.0;
+}
+
 private JLabel label(String text, int size, int style, Color color) {
     JLabel label = new JLabel(text);
     label.setFont(new Font("Segoe UI", style, size));
@@ -784,8 +806,8 @@ private static String formatMoney(double value) {
 
 private final class BillingTableModel extends AbstractTableModel {
 
-    private final String[] columns = {
-            "Invoice ID", "Customer", "Vehicle", "Days", "Base", "Late Fee", "Tax", "Total", "Status", "Actions"
+        private final String[] columns = {
+            "Invoice ID", "Customer", "Vehicle", "Days", "Subtotal", "Late Fee", "Tax", "Total", "Status", "Actions"
     };
 
     private final List<CustomerAccountState.CustomerInvoice> rows = new ArrayList<>();
@@ -1139,7 +1161,12 @@ private final class InvoiceSummaryPanel extends RoundedPanel {
         divider(g, y, w);
         y += 28;
 
-        drawMoneyRow(g, "Base Rental", invoice.baseAmount, y, false);
+        double discount = inferredDiscount(invoice);
+        if (discount > 0.001) {
+            drawMoneyRow(g, "Promotions & Rewards", -discount, y, true);
+            y += 27;
+        }
+        drawMoneyRow(g, "Rental Subtotal", invoice.baseAmount, y, false);
         y += 27;
         drawMoneyRow(g, "Late Fee", invoice.lateFee, y, invoice.lateFee > 0);
         y += 27;

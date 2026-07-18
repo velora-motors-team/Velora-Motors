@@ -21,7 +21,7 @@ public class TruckLateFeeStrategyTest {
 
         TruckLateFeeStrategy obj = new TruckLateFeeStrategy();
 
-        Vehicle vehicle = new Vehicle(
+        Vehicle vehicle = Vehicle.create(
                 "V001",
                 "Volvo",
                 "FH",

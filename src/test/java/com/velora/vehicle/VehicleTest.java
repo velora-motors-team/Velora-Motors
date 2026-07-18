@@ -8,7 +8,7 @@ public class VehicleTest {
 
     @Test
     public void testDefaultConstructorAndSetters() {
-        Vehicle vehicle = new Vehicle();
+        Vehicle vehicle = Vehicle.create();
 
         vehicle.setId("V001");
         vehicle.setBrand("BMW");
@@ -29,7 +29,7 @@ public class VehicleTest {
 
     @Test
     public void testConstructorWithoutBattery() {
-        Vehicle vehicle = new Vehicle(
+        Vehicle vehicle = Vehicle.create(
                 "V002",
                 "Toyota",
                 "Corolla",
@@ -49,7 +49,7 @@ public class VehicleTest {
 
     @Test
     public void testConstructorWithBattery() {
-        Vehicle vehicle = new Vehicle(
+        Vehicle vehicle = Vehicle.create(
                 "V003",
                 "Tesla",
                 "Model 3",
@@ -70,7 +70,7 @@ public class VehicleTest {
 
     @Test
     public void testAvailableVehicle() {
-        Vehicle vehicle = new Vehicle();
+        Vehicle vehicle = Vehicle.create();
         vehicle.setStatus(VehicleStatus.AVAILABLE);
 
         assertTrue(vehicle.isAvailable());
@@ -78,7 +78,7 @@ public class VehicleTest {
 
     @Test
     public void testUnavailableVehicle() {
-        Vehicle vehicle = new Vehicle();
+        Vehicle vehicle = Vehicle.create();
         vehicle.setStatus(VehicleStatus.RENTED);
 
         assertFalse(vehicle.isAvailable());
@@ -86,7 +86,7 @@ public class VehicleTest {
 
     @Test
     public void testNullStatusIsNotAvailable() {
-        Vehicle vehicle = new Vehicle();
+        Vehicle vehicle = Vehicle.create();
         vehicle.setStatus(null);
 
         assertFalse(vehicle.isAvailable());
@@ -94,7 +94,7 @@ public class VehicleTest {
 
     @Test
     public void testElectricVehicleHasBattery() {
-        Vehicle vehicle = new Vehicle();
+        Vehicle vehicle = Vehicle.create();
         vehicle.setType(VehicleType.ELECTRIC_VEHICLE);
 
         assertTrue(vehicle.hasBattery());
@@ -102,7 +102,7 @@ public class VehicleTest {
 
     @Test
     public void testElectricBikeHasBattery() {
-        Vehicle vehicle = new Vehicle();
+        Vehicle vehicle = Vehicle.create();
         vehicle.setType(VehicleType.ELECTRIC_BIKE);
 
         assertTrue(vehicle.hasBattery());
@@ -110,7 +110,7 @@ public class VehicleTest {
 
     @Test
     public void testCarDoesNotHaveBattery() {
-        Vehicle vehicle = new Vehicle();
+        Vehicle vehicle = Vehicle.create();
         vehicle.setType(VehicleType.CAR);
 
         assertFalse(vehicle.hasBattery());
@@ -118,7 +118,7 @@ public class VehicleTest {
 
     @Test
     public void testNullTypeDoesNotHaveBattery() {
-        Vehicle vehicle = new Vehicle();
+        Vehicle vehicle = Vehicle.create();
         vehicle.setType(null);
 
         assertFalse(vehicle.hasBattery());
@@ -126,7 +126,7 @@ public class VehicleTest {
 
     @Test
     public void testDisplayName() {
-        Vehicle vehicle = new Vehicle(
+        Vehicle vehicle = Vehicle.create(
                 "V004",
                 "BMW",
                 "X5",

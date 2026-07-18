@@ -5,11 +5,17 @@ import com.velora.authentication.Customer.Role;
 import com.velora.repository.CustomerRepository.StoredCustomer;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URLEncoder;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.AfterEach;
@@ -546,6 +552,149 @@ public class CustomerRepositoryTest {
                 stored.password()
         );
     }
+
+    @Test
+    public void testConstructorReportsStorageInitializationFailure()
+            throws IOException {
+        Path blockingFile = tempDir.resolve("not-a-directory");
+        Files.writeString(blockingFile, "blocked", StandardCharsets.UTF_8);
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> new CustomerRepository(blockingFile.resolve("accounts.txt"))
+        );
+
+        assertEquals(
+                "Unable to initialize the accounts file.",
+                exception.getMessage()
+        );
+        assertInstanceOf(IOException.class, exception.getCause());
+    }
+
+    @Test
+    public void testReadFailureIsReported() throws IOException {
+        Path unreadablePath = tempDir.resolve("accounts-directory");
+        Files.createDirectory(unreadablePath);
+        Files.writeString(unreadablePath.resolve("keep.txt"), "keep");
+        CustomerRepository repository = new CustomerRepository(unreadablePath);
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                repository::findAll
+        );
+
+        assertEquals("Unable to read saved accounts.", exception.getMessage());
+    }
+
+    @Test
+    public void testWriteFailureIsReported() throws IOException {
+        CustomerRepository repository = createRepository();
+        Path tempFile = repository.getAccountsFile().resolveSibling("accounts.txt.tmp");
+        Files.createDirectory(tempFile);
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> repository.save(createCustomer(
+                        "Test User", "test@velora.com", "", Role.CUSTOMER
+                ), "Password@123")
+        );
+
+        assertEquals(
+                "Unable to save account information.",
+                exception.getMessage()
+        );
+    }
+
+    @Test
+    public void testAtomicMoveFallbackFailureIsReported() throws Exception {
+        Path accountsFile = tempDir.resolve("accounts.txt");
+        Files.createDirectory(accountsFile);
+        Files.writeString(accountsFile.resolve("keep.txt"), "keep");
+        CustomerRepository repository = new CustomerRepository(accountsFile);
+
+        Method writeAll = CustomerRepository.class.getDeclaredMethod(
+                "writeAll", List.class
+        );
+        writeAll.setAccessible(true);
+
+        InvocationTargetException invocation = assertThrows(
+                InvocationTargetException.class,
+                () -> writeAll.invoke(repository, List.of())
+        );
+        assertInstanceOf(IllegalStateException.class, invocation.getCause());
+    }
+
+    @Test
+    public void testDefaultConstructorUsesUserDirectoryWhenNoOverride() {
+        String previousUserDir = System.getProperty("user.dir");
+        System.clearProperty("velora.accounts.file");
+
+        try {
+            System.setProperty("user.dir", tempDir.toString());
+            CustomerRepository repository = new CustomerRepository();
+
+            assertEquals(
+                    tempDir.resolve("accounts.txt").toAbsolutePath().normalize(),
+                    repository.getAccountsFile()
+            );
+        } finally {
+            System.setProperty("user.dir", previousUserDir);
+        }
+    }
+
+    @Test
+    public void testBlankOverrideUsesUserDirectory() {
+        String previousUserDir = System.getProperty("user.dir");
+        System.setProperty("velora.accounts.file", "   ");
+
+        try {
+            System.setProperty("user.dir", tempDir.toString());
+            CustomerRepository repository = new CustomerRepository();
+
+            assertEquals(
+                    tempDir.resolve("accounts.txt").toAbsolutePath().normalize(),
+                    repository.getAccountsFile()
+            );
+        } finally {
+            System.setProperty("user.dir", previousUserDir);
+        }
+    }
+
+    @Test
+    public void testPrivateEncodingHelpersAcceptNull() throws Exception {
+        Method encode = CustomerRepository.class.getDeclaredMethod(
+                "encode", String.class
+        );
+        Method decode = CustomerRepository.class.getDeclaredMethod(
+                "decode", String.class
+        );
+        encode.setAccessible(true);
+        decode.setAccessible(true);
+
+        assertEquals("", encode.invoke(null, (Object) null));
+        assertEquals("", decode.invoke(null, (Object) null));
+    }
+
+    @Test
+    public void testWriteWorksOnZipFileSystem() throws Exception {
+        URI zipUri = URI.create("jar:" + tempDir.resolve("accounts.zip").toUri());
+
+        try (FileSystem zip = FileSystems.newFileSystem(
+                zipUri, Map.of("create", "true")
+        )) {
+            CustomerRepository repository = new CustomerRepository(
+                    zip.getPath("/accounts.txt")
+            );
+            Customer customer = createCustomer(
+                    "Zip User", "zip@velora.com", "", Role.CUSTOMER
+            );
+
+            repository.save(customer, "Password@123");
+
+            assertTrue(repository.findByEmail("zip@velora.com").isPresent());
+        }
+    }
+
 
     private String encode(String value) {
         return URLEncoder.encode(

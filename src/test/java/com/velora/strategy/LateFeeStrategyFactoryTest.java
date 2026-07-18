@@ -43,7 +43,7 @@ public class LateFeeStrategyFactoryTest {
    @Test
 public void testCarStrategy() {
 
-    Vehicle vehicle = new Vehicle(
+    Vehicle vehicle = Vehicle.create(
             "V001",
             "Toyota",
             "Corolla",
@@ -59,7 +59,7 @@ public void testCarStrategy() {
  @Test
 public void testCarStrategy_SUV() {
 
-    Vehicle vehicle = new Vehicle(
+    Vehicle vehicle = Vehicle.create(
             "V001",
             "Toyota",
             "Corolla",
@@ -76,7 +76,7 @@ public void testCarStrategy_SUV() {
 @Test
 public void testHybridCarStrategy() {
 
-    Vehicle vehicle = new Vehicle(
+    Vehicle vehicle = Vehicle.create(
             "V004",
             "Toyota",
             "Prius",
@@ -92,7 +92,7 @@ public void testHybridCarStrategy() {
 @Test
 public void testElectricVehicleStrategy() {
 
-    Vehicle vehicle = new Vehicle(
+    Vehicle vehicle = Vehicle.create(
             "V003",
             "BMW",
             "i4",
@@ -109,7 +109,7 @@ public void testElectricVehicleStrategy() {
 @Test
 public void testMotorcycleStrategy() {
 
-    Vehicle vehicle = new Vehicle(
+    Vehicle vehicle = Vehicle.create(
             "V005",
             "Honda",
             "CBR",
@@ -126,7 +126,7 @@ public void testMotorcycleStrategy() {
 @Test
 public void testElectricBikeStrategy() {
 
-    Vehicle vehicle = new Vehicle(
+    Vehicle vehicle = Vehicle.create(
             "V006",
             "Xiaomi",
             "E-Bike",
@@ -143,7 +143,7 @@ public void testElectricBikeStrategy() {
 @Test
 public void testTruckStrategy() {
 
-    Vehicle vehicle = new Vehicle(
+    Vehicle vehicle = Vehicle.create(
             "V007",
             "Volvo",
             "FH",
@@ -170,7 +170,7 @@ public void testNullVehicleStrategy() {
 @Test
 public void testNullVehicleTypeStrategy() {
 
-    Vehicle vehicle = new Vehicle(
+    Vehicle vehicle = Vehicle.create(
             "V008",
             "Unknown",
             "Unknown",

@@ -21,7 +21,7 @@ public class MotorcycleLateFeeStrategyTest {
 
         MotorcycleLateFeeStrategy obj = new MotorcycleLateFeeStrategy();
 
-        Vehicle vehicle = new Vehicle(
+        Vehicle vehicle = Vehicle.create(
                 "V001",
                 "Honda",
                 "CBR",

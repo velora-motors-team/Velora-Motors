@@ -10,6 +10,9 @@ import com.velora.repository.WalletTransactionRepository;
 import com.velora.vehicle.Vehicle;
 import com.velora.vehicle.VehicleStatus;
 import com.velora.vehicle.VehicleType;
+import com.velora.vehicle.Truck;
+import com.velora.vehicle.Motorcycle;
+import com.velora.vehicle.ElectricMotorcycle;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -24,6 +27,34 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 public class RentalDatabaseServiceTest {
+
+    @Test
+    public void testDefaultConstructorCreatesService() {
+        assertNotNull(new RentalDatabaseService());
+    }
+
+    @Test
+    public void testRestrictedVehicleEligibilityIsEnforcedByService() {
+        Vehicle truck = new Truck("T-1", "BMW", "XD", VehicleStatus.AVAILABLE, 500.0);
+        Vehicle motorcycle = new Motorcycle("M-1", "BMW", "S 1000 RR", VehicleStatus.AVAILABLE, 190.0);
+        Vehicle electricBike = new ElectricMotorcycle(
+                "E-1", "BMW", "CE 04", VehicleStatus.AVAILABLE, 120.0, 29
+        );
+
+        assertEquals("A special truck license is required.",
+                assertThrows(IllegalArgumentException.class,
+                        () -> RentalDatabaseService.validateRentalEligibility(truck, 30, false)).getMessage());
+        assertDoesNotThrow(() -> RentalDatabaseService.validateRentalEligibility(truck, 30, true));
+
+        assertEquals("The motorcycle driver must be at least 21 years old.",
+                assertThrows(IllegalArgumentException.class,
+                        () -> RentalDatabaseService.validateRentalEligibility(motorcycle, 20, false)).getMessage());
+        assertDoesNotThrow(() -> RentalDatabaseService.validateRentalEligibility(motorcycle, 21, false));
+
+        assertEquals("The electric motorcycle needs at least 30% battery.",
+                assertThrows(IllegalArgumentException.class,
+                        () -> RentalDatabaseService.validateRentalEligibility(electricBike, 21, false)).getMessage());
+    }
 
     private RentalRepository rentalRepository;
     private PaymentRepository paymentRepository;
@@ -58,7 +89,7 @@ public class RentalDatabaseServiceTest {
     }
 
     private Vehicle createVehicle() {
-        return new Vehicle(
+        return Vehicle.create(
                 "V001",
                 "BMW",
                 "X5",
@@ -355,7 +386,7 @@ public class RentalDatabaseServiceTest {
 
     @Test
     public void testRecordSuccessfulRentalNegativeDays() {
-        assertThrows(
+        IllegalArgumentException exception = assertThrows(
                 IllegalArgumentException.class,
                 () -> service.recordSuccessfulRental(
                         createCustomer(),
@@ -369,6 +400,91 @@ public class RentalDatabaseServiceTest {
                         LocalDateTime.now(),
                         LocalDateTime.now().plusDays(2)
                 )
+        );
+
+        assertEquals(
+                "Rental days must be between 1 and 30.",
+                exception.getMessage()
+        );
+        verifyNoInteractions(rentalRepository);
+    }
+
+    @Test
+    public void testRecordSuccessfulRentalAcceptsThirtyDays() {
+        Customer customer = createCustomer();
+        Vehicle vehicle = createVehicle();
+        LocalDateTime start = LocalDateTime.of(2026, 7, 14, 10, 0);
+        LocalDateTime expectedReturn = start.plusDays(30);
+        RentalRecord rental = createRental("ACTIVE", 0.0);
+
+        when(rentalRepository.create(
+                anyString(), anyString(), anyString(), anyString(),
+                any(LocalDateTime.class), any(LocalDateTime.class),
+                eq(30), anyDouble(), anyDouble(), anyString(), anyString()
+        )).thenReturn(rental);
+
+        assertSame(rental, service.recordSuccessfulRental(
+                customer, vehicle, 30, "INV-1", 7500.0, 7500.0,
+                "CARD", 250.0, start, expectedReturn
+        ));
+
+        verify(rentalRepository).create(
+                anyString(), anyString(), anyString(), anyString(),
+                eq(start), eq(expectedReturn), eq(30),
+                anyDouble(), anyDouble(), anyString(), anyString()
+        );
+    }
+
+    @Test
+    public void testRecordSuccessfulRentalRejectsThirtyOneDays() {
+        LocalDateTime start = LocalDateTime.of(2026, 7, 14, 10, 0);
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> service.recordSuccessfulRental(
+                        createCustomer(), createVehicle(), 31,
+                        "INV-1", 7750.0, 7750.0, "CARD", 250.0,
+                        start, start.plusDays(31)
+                )
+        );
+
+        assertEquals(
+                "Rental days must be between 1 and 30.",
+                exception.getMessage()
+        );
+        verifyNoInteractions(rentalRepository);
+    }
+
+    @Test
+    public void testRecordSuccessfulRentalRejectsActiveVehicleRental() {
+        Vehicle vehicle = createVehicle();
+        LocalDateTime start = LocalDateTime.of(2026, 7, 14, 10, 0);
+        when(rentalRepository.hasActiveRentalForVehicle("V001"))
+                .thenReturn(true);
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> service.recordSuccessfulRental(
+                        createCustomer(), vehicle, 2,
+                        "INV-1", 500.0, 550.0, "CARD", 1000.0,
+                        start, start.plusDays(2)
+                )
+        );
+
+        assertEquals(
+                "Vehicle already has an active rental.",
+                exception.getMessage()
+        );
+        verify(rentalRepository, never()).create(
+                anyString(), anyString(), anyString(), anyString(),
+                any(LocalDateTime.class), any(LocalDateTime.class),
+                anyInt(), anyDouble(), anyDouble(), anyString(), anyString()
+        );
+        verifyNoInteractions(
+                paymentRepository,
+                loyaltyRepository,
+                notificationRepository,
+                walletTransactionRepository
         );
     }
 

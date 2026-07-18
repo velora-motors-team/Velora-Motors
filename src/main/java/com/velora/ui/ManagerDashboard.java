@@ -4,6 +4,7 @@ import com.velora.authentication.Customer;
 import com.velora.repository.RatingRepository;
 import com.velora.repository.VehicleWaitlistRepository;
 import com.velora.service.AuthenticationService;
+import com.velora.service.RentalPricingService;
 import com.velora.service.VehicleService;
 import com.velora.vehicle.Vehicle;
 import com.velora.vehicle.VehicleStatus;
@@ -93,6 +94,7 @@ public final class ManagerDashboard extends JFrame {
 
     private final Customer manager;
     private final VehicleService vehicleService = new VehicleService();
+    private final RentalPricingService pricingService = new RentalPricingService();
     private final AuthenticationService authenticationService = new AuthenticationService();
     private final RatingRepository ratingRepository = new RatingRepository();
     private final VehicleWaitlistRepository waitlistRepository = new VehicleWaitlistRepository();
@@ -585,7 +587,10 @@ page.add(Box.createVerticalGlue());
         AnnouncementCard card = new AnnouncementCard();
         card.getOfferButton().addActionListener(e -> showInfo(
                 "Velora Summer Offers",
-                "30% off selected BMW models.\nOffer valid until 31 August 2026."
+                "Summer promotion is active until 31 August 2026.\n"
+                        + "Motorcycles and electric bikes: 30% off.\n"
+                        + "Trucks: 20% off.\n"
+                        + "The discount is applied automatically before tax and appears in customer pricing."
         ));
         return card;
     }
@@ -955,11 +960,18 @@ page.add(Box.createVerticalGlue());
         panel.add(Box.createVerticalStrut(17));
 
         RoundedPanel rate = new RoundedPanel(12, new Color(6, 13, 20, 232));
-        rate.setLayout(new GridLayout(1, 2, 0, 0));
+        rate.setLayout(new GridLayout(1, 3, 0, 0));
         rate.setBorder(new EmptyBorder(12, 14, 12, 14));
         rate.setAlignmentX(Component.LEFT_ALIGNMENT);
         rate.setMaximumSize(new Dimension(Integer.MAX_VALUE, 72));
         rate.add(vehicleRateBlock("DAILY RATE", String.format(Locale.US, "$%.0f / day", vehicle.getDailyPrice())));
+        RentalPricingService.PricingQuote dailyQuote = pricingService.quote(vehicle, 1, false);
+        rate.add(vehicleRateBlock(
+                dailyQuote.hasPromotion()
+                        ? "CUSTOMER -" + (int) Math.round(dailyQuote.promotionRate() * 100) + "%"
+                        : "CUSTOMER RATE",
+                String.format(Locale.US, "$%.2f / day", dailyQuote.taxableSubtotal())
+        ));
         rate.add(vehicleRateBlock("AVAILABILITY", vehicle.getStatus() == VehicleStatus.AVAILABLE
                 ? "Available Now"
                 : vehicleStatusLabel(vehicle.getStatus())));
@@ -1816,7 +1828,7 @@ page.add(Box.createVerticalGlue());
                     ? null
                     : clampBattery(Integer.parseInt(battery.getText().trim()));
 
-            Vehicle vehicle = new Vehicle(
+            Vehicle vehicle = Vehicle.create(
                     id.getText().trim(),
                     brand.getText().trim(),
                     model.getText().trim(),
@@ -4117,8 +4129,8 @@ public boolean getScrollableTracksViewportHeight() {
 
             g.setColor(new Color(190, 196, 205));
             g.setFont(new Font("Segoe UI", Font.PLAIN, 10));
-            g.drawString("Enjoy up to 30% off on", textX, 82);
-            g.drawString("selected models.", textX, 98);
+            g.drawString("30% off motorcycles / e-bikes", textX, 82);
+            g.drawString("20% off all trucks.", textX, 98);
 
             g.setColor(new Color(214, 160, 66, 70));
             g.setStroke(new BasicStroke(1f));

@@ -2,6 +2,7 @@ package com.velora.ui;
 
 import com.velora.authentication.Customer;
 import com.velora.service.VehicleService;
+import com.velora.service.RentalPricingService;
 import com.velora.vehicle.Vehicle;
 
 import javax.swing.BorderFactory;
@@ -71,6 +72,7 @@ public final class BillingPanel extends JPanel {
 
     private final Customer manager;
     private final VehicleService vehicleService = new VehicleService();
+    private final RentalPricingService pricingService = new RentalPricingService();
 
     private final List<Invoice> invoices = new ArrayList<>();
     private final List<Invoice> filteredInvoices = new ArrayList<>();
@@ -670,7 +672,7 @@ public final class BillingPanel extends JPanel {
                     + "Vehicle: " + invoice.vehicleName + "\n"
                     + "Rental Period: " + invoice.startDate + " -> " + invoice.endDate + "\n"
                     + "Rental Days: " + invoice.rentalDays + "\n\n"
-                    + "Base Rental: " + formatMoney(invoice.baseAmount) + "\n"
+                    + pricingLines(invoice)
                     + "Late Fee: " + formatMoney(invoice.lateFee) + "\n"
                     + "Tax (10%): " + formatMoney(invoice.tax) + "\n"
                     + "Total Amount: " + formatMoney(invoice.totalAmount()) + "\n\n"
@@ -693,6 +695,28 @@ public final class BillingPanel extends JPanel {
                     JOptionPane.ERROR_MESSAGE
             );
         }
+    }
+
+    private String pricingLines(Invoice invoice) {
+        double discount = inferredDiscount(invoice);
+        double regular = invoice.baseAmount + discount;
+        return "Regular Rental: " + formatMoney(regular) + "\n"
+                + (discount > 0.001
+                ? "Promotions & Rewards: -" + formatMoney(discount) + "\n"
+                : "")
+                + "Rental Subtotal: " + formatMoney(invoice.baseAmount) + "\n";
+    }
+
+    private double inferredDiscount(Invoice invoice) {
+        if (invoice == null) {
+            return 0.0;
+        }
+        double regular = vehicleService.getAllVehicles().stream()
+                .filter(vehicle -> FleetUiData.displayName(vehicle).equalsIgnoreCase(invoice.vehicleName))
+                .findFirst()
+                .map(vehicle -> vehicle.getDailyPrice() * invoice.rentalDays)
+                .orElse(invoice.baseAmount);
+        return Math.round(Math.max(0.0, regular - invoice.baseAmount) * 100.0) / 100.0;
     }
 
     private void loadRealCustomerInvoices() {
@@ -797,7 +821,7 @@ public final class BillingPanel extends JPanel {
         for (int i = 0; i < vehicles.size(); i++) {
             Vehicle vehicle = vehicles.get(i);
             int days = 2 + (i % 7);
-            double base = vehicle.getDailyPrice() * days;
+            double base = pricingService.quote(vehicle, days, false).taxableSubtotal();
             double late = "Overdue".equals(statuses[i % statuses.length]) ? 50 + (i % 4) * 35 : 0;
             int startDay = 1 + (i % 9);
             int endDay = startDay + days;
@@ -959,7 +983,7 @@ public final class BillingPanel extends JPanel {
     private final class BillingTableModel extends AbstractTableModel {
 
         private final String[] columns = {
-                "Invoice ID", "Customer", "Vehicle", "Days", "Base", "Late Fee", "Tax", "Total", "Status", "Actions"
+                "Invoice ID", "Customer", "Vehicle", "Days", "Subtotal", "Late Fee", "Tax", "Total", "Status", "Actions"
         };
 
         private final List<Invoice> rows = new ArrayList<>();
@@ -1208,7 +1232,12 @@ public final class BillingPanel extends JPanel {
             divider(g, y, w);
             y += 28;
 
-            drawMoneyRow(g, "Base Rental", invoice.baseAmount, y, false);
+            double discount = inferredDiscount(invoice);
+            if (discount > 0.001) {
+                drawMoneyRow(g, "Promotions & Rewards", -discount, y, true);
+                y += 27;
+            }
+            drawMoneyRow(g, "Rental Subtotal", invoice.baseAmount, y, false);
             y += 27;
             drawMoneyRow(g, "Late Fee", invoice.lateFee, y, invoice.lateFee > 0);
             y += 27;

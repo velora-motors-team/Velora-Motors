@@ -53,7 +53,7 @@ public void testTwoHoursLateFee() {
 
     ElectricLateFeeStrategy obj = new ElectricLateFeeStrategy();
 
-    Vehicle vehicle = new Vehicle(
+    Vehicle vehicle = Vehicle.create(
             "V001",
             "BMW",
             "i4",

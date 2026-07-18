@@ -11,12 +11,50 @@ import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 public class AuthenticationServiceTest {
+
+    @Test
+    public void testDefaultConstructorCreatesDefaultAccounts(
+            @TempDir Path tempDirectory
+    ) {
+        String previous = System.getProperty("velora.accounts.file");
+        Path accountsFile = tempDirectory.resolve("accounts.txt");
+
+        try {
+            System.setProperty("velora.accounts.file", accountsFile.toString());
+            AuthenticationService defaultService = new AuthenticationService();
+
+            assertEquals(accountsFile.toAbsolutePath(), defaultService.getAccountsFile());
+            assertTrue(defaultService.emailExists("manager@velora.com"));
+        } finally {
+            if (previous == null) {
+                System.clearProperty("velora.accounts.file");
+            } else {
+                System.setProperty("velora.accounts.file", previous);
+            }
+        }
+    }
+
+    @Test
+    public void testExistingDefaultAccountsAreNotCreatedAgain() {
+        Customer existing = new Customer(
+                "Existing", "existing@velora.com", "", Role.MANAGER
+        );
+        StoredCustomer stored = new StoredCustomer(existing, "password");
+        CustomerRepository repository = mock(CustomerRepository.class);
+        when(repository.findByEmail(anyString()))
+                .thenReturn(Optional.of(stored));
+
+        assertNotNull(new AuthenticationService(repository));
+
+        verify(repository, never()).save(any(Customer.class), anyString());
+    }
 
     private CustomerRepository customerRepository;
     private AuthenticationService service;

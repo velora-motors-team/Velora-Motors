@@ -501,6 +501,25 @@ public class CustomerAccountStateTest {
     }
 
     @Test
+    public void testRentalDiscountRewardIsTrackedAndConsumedOnlyByPaidRental() {
+        CustomerAccountState state = createState();
+
+        assertTrue(state.redeemReward("10% Rental Discount", 300));
+        assertTrue(state.hasRentalDiscountReward());
+        assertEquals(1, state.getPendingRentalDiscounts());
+
+        state.addWalletFunds(200.0);
+        CustomerAccountState.CustomerInvoice invoice = createInvoice(
+                "INV-DISCOUNT", 90.0, 0.0, "Paid", "Card"
+        );
+
+        assertTrue(state.addPaidInvoice(invoice, "Card", true));
+        assertFalse(state.hasRentalDiscountReward());
+        assertEquals(0, state.getPendingRentalDiscounts());
+        assertFalse(state.addPaidInvoice(invoice, "Card", true));
+    }
+
+    @Test
     public void testTierNamesAndNextTierData() {
         CustomerAccountState state = createState();
 

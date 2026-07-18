@@ -346,6 +346,20 @@ public class RentalRepositoryTest {
     }
 
     @Test
+    public void testActiveRentalForDifferentVehicleIsFalse() {
+        RentalRepository repository = new RentalRepository();
+        repository.save(createRental(
+                "RNT-1",
+                "hamada@email.com",
+                "V-OTHER",
+                "ACTIVE",
+                0.0
+        ));
+
+        assertFalse(repository.hasActiveRentalForVehicle("V001"));
+    }
+
+    @Test
     public void testCreateRental() {
         RentalRepository repository = new RentalRepository();
 

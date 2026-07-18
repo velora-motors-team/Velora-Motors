@@ -48,7 +48,7 @@ final class CustomerAccountState {
             this.baseAmount = baseAmount;
             this.lateFee = Math.max(0.0, lateFee);
             this.lateFeeCharged = "Paid".equalsIgnoreCase(status) ? this.lateFee : 0.0;
-            this.tax = (baseAmount + this.lateFee) * 0.10;
+            this.tax = money((baseAmount + this.lateFee) * 0.10);
             this.status = status;
             this.paymentMethod = paymentMethod;
             this.startDate = startDate;
@@ -76,6 +76,7 @@ final class CustomerAccountState {
     private final String storageKey;
     private int redeemedPoints;
     private int redeemedRewards;
+    private int pendingRentalDiscounts;
     private double walletBalance = STARTING_WALLET_BALANCE;
 
  private CustomerAccountState(Customer customer, String key) {
@@ -85,6 +86,7 @@ final class CustomerAccountState {
         invoices.clear();
         redeemedPoints = 0;
         redeemedRewards = 0;
+        pendingRentalDiscounts = 0;
         walletBalance = STARTING_WALLET_BALANCE;
         saveState();
     }
@@ -191,7 +193,7 @@ final class CustomerAccountState {
 
         double targetLateFee = Math.max(invoice.lateFee, Math.max(0.0, calculatedLateFee));
         invoice.lateFee = targetLateFee;
-        invoice.tax = (invoice.baseAmount + invoice.lateFee) * 0.10;
+        invoice.tax = money((invoice.baseAmount + invoice.lateFee) * 0.10);
 
         double outstanding = Math.max(0.0, invoice.lateFee - invoice.lateFeeCharged);
         double chargedNow = Math.min(walletBalance, outstanding);
@@ -283,7 +285,18 @@ final class CustomerAccountState {
     }
 
     boolean addPaidInvoice(CustomerInvoice invoice, String paymentMethod) {
+        return addPaidInvoice(invoice, paymentMethod, false);
+    }
+
+    boolean addPaidInvoice(
+            CustomerInvoice invoice,
+            String paymentMethod,
+            boolean useRentalDiscountReward
+    ) {
         if (invoice == null) {
+            return false;
+        }
+        if (useRentalDiscountReward && pendingRentalDiscounts <= 0) {
             return false;
         }
         double amount = invoice.totalAmount();
@@ -294,6 +307,9 @@ final class CustomerAccountState {
         invoice.status = "Paid";
         invoice.paymentMethod = paymentMethod == null || paymentMethod.isBlank() ? "Card" : paymentMethod;
         invoices.add(invoice);
+        if (useRentalDiscountReward) {
+            pendingRentalDiscounts--;
+        }
         saveState();
         notifyChanged();
         return true;
@@ -317,14 +333,31 @@ final class CustomerAccountState {
     }
 
     boolean redeemReward(int cost) {
+        return redeemReward("", cost);
+    }
+
+    boolean redeemReward(String rewardName, int cost) {
         if (cost <= 0 || getLoyaltyPoints() < cost) {
             return false;
         }
         redeemedPoints += cost;
         redeemedRewards++;
+        if ("10% Rental Discount".equalsIgnoreCase(
+                rewardName == null ? "" : rewardName.trim()
+        )) {
+            pendingRentalDiscounts++;
+        }
         saveState();
         notifyChanged();
         return true;
+    }
+
+    boolean hasRentalDiscountReward() {
+        return pendingRentalDiscounts > 0;
+    }
+
+    int getPendingRentalDiscounts() {
+        return pendingRentalDiscounts;
     }
 
     int getTotalRentals() {
@@ -438,6 +471,7 @@ final class CustomerAccountState {
             invoices.clear();
             redeemedPoints = 0;
             redeemedRewards = 0;
+            pendingRentalDiscounts = 0;
             walletBalance = STARTING_WALLET_BALANCE;
 
             for (String line : lines) {
@@ -450,6 +484,9 @@ final class CustomerAccountState {
                     redeemedRewards = parseInt(parts[3], 0);
                     if (parts.length >= 5) {
                         walletBalance = parseDouble(parts[4], STARTING_WALLET_BALANCE);
+                    }
+                    if (parts.length >= 6) {
+                        pendingRentalDiscounts = parseInt(parts[5], 0);
                     }
                 } else if (parts.length >= 11 && "INVOICE".equals(parts[0])) {
                     CustomerInvoice invoice = new CustomerInvoice(
@@ -479,6 +516,7 @@ final class CustomerAccountState {
             invoices.clear();
             redeemedPoints = 0;
             redeemedRewards = 0;
+            pendingRentalDiscounts = 0;
             walletBalance = STARTING_WALLET_BALANCE;
             return false;
         }
@@ -494,7 +532,8 @@ final class CustomerAccountState {
                     encode(storageKey),
                     String.valueOf(redeemedPoints),
                     String.valueOf(redeemedRewards),
-                    String.valueOf(walletBalance)
+                    String.valueOf(walletBalance),
+                    String.valueOf(pendingRentalDiscounts)
             ));
             for (CustomerInvoice invoice : invoices) {
                 lines.add(String.join(
@@ -616,6 +655,10 @@ final class CustomerAccountState {
         } catch (NumberFormatException ex) {
             return fallback;
         }
+    }
+
+    private static double money(double amount) {
+        return Math.round(Math.max(0.0, amount) * 100.0) / 100.0;
     }
 
     static CustomerInvoice createInvoice(Customer customer, int existingInvoiceCount, String vehicle,

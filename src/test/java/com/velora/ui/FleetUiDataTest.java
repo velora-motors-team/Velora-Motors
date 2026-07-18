@@ -16,7 +16,7 @@ public class FleetUiDataTest {
             String model,
             VehicleType type
     ) {
-        return new Vehicle(
+        return Vehicle.create(
                 id,
                 brand,
                 model,

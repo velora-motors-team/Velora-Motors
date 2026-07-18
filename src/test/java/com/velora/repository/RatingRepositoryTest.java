@@ -5,12 +5,18 @@ import com.velora.authentication.Customer.Role;
 import com.velora.repository.RatingRepository.StoredRating;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URLEncoder;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalDouble;
 
 import org.junit.jupiter.api.AfterEach;
@@ -576,6 +582,152 @@ public class RatingRepositoryTest {
                 rating.createdAt()
         );
     }
+
+    @Test
+    public void testConstructorReportsStorageInitializationFailure()
+            throws IOException {
+        Path blockingFile = tempDir.resolve("not-a-directory");
+        Files.writeString(blockingFile, "blocked", StandardCharsets.UTF_8);
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> new RatingRepository(blockingFile.resolve("ratings.txt"))
+        );
+
+        assertEquals(
+                "Unable to initialize the ratings file.",
+                exception.getMessage()
+        );
+        assertInstanceOf(IOException.class, exception.getCause());
+    }
+
+    @Test
+    public void testReadFailureIsReported() throws IOException {
+        Path unreadablePath = tempDir.resolve("ratings-directory");
+        Files.createDirectory(unreadablePath);
+        Files.writeString(unreadablePath.resolve("keep.txt"), "keep");
+        RatingRepository repository = new RatingRepository(unreadablePath);
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> repository.findByEmail("customer@velora.com")
+        );
+
+        assertEquals("Unable to read saved ratings.", exception.getMessage());
+    }
+
+    @Test
+    public void testWriteFailureIsReported() throws IOException {
+        RatingRepository repository = createRepository();
+        Path tempFile = repository.getRatingsFile().resolveSibling("ratings.txt.tmp");
+        Files.createDirectory(tempFile);
+
+        IllegalStateException exception = assertThrows(
+                IllegalStateException.class,
+                () -> repository.saveRating(
+                        createCustomer("Test User", "test@velora.com"),
+                        5,
+                        "Great"
+                )
+        );
+
+        assertEquals(
+                "Unable to save rating information.",
+                exception.getMessage()
+        );
+    }
+
+    @Test
+    public void testAtomicMoveFallbackFailureIsReported() throws Exception {
+        Path ratingsFile = tempDir.resolve("ratings.txt");
+        Files.createDirectory(ratingsFile);
+        Files.writeString(ratingsFile.resolve("keep.txt"), "keep");
+        RatingRepository repository = new RatingRepository(ratingsFile);
+
+        Method writeAll = RatingRepository.class.getDeclaredMethod(
+                "writeAll", List.class
+        );
+        writeAll.setAccessible(true);
+
+        InvocationTargetException invocation = assertThrows(
+                InvocationTargetException.class,
+                () -> writeAll.invoke(repository, List.of())
+        );
+        assertInstanceOf(IllegalStateException.class, invocation.getCause());
+    }
+
+    @Test
+    public void testDefaultConstructorUsesUserDirectoryWhenNoOverride() {
+        String previousUserDir = System.getProperty("user.dir");
+        System.clearProperty("velora.ratings.file");
+
+        try {
+            System.setProperty("user.dir", tempDir.toString());
+            RatingRepository repository = new RatingRepository();
+
+            assertEquals(
+                    tempDir.resolve("ratings.txt").toAbsolutePath().normalize(),
+                    repository.getRatingsFile()
+            );
+        } finally {
+            System.setProperty("user.dir", previousUserDir);
+        }
+    }
+
+    @Test
+    public void testBlankOverrideUsesUserDirectory() {
+        String previousUserDir = System.getProperty("user.dir");
+        System.setProperty("velora.ratings.file", "   ");
+
+        try {
+            System.setProperty("user.dir", tempDir.toString());
+            RatingRepository repository = new RatingRepository();
+
+            assertEquals(
+                    tempDir.resolve("ratings.txt").toAbsolutePath().normalize(),
+                    repository.getRatingsFile()
+            );
+        } finally {
+            System.setProperty("user.dir", previousUserDir);
+        }
+    }
+
+    @Test
+    public void testPrivateEncodingHelpersAcceptNull() throws Exception {
+        Method encode = RatingRepository.class.getDeclaredMethod(
+                "encode", String.class
+        );
+        Method decode = RatingRepository.class.getDeclaredMethod(
+                "decode", String.class
+        );
+        encode.setAccessible(true);
+        decode.setAccessible(true);
+
+        assertEquals("", encode.invoke(null, (Object) null));
+        assertEquals("", decode.invoke(null, (Object) null));
+    }
+
+    @Test
+    public void testWriteWorksOnZipFileSystem() throws Exception {
+        URI zipUri = URI.create("jar:" + tempDir.resolve("ratings.zip").toUri());
+
+        try (FileSystem zip = FileSystems.newFileSystem(
+                zipUri, Map.of("create", "true")
+        )) {
+            RatingRepository repository = new RatingRepository(
+                    zip.getPath("/ratings.txt")
+            );
+
+            repository.saveRating(
+                    createCustomer("Zip User", "zip@velora.com"),
+                    5,
+                    "Excellent"
+            );
+
+            assertEquals(1, repository.countForEmail("zip@velora.com"));
+        }
+    }
+
 
     private String encode(String value) {
         return URLEncoder.encode(

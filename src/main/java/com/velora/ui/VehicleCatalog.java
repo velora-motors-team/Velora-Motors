@@ -5,6 +5,7 @@ import com.velora.observer.VehicleAvailabilitySubject;
 import com.velora.repository.ReservationRepository;
 import com.velora.service.VehicleService;
 import com.velora.service.RentalDatabaseService;
+import com.velora.service.RentalPricingService;
 import com.velora.vehicle.Vehicle;
 import com.velora.vehicle.VehicleStatus;
 import com.velora.vehicle.VehicleType;
@@ -16,6 +17,7 @@ import javax.swing.BoxLayout;
 import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JCheckBox;
 import javax.swing.JComponent;
 import javax.swing.JLabel;
 import javax.swing.JList;
@@ -80,6 +82,7 @@ public class VehicleCatalog extends JPanel {
     private final Customer customer;
     private final VehicleService vehicleService = new VehicleService();
     private final RentalDatabaseService rentalDatabaseService = new RentalDatabaseService();
+    private final RentalPricingService pricingService = new RentalPricingService();
     private final ReservationRepository reservationRepository = new ReservationRepository();
     private final VehicleAvailabilitySubject availabilitySubject = new VehicleAvailabilitySubject();
     private final CustomerAccountState accountState;
@@ -139,8 +142,8 @@ public class VehicleCatalog extends JPanel {
         stats.setPreferredSize(new Dimension(620, 72));
         stats.add(topMetric("CAR", availableVehicles(), "Available Vehicles"));
         stats.add(topMetric("BOLT", electricVehicles(), "Electric Models"));
-        stats.add(topMetric("SUV", countType(VehicleType.SUV), "SUVs"));
-        stats.add(topMetric("STAR", "4.8", "Best Rated"));
+        stats.add(topMetric("BIKE", countType(VehicleType.MOTORCYCLE) + countType(VehicleType.ELECTRIC_BIKE), "Motorcycles"));
+        stats.add(topMetric("TRUCK", countType(VehicleType.TRUCK), "Trucks"));
         top.add(new MetricFrame(stats), BorderLayout.EAST);
 
         return top;
@@ -275,7 +278,9 @@ public class VehicleCatalog extends JPanel {
         filters.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
         filters.setPreferredSize(new Dimension(1200, 38));
 
-        categoryFilter = filterCombo("All Categories", "Cars", "SUVs", "Electric", "Hybrid");
+        categoryFilter = filterCombo(
+                "All Categories", "Cars", "SUVs", "Motorcycles", "Trucks", "Electric", "Hybrid"
+        );
         priceFilter = filterCombo("All Prices", "Under $250", "$250 - $399", "$400+");
         fuelFilter = filterCombo("All Powertrains", "Fuel", "Electric", "Hybrid");
         availabilityFilter = filterCombo("All Availability", "Available", "Rented", "Maintenance");
@@ -368,6 +373,9 @@ public class VehicleCatalog extends JPanel {
         return switch (value) {
             case "Cars" -> vehicle.getType() == VehicleType.CAR;
             case "SUVs" -> vehicle.getType() == VehicleType.SUV;
+            case "Motorcycles" -> vehicle.getType() == VehicleType.MOTORCYCLE
+                    || vehicle.getType() == VehicleType.ELECTRIC_BIKE;
+            case "Trucks" -> vehicle.getType() == VehicleType.TRUCK;
             case "Electric" -> vehicle.getType() == VehicleType.ELECTRIC_VEHICLE || vehicle.getType() == VehicleType.ELECTRIC_BIKE;
             case "Hybrid" -> vehicle.getType() == VehicleType.HYBRID_CAR;
             default -> true;
@@ -455,14 +463,21 @@ public class VehicleCatalog extends JPanel {
 
     private void showDetails(Vehicle vehicle) {
         String battery = vehicle.getBatteryLevel() == null ? "" : "\nBattery: " + vehicle.getBatteryLevel() + "%";
+        RentalPricingService.PricingQuote dailyQuote = pricingService.quote(vehicle, 1, false);
+        String pricing = dailyQuote.hasPromotion()
+                ? "\nRegular daily price: " + formatMoney(dailyQuote.originalSubtotal())
+                + "\nSummer discount: " + (int) Math.round(dailyQuote.promotionRate() * 100) + "%"
+                + "\nDiscounted daily price: " + formatMoney(dailyQuote.taxableSubtotal())
+                : "\nDaily price: " + formatMoney(vehicle.getDailyPrice());
         JOptionPane.showMessageDialog(
                 this,
                 FleetUiData.displayName(vehicle)
                         + "\nID: " + vehicle.getId()
                         + "\nCategory: " + prettyType(vehicle.getType())
                         + "\nStatus: " + prettyStatus(vehicle.getStatus())
-                        + "\nDaily price: " + formatMoney(vehicle.getDailyPrice())
+                        + pricing
                         + battery
+                        + "\nRequirements: " + rentalRequirements(vehicle)
                         + "\nPlate: " + FleetUiData.plate(vehicle)
                         + "\nColor: " + FleetUiData.color(vehicle),
                 "Vehicle Details",
@@ -485,6 +500,21 @@ public class VehicleCatalog extends JPanel {
             return;
         }
 
+        RentalEligibility eligibility = chooseRentalEligibility(vehicle);
+        if (eligibility == null) {
+            return;
+        }
+
+        try {
+            rentalDatabaseService.validateRentalRequest(
+                    vehicle, rentalDays,
+                    eligibility.driverAge(), eligibility.hasSpecialLicense()
+            );
+        } catch (IllegalArgumentException | IllegalStateException ex) {
+            VeloraNotificationDialog.showWarning(this, "Rental Requirements", ex.getMessage());
+            return;
+        }
+
         LocalDateTime pickup = LocalDateTime.now();
         LocalDateTime expectedReturn = pickup.plusDays(rentalDays);
 
@@ -497,8 +527,12 @@ public class VehicleCatalog extends JPanel {
             return;
         }
 
-        double subtotal = vehicle.getDailyPrice() * rentalDays;
-        double total = subtotal * 1.10;
+        boolean useLoyaltyDiscount = accountState.hasRentalDiscountReward();
+        RentalPricingService.PricingQuote quote = pricingService.quote(
+                vehicle, rentalDays, useLoyaltyDiscount
+        );
+        double subtotal = quote.taxableSubtotal();
+        double total = quote.total();
 
         if (!accountState.canAfford(total)) {
             VeloraNotificationDialog.showError(
@@ -515,7 +549,7 @@ public class VehicleCatalog extends JPanel {
                 "Confirm Rental",
                 "Rent " + FleetUiData.displayName(vehicle) + " for " + rentalDays + " day(s)?\n"
                         + "Return: " + expectedReturn.format(DateTimeFormatter.ofPattern("dd MMM yyyy, hh:mm a"))
-                        + "\nEstimated total: " + formatMoney(total)
+                        + pricingBreakdown(quote)
                         + "\nCurrent balance: " + formatMoney(accountState.getWalletBalance()),
                 "Rent Now"
         );
@@ -553,7 +587,7 @@ public class VehicleCatalog extends JPanel {
                 expectedReturn
         );
 
-        if (!accountState.addPaidInvoice(invoice, "Card")) {
+        if (!accountState.addPaidInvoice(invoice, "Card", useLoyaltyDiscount)) {
             reservationRepository.updateStatus(reservation.reservationId(), "CANCELLED");
             VeloraNotificationDialog.showError(
                     this,
@@ -562,9 +596,6 @@ public class VehicleCatalog extends JPanel {
             );
             return;
         }
-
-        vehicle.setStatus(VehicleStatus.RENTED);
-        vehicleService.saveVehicles();
 
         rentalDatabaseService.recordSuccessfulRental(
                 customer,
@@ -576,8 +607,12 @@ public class VehicleCatalog extends JPanel {
                 "Card",
                 accountState.getWalletBalance(),
                 pickup,
-                expectedReturn
+                expectedReturn,
+                eligibility.driverAge(),
+                eligibility.hasSpecialLicense()
         );
+        vehicle.setStatus(VehicleStatus.RENTED);
+        vehicleService.saveVehicles();
         reservationRepository.updateStatus(reservation.reservationId(), "ACTIVE");
 
         refreshWalletBalance();
@@ -591,6 +626,70 @@ public class VehicleCatalog extends JPanel {
                         + "\nRemaining balance: " + formatMoney(accountState.getWalletBalance())
                         + "\nInvoice: " + invoice.invoiceId
         );
+    }
+
+    private RentalEligibility chooseRentalEligibility(Vehicle vehicle) {
+        int driverAge = 25;
+        boolean specialLicense = false;
+
+        if (vehicle.getType() == VehicleType.MOTORCYCLE
+                || vehicle.getType() == VehicleType.ELECTRIC_BIKE) {
+            JSpinner age = new JSpinner(new SpinnerNumberModel(25, 16, 100, 1));
+            JPanel panel = new JPanel(new BorderLayout(0, 8));
+            panel.setBorder(new EmptyBorder(8, 8, 8, 8));
+            panel.add(new JLabel("Driver age (minimum 21):"), BorderLayout.NORTH);
+            panel.add(age, BorderLayout.CENTER);
+            int answer = JOptionPane.showConfirmDialog(
+                    this, panel, "Motorcycle Requirements",
+                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE
+            );
+            if (answer != JOptionPane.OK_OPTION) {
+                return null;
+            }
+            driverAge = (Integer) age.getValue();
+        }
+
+        if (vehicle.getType() == VehicleType.TRUCK) {
+            JCheckBox license = new JCheckBox("I hold a valid special truck license");
+            license.setBorder(new EmptyBorder(8, 8, 8, 8));
+            int answer = JOptionPane.showConfirmDialog(
+                    this, license, "Truck License Requirement",
+                    JOptionPane.OK_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE
+            );
+            if (answer != JOptionPane.OK_OPTION) {
+                return null;
+            }
+            specialLicense = license.isSelected();
+        }
+
+        return new RentalEligibility(driverAge, specialLicense);
+    }
+
+    private static String pricingBreakdown(RentalPricingService.PricingQuote quote) {
+        StringBuilder text = new StringBuilder();
+        text.append("\nRegular subtotal: ").append(formatMoney(quote.originalSubtotal()));
+        if (quote.hasPromotion()) {
+            text.append("\nSummer promotion: -").append(formatMoney(quote.promotionDiscount()));
+        }
+        if (quote.hasLoyaltyDiscount()) {
+            text.append("\nLoyalty reward (10%): -").append(formatMoney(quote.loyaltyDiscount()));
+        }
+        text.append("\nTax (10%): ").append(formatMoney(quote.tax()));
+        text.append("\nEstimated total: ").append(formatMoney(quote.total()));
+        return text.toString();
+    }
+
+    private static String rentalRequirements(Vehicle vehicle) {
+        return switch (vehicle.getType()) {
+            case TRUCK -> "Special truck license";
+            case MOTORCYCLE -> "Driver age 21+";
+            case ELECTRIC_BIKE -> "Driver age 21+ and battery 30%+";
+            case ELECTRIC_VEHICLE -> "Battery 30%+";
+            default -> "Standard driving license";
+        };
+    }
+
+    private record RentalEligibility(int driverAge, boolean hasSpecialLicense) {
     }
 
     private void toggleAvailabilityNotification(Vehicle vehicle) {
@@ -879,7 +978,8 @@ public class VehicleCatalog extends JPanel {
             g.setFont(new Font("Segoe UI", Font.BOLD, 12));
             g.drawString("* " + rating(vehicle), x, getHeight() - 19);
 
-            String price = formatMoney(vehicle.getDailyPrice());
+            RentalPricingService.PricingQuote dailyQuote = pricingService.quote(vehicle, 1, false);
+            String price = formatMoney(dailyQuote.taxableSubtotal());
             g.setColor(TEXT);
             g.setFont(new Font("Segoe UI", Font.PLAIN, 20));
             int priceWidth = g.getFontMetrics().stringWidth(price);
@@ -887,7 +987,27 @@ public class VehicleCatalog extends JPanel {
             g.setFont(new Font("Segoe UI", Font.PLAIN, 10));
             g.setColor(MUTED);
             g.drawString("Per Day", getWidth() - 62, 121);
+            if (dailyQuote.hasPromotion()) {
+                String regular = formatMoney(dailyQuote.originalSubtotal());
+                g.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                g.setColor(MUTED);
+                int regularWidth = g.getFontMetrics().stringWidth(regular);
+                int regularX = getWidth() - regularWidth - 18;
+                g.drawString(regular, regularX, 82);
+                g.drawLine(regularX, 78, regularX + regularWidth, 78);
+                drawDiscountPill(g, getWidth() - 82, 42, dailyQuote.promotionRate());
+            }
             g.dispose();
+        }
+
+        private void drawDiscountPill(Graphics2D g, int x, int y, double rate) {
+            String text = (int) Math.round(rate * 100) + "% OFF";
+            g.setFont(new Font("Segoe UI", Font.BOLD, 9));
+            int width = Math.max(64, g.getFontMetrics().stringWidth(text) + 14);
+            g.setColor(new Color(73, 190, 93, 185));
+            g.fillRoundRect(x - (width - 64), y, width, 20, 8, 8);
+            g.setColor(Color.WHITE);
+            g.drawString(text, x - (width - 64) + 7, y + 14);
         }
 
         private void drawStatusPill(Graphics2D g, int x, int y, VehicleStatus status) {
@@ -905,14 +1025,23 @@ public class VehicleCatalog extends JPanel {
     }
 
     private static String seatsText(Vehicle vehicle) {
-        return (vehicle.getType() == VehicleType.CAR ? "4" : "5") + " Seats";
+        return switch (vehicle.getType()) {
+            case MOTORCYCLE, ELECTRIC_BIKE -> "2 Seats";
+            case TRUCK -> "3 Seats";
+            case CAR -> "4 Seats";
+            default -> "5 Seats";
+        };
     }
 
     private static String rangeText(Vehicle vehicle) {
         if (vehicle.getType() == VehicleType.ELECTRIC_VEHICLE || vehicle.getType() == VehicleType.ELECTRIC_BIKE) {
             return (560 + Math.floorMod(vehicle.getId().hashCode(), 90)) + " km Range";
         }
-        return "0-100 km/h Luxury Tune";
+        return switch (vehicle.getType()) {
+            case MOTORCYCLE -> "Performance Motorcycle";
+            case TRUCK -> "Heavy-Duty Transport";
+            default -> "0-100 km/h Luxury Tune";
+        };
     }
 
     private static String rating(Vehicle vehicle) {

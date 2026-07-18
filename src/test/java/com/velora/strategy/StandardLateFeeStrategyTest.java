@@ -49,7 +49,7 @@ public class StandardLateFeeStrategyTest {
             int late=1;
             double result=late*late_price*price;
             StandardLateFeeStrategy obj=new StandardLateFeeStrategy ();
-            Vehicle vehicle = new Vehicle(
+            Vehicle vehicle = Vehicle.create(
             "V001",
             "Toyota",
             "Corolla",
@@ -72,7 +72,7 @@ public class StandardLateFeeStrategyTest {
          int late=1;
          double result=late*late_price*price;
          StandardLateFeeStrategy obj=new StandardLateFeeStrategy ();
-            Vehicle vehicle = new Vehicle(
+            Vehicle vehicle = Vehicle.create(
             "V001",
             "Toyota",
             "Corolla",
@@ -93,7 +93,7 @@ public class StandardLateFeeStrategyTest {
          int late=1;
          double result=late*late_price*price;
          StandardLateFeeStrategy obj=new StandardLateFeeStrategy ();
-            Vehicle vehicle = new Vehicle(
+            Vehicle vehicle = Vehicle.create(
             "V001",
             "Toyota",
             "Corolla",
@@ -115,7 +115,7 @@ public class StandardLateFeeStrategyTest {
          int late=2;
          double result=late*late_price*price;
          StandardLateFeeStrategy obj=new StandardLateFeeStrategy ();
-            Vehicle vehicle = new Vehicle(
+            Vehicle vehicle = Vehicle.create(
             "V001",
             "Toyota",
             "Corolla",
@@ -137,7 +137,7 @@ public class StandardLateFeeStrategyTest {
          int late=0;
          double result=late*late_price*price;
          StandardLateFeeStrategy obj=new StandardLateFeeStrategy ();
-            Vehicle vehicle = new Vehicle(
+            Vehicle vehicle = Vehicle.create(
             "V001",
             "Toyota",
             "Corolla",
@@ -159,7 +159,7 @@ public class StandardLateFeeStrategyTest {
          int late=0;
          double result=late*late_price*price;
          StandardLateFeeStrategy obj=new StandardLateFeeStrategy ();
-            Vehicle vehicle = new Vehicle(
+            Vehicle vehicle = Vehicle.create(
             "V001",
             "Toyota",
             "Corolla",
@@ -181,7 +181,7 @@ public class StandardLateFeeStrategyTest {
          int late=0;
          double result=late*late_price*price;
          StandardLateFeeStrategy obj=new StandardLateFeeStrategy ();
-            Vehicle vehicle = new Vehicle(
+            Vehicle vehicle = Vehicle.create(
             "V001",
             "Toyota",
             "Corolla",
