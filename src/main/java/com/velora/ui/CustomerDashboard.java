@@ -3,6 +3,7 @@ package com.velora.ui;
 
 import com.velora.authentication.Customer;
 import com.velora.repository.NotificationRepository;
+import com.velora.service.RentalExpiryReminderService;
 
 import javax.imageio.ImageIO;
 import javax.swing.*;
@@ -30,6 +31,8 @@ public class CustomerDashboard extends JFrame {
     private final Customer customer;
     private final CustomerAccountState accountState;
     private final NotificationRepository notificationRepository = new NotificationRepository();
+    private final RentalExpiryReminderService rentalExpiryReminderService =
+            new RentalExpiryReminderService();
     private final CardLayout pageLayout = new CardLayout();
     private final JPanel pageCards = new JPanel(pageLayout);
     private final Map<String, MenuButton> menuButtons = new LinkedHashMap<>();
@@ -54,6 +57,10 @@ public class CustomerDashboard extends JFrame {
         super("Velora Motors - Customer Dashboard");
         this.customer = customer;
         this.accountState = CustomerAccountState.forCustomer(customer);
+
+        if (customer != null) {
+            rentalExpiryReminderService.sendUpcomingReminders(customer.getEmail());
+        }
 
         iconImage = loadImage("/images/icon.png");
         heroImage = loadImage("/images/customer-dashboard-hero-reference.png");

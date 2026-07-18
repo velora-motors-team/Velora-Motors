@@ -45,6 +45,7 @@
     </dependencies>
 
     <build>
+
         <plugins>
 
             <plugin>
@@ -59,6 +60,7 @@
                 <version>3.6.0</version>
 
                 <executions>
+
                     <execution>
                         <phase>package</phase>
 
@@ -67,16 +69,23 @@
                         </goals>
 
                         <configuration>
+
                             <createDependencyReducedPom>false</createDependencyReducedPom>
 
                             <transformers>
+
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>${exec.mainClass}</mainClass>
                                 </transformer>
+
                             </transformers>
+
                         </configuration>
+
                     </execution>
+
                 </executions>
+
             </plugin>
 
             <plugin>
@@ -87,6 +96,7 @@
                 <configuration>
                     <release>${maven.compiler.release}</release>
                 </configuration>
+
             </plugin>
 
             <plugin>
@@ -97,9 +107,12 @@
                 <executions>
 
                     <execution>
+                        <id>prepare-agent</id>
+
                         <goals>
                             <goal>prepare-agent</goal>
                         </goals>
+
                     </execution>
 
                     <execution>
@@ -111,46 +124,40 @@
                         </goals>
 
                         <configuration>
+
                             <excludes>
 
-                                <exclude>com/velora/ui/AdminFooter*</exclude>
-                                <exclude>com/velora/ui/AdminSupportInboxPanel*</exclude>
-                                <exclude>com/velora/ui/AnalyticsPanel*</exclude>
-                                <exclude>com/velora/ui/BillingPanel*</exclude>
-                                <exclude>com/velora/ui/CustomerBillingPanel*</exclude>
-                                <exclude>com/velora/ui/CustomerDashboard*</exclude>
-                                <exclude>com/velora/ui/CustomerFooter*</exclude>
-                                <exclude>com/velora/ui/FarewellScreen*</exclude>
-                                <exclude>com/velora/ui/LoginScreen*</exclude>
-                                <exclude>com/velora/ui/LogoutConfirmDialog*</exclude>
-                                <exclude>com/velora/ui/LoyaltyPointsPanel*</exclude>
-                                <exclude>com/velora/ui/MaintenancePanel*</exclude>
-                                <exclude>com/velora/ui/ManagerDashboard*</exclude>
-                                <exclude>com/velora/ui/MyRentalsPanel*</exclude>
-                                <exclude>com/velora/ui/ProfilePanel*</exclude>
-                                <exclude>com/velora/ui/RentalReturnPanel*</exclude>
-                                <exclude>com/velora/ui/ReviewsPanel*</exclude>
-                                <exclude>com/velora/ui/SplashScreen*</exclude>
-                                <exclude>com/velora/ui/SupportPanel*</exclude>
-                                <exclude>com/velora/ui/VehicleCatalog*</exclude>
-                                <exclude>com/velora/ui/VehicleDetails*</exclude>
-                                <exclude>com/velora/ui/VeloraNotificationDialog*</exclude>
-                                <exclude>com/velora/ui/VeloraTheme*</exclude>
+                                <exclude>com/velora/ui/**</exclude>
+                                <exclude>com/velora/theme/**</exclude>
+                                <exclude>com/velora/Velora_Motors*</exclude>
 
                             </excludes>
+
                         </configuration>
+
                     </execution>
 
                 </executions>
+
             </plugin>
 
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.0</version>
+
+                <configuration>
+
+                    <systemPropertyVariables>
+                        <net.bytebuddy.experimental>true</net.bytebuddy.experimental>
+                    </systemPropertyVariables>
+
+                </configuration>
+
             </plugin>
 
         </plugins>
+
     </build>
 
 </project>
