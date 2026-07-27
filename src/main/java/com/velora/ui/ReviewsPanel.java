@@ -1048,93 +1048,91 @@ public final class ReviewsPanel extends JPanel {
         }
     }
 
-    private static final class StarRating extends JComponent {
+private static final class StarRating extends JComponent {
 
-        private final int rating;
-        private static final int MIN_RATING = 1;
-        private static final int MAX_RATING = 5;
+    private static final int MIN_RATING = 1;
+    private static final int MAX_RATING = 5;
 
-        StarRating(String stars) {
-            int count = 0;
+    private final int rating;
 
-            if (stars != null) {
-                for (int i = 0; i < stars.length(); i++) {
-                    if (stars.charAt(i) == '★') {
-                        count++;
-                    }
+    StarRating(String stars) {
+        int count = 0;
+
+        if (stars != null) {
+            for (int i = 0; i < stars.length(); i++) {
+                if (stars.charAt(i) == '★') {
+                    count++;
                 }
             }
-
-            this.rating = normalizeRating(count);
-            setOpaque(false);
-        }
-        
-        private static int normalizeRating(int count) {
-            if (count < MIN_RATING) {
-                return MIN_RATING;
-            }
-
-            if (count > MAX_RATING) {
-                return MAX_RATING;
-            }
-
-            return count;
         }
 
-        @Override
-        protected void paintComponent(Graphics raw) {
-            Graphics2D g = (Graphics2D) raw.create();
+        this.rating = Math.min(
+                MAX_RATING,
+                Math.max(MIN_RATING, count)
+        );
 
-            g.setRenderingHint(
-                    RenderingHints.KEY_ANTIALIASING,
-                    RenderingHints.VALUE_ANTIALIAS_ON
+        setOpaque(false);
+    }
+
+    @Override
+    protected void paintComponent(Graphics raw) {
+        Graphics2D g = (Graphics2D) raw.create();
+
+        g.setRenderingHint(
+                RenderingHints.KEY_ANTIALIASING,
+                RenderingHints.VALUE_ANTIALIAS_ON
+        );
+
+        int size = 13;
+        int gap = 5;
+        int y = 2;
+
+        for (int i = 0; i < 5; i++) {
+            int x = i * (size + gap) + 2;
+
+            Shape star = createStar(
+                    x + size / 2.0,
+                    y + size / 2.0,
+                    size / 2.0,
+                    size / 4.0
             );
 
-            int size = 13;
-            int gap = 5;
-            int y = 2;
-
-            for (int i = 0; i < 5; i++) {
-                int x = i * (size + gap) + 2;
-
-                Shape star = createStar(
-                        x + size / 2.0,
-                        y + size / 2.0,
-                        size / 2.0,
-                        size / 4.0
-                );
-
-                if (i < rating) {
-                    g.setColor(GOLD);
-                    g.fill(star);
-                } else {
-                    g.setColor(new Color(214, 160, 66, 55));
-                    g.draw(star);
-                }
+            if (i < rating) {
+                g.setColor(GOLD);
+                g.fill(star);
+            } else {
+                g.setColor(new Color(214, 160, 66, 55));
+                g.draw(star);
             }
-
-            g.dispose();
         }
 
-        private Shape createStar(double cx, double cy, double outer, double inner) {
-            Path2D path = new Path2D.Double();
-
-            for (int i = 0; i < 10; i++) {
-                double angle = -Math.PI / 2 + i * Math.PI / 5;
-                double radius = i % 2 == 0 ? outer : inner;
-
-                double x = cx + Math.cos(angle) * radius;
-                double y = cy + Math.sin(angle) * radius;
-
-                if (i == 0) {
-                    path.moveTo(x, y);
-                } else {
-                    path.lineTo(x, y);
-                }
-            }
-
-            path.closePath();
-            return path;
-        }
+        g.dispose();
     }
+
+    private Shape createStar(
+            double cx,
+            double cy,
+            double outer,
+            double inner
+    ) {
+        Path2D path = new Path2D.Double();
+
+        for (int i = 0; i < 10; i++) {
+            double angle = -Math.PI / 2 + i * Math.PI / 5;
+            double radius = i % 2 == 0 ? outer : inner;
+
+            double x = cx + Math.cos(angle) * radius;
+            double y = cy + Math.sin(angle) * radius;
+
+            if (i == 0) {
+                path.moveTo(x, y);
+            } else {
+                path.lineTo(x, y);
+            }
+        }
+
+        path.closePath();
+        return path;
+    }
+}
 }
