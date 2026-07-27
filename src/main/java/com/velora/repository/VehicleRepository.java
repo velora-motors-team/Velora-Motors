@@ -405,7 +405,6 @@ public class VehicleRepository {
                 if (parts.length < 7 || !"VEHICLE".equals(parts[0])) {
                     continue;
                 }
-                String battery = parts[6];
                 vehicles.add(Vehicle.create(
                         decode(parts[1]),
                         decode(parts[2]),
