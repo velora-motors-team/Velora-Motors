@@ -397,24 +397,30 @@ public class VehicleRepository {
         }
 
         try {
-            for (String line : Files.readAllLines(VEHICLE_FILE, StandardCharsets.UTF_8)) {
-                if (line == null || line.isBlank()) {
-                    continue;
-                }
-                String[] parts = line.split("\t", -1);
-                if (parts.length < 7 || !"VEHICLE".equals(parts[0])) {
-                    continue;
-                }
-                vehicles.add(Vehicle.create(
-                        decode(parts[1]),
-                        decode(parts[2]),
-                        decode(parts[3]),
-                        VehicleType.valueOf(parts[4]),
-                        VehicleStatus.valueOf(parts[5]),
-                        parseDouble(parts[6]),
-                        parts.length > 7 && !parts[7].isBlank() ? parseInt(parts[7]) : null
-                ));
-            }
+            for (String line : Files.readAllLines(
+        VEHICLE_FILE,
+        StandardCharsets.UTF_8
+)) {
+    if (line == null || line.isBlank()) {
+        continue;
+    }
+
+    String[] parts = line.split("\t", -1);
+
+    if (parts.length >= 7 && "VEHICLE".equals(parts[0])) {
+        vehicles.add(Vehicle.create(
+                decode(parts[1]),
+                decode(parts[2]),
+                decode(parts[3]),
+                VehicleType.valueOf(parts[4]),
+                VehicleStatus.valueOf(parts[5]),
+                parseDouble(parts[6]),
+                parts.length > 7 && !parts[7].isBlank()
+                        ? parseInt(parts[7])
+                        : null
+        ));
+    }
+}
         } catch (IOException | IllegalArgumentException ex) {
             vehicles.clear();
         }
