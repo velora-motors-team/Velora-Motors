@@ -15,7 +15,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.release>17</maven.compiler.release>
         <exec.mainClass>com.velora.Velora_Motors</exec.mainClass>
-
+<sonar.organization>velora-motors-team</sonar.organization>
         <junit.version>5.10.2</junit.version>
         <mockito.version>5.23.0</mockito.version>
     </properties>
