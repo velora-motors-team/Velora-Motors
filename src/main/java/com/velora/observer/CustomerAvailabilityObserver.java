@@ -7,13 +7,13 @@ import java.util.Objects;
 
 /** Concrete observer that delivers the event to a customer notification inbox. */
 public final class CustomerAvailabilityObserver implements VehicleAvailabilityObserver {
-
+    private static final String DEFAULT_CUSTOMER_NAME = "Customer";
     private final String customerEmail;
     private final String customerName;
     private final NotificationRepository notificationRepository;
 
     public CustomerAvailabilityObserver(String customerEmail) {
-        this("Customer", customerEmail, new NotificationRepository());
+        this(DEFAULT_CUSTOMER_NAME, customerEmail, new NotificationRepository());
     }
 
     public CustomerAvailabilityObserver(
@@ -21,7 +21,7 @@ public final class CustomerAvailabilityObserver implements VehicleAvailabilityOb
             String customerEmail,
             NotificationRepository notificationRepository
     ) {
-        this.customerName = Objects.requireNonNullElse(customerName, "Customer").trim();
+        this.customerName = Objects.requireNonNullElse(customerName, DEFAULT_CUSTOMER_NAME).trim();
         this.customerEmail = Objects.requireNonNullElse(customerEmail, "").trim().toLowerCase();
         this.notificationRepository = Objects.requireNonNull(notificationRepository);
     }
@@ -45,6 +45,6 @@ public final class CustomerAvailabilityObserver implements VehicleAvailabilityOb
     }
 
     private String displayName() {
-        return customerName.isBlank() ? "Customer" : customerName;
+        return customerName.isBlank() ? DEFAULT_CUSTOMER_NAME : customerName;
     }
 }
