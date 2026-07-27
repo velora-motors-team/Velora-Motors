@@ -1051,6 +1051,8 @@ public final class ReviewsPanel extends JPanel {
     private static final class StarRating extends JComponent {
 
         private final int rating;
+        private static final int MIN_RATING = 1;
+        private static final int MAX_RATING = 5;
 
         StarRating(String stars) {
             int count = 0;
@@ -1063,8 +1065,20 @@ public final class ReviewsPanel extends JPanel {
                 }
             }
 
-            this.rating = Math.max(1, Math.min(5, count));
+            this.rating = normalizeRating(count);
             setOpaque(false);
+        }
+        
+        private static int normalizeRating(int count) {
+            if (count < MIN_RATING) {
+                return MIN_RATING;
+            }
+
+            if (count > MAX_RATING) {
+                return MAX_RATING;
+            }
+
+            return count;
         }
 
         @Override
