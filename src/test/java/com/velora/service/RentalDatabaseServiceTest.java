@@ -16,6 +16,7 @@ import com.velora.vehicle.ElectricMotorcycle;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -313,12 +314,12 @@ public class RentalDatabaseServiceTest {
         );
 
         assertEquals(
-                3,
-                Duration.between(
-                        startCaptor.getValue(),
-                        expectedCaptor.getValue()
-                ).toDays()
-        );
+        3,
+        ChronoUnit.DAYS.between(
+                startCaptor.getValue().toLocalDate(),
+                expectedCaptor.getValue().toLocalDate()
+        )
+);
     }
 
     @Test
