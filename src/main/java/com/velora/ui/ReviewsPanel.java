@@ -1063,7 +1063,7 @@ public final class ReviewsPanel extends JPanel {
                 }
             }
 
-            this.rating = Math.max(1, Math.min(5, count));
+            this.rating = Math.min(5, Math.max(1, count));
             setOpaque(false);
         }
 
