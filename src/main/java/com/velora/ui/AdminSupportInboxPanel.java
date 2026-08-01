@@ -16,7 +16,7 @@ public final class AdminSupportInboxPanel extends JPanel {
     // COLORS
     // =========================================================
 
-    private static final Color BG = new Color(3, 8, 13);
+    
     private static final Color CARD = new Color(7, 14, 21);
     private static final Color CARD_2 = new Color(9, 18, 27);
     private static final Color CARD_3 = new Color(12, 22, 31);
