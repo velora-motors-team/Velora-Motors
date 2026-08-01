@@ -11,7 +11,6 @@ import com.velora.vehicle.VehicleType;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.plaf.basic.BasicScrollBarUI;
-import javax.swing.plaf.basic.BasicComboBoxUI;
 import javax.swing.plaf.basic.ComboPopup;
 import java.awt.*;
 import java.awt.geom.Path2D;
@@ -1202,85 +1201,11 @@ public final class AnalyticsPanel extends JPanel {
 
 
 
-    private static final class DarkComboBoxUI extends BasicComboBoxUI {
-
-        @Override
-        protected javax.swing.JButton createArrowButton() {
-            javax.swing.JButton button = new javax.swing.JButton() {
-                @Override
-                protected void paintComponent(Graphics raw) {
-                    Graphics2D g = (Graphics2D) raw.create();
-                    g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-                    int cx = getWidth() / 2;
-                    int cy = getHeight() / 2;
-
-                    g.setColor(PALE);
-                    g.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-                    g.drawLine(cx - 4, cy - 2, cx, cy + 3);
-                    g.drawLine(cx, cy + 3, cx + 4, cy - 2);
-
-                    g.dispose();
-                }
-            };
-
-            button.setOpaque(false);
-            button.setContentAreaFilled(false);
-            button.setBorderPainted(false);
-            button.setFocusPainted(false);
-            return button;
-        }
-
-        @Override
-        public void paint(Graphics raw, JComponent c) {
-            Graphics2D g = (Graphics2D) raw.create();
-
-            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-
-            boolean popupVisible = comboBox != null && comboBox.isPopupVisible();
-
-            RoundRectangle2D box = new RoundRectangle2D.Double(
-                    .5,
-                    .5,
-                    c.getWidth() - 1,
-                    c.getHeight() - 1,
-                    10,
-                    10
-            );
-
-            g.setPaint(new GradientPaint(
-                    0, 0, popupVisible ? new Color(20, 29, 38) : new Color(5, 12, 18),
-                    c.getWidth(), c.getHeight(), popupVisible ? new Color(8, 14, 20) : new Color(2, 7, 12)
-            ));
-            g.fill(box);
-
-            g.setColor(new Color(214, 160, 66, popupVisible ? 175 : 115));
-            g.setStroke(new BasicStroke(1.15f));
-            g.draw(box);
-
-            Object selected = comboBox.getSelectedItem();
-            String text = selected == null ? "" : selected.toString();
-
-            g.setFont(new Font("Tahoma", Font.BOLD, 11));
-            g.setColor(TEXT);
-
-            FontMetrics fm = g.getFontMetrics();
-            int y = (c.getHeight() + fm.getAscent()) / 2 - 3;
-            g.drawString(text, 12, y);
-
-            g.dispose();
-        }
-    }
-
-
-
     private static final class BlackDropDown extends JButton {
 
         private final String[] items;
         private int selectedIndex;
         private final JPopupMenu menu = new JPopupMenu();
-        private final Consumer<String> onChange;
-
         BlackDropDown(String[] items) {
             this(items, null, null);
         }
@@ -1288,7 +1213,6 @@ public final class AnalyticsPanel extends JPanel {
         BlackDropDown(String[] items, String selectedItem, Consumer<String> onChange) {
             super((items == null || items.length == 0) ? "Select" : (selectedItem == null ? items[0] : selectedItem));
             this.items = (items == null || items.length == 0) ? new String[]{"Select"} : items.clone();
-            this.onChange = onChange;
             if (selectedItem != null) {
                 for (int i = 0; i < this.items.length; i++) {
                     if (this.items[i].equals(selectedItem)) {

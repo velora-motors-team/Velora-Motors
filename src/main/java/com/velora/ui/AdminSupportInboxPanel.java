@@ -19,7 +19,6 @@ public final class AdminSupportInboxPanel extends JPanel {
     
     private static final Color CARD = new Color(7, 14, 21);
     private static final Color CARD_2 = new Color(9, 18, 27);
-    private static final Color CARD_3 = new Color(12, 22, 31);
 
     private static final Color GOLD = new Color(214, 160, 66);
     private static final Color GOLD_LIGHT = new Color(238, 201, 139);
@@ -34,10 +33,7 @@ public final class AdminSupportInboxPanel extends JPanel {
     private static final Color PURPLE = new Color(186, 118, 255);
 
     // Extra luxury tones used only for visuals.
-    private static final Color MIDNIGHT = new Color(4, 10, 16);
-    private static final Color PANEL_GLOW = new Color(214, 160, 66, 36);
     private static final Color PANEL_BORDER = new Color(214, 160, 66, 72);
-    private static final Color SOFT_TEXT = new Color(196, 202, 211);
 
     // =========================================================
     // DATA
@@ -2011,12 +2007,9 @@ public final class AdminSupportInboxPanel extends JPanel {
     private static final class FilterTile
             extends JPanel {
 
-        private final String filter;
         private boolean selected;
 
         FilterTile(String filter) {
-
-            this.filter = filter;
 
             setOpaque(false);
         }
