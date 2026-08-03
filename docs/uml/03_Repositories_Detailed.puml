@@ -1,0 +1,353 @@
+@startuml
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam defaultFontName Arial
+hide circle
+
+title Repository Layer - Detailed UML
+
+package "authentication" {
+  class "Customer" as com_velora_authentication_Customer
+}
+
+package "observer" {
+  class "CustomerAvailabilityObserver" as com_velora_observer_CustomerAvailabilityObserver
+  class "VehicleAvailabilitySubject" as com_velora_observer_VehicleAvailabilitySubject
+}
+
+package "repository" {
+  class "CustomerRepository" as com_velora_repository_CustomerRepository {
+    -{static} HEADER : String
+    -accountsFile : Path
+    --
+    +CustomerRepository()
+    +CustomerRepository(Path)
+    +findByEmail(String) : Optional<CustomerRepository.StoredCustomer>
+    +save(Customer, String) : void
+    +updatePassword(String, String) : boolean
+    +updateProfile(String, String, String) : boolean
+    +deleteByEmail(String) : boolean
+    +findAll() : List<Customer>
+    +findAllStored() : List<CustomerRepository.StoredCustomer>
+    +getAccountsFile() : Path
+  }
+  class "CustomerRepository.StoredCustomer" as com_velora_repository_CustomerRepository_StoredCustomer <<record>> {
+    -customer : Customer
+    -password : String
+    --
+    +CustomerRepository.StoredCustomer(Customer, String)
+    +customer() : Customer
+    +password() : String
+  }
+  class "DataStoreSupport" as com_velora_repository_DataStoreSupport {
+    -{static} ID_TIME : DateTimeFormatter
+    --
+    ~{static} dataFile(String) : Path
+    ~{static} ensureFile(Path, String) : void
+    ~{static} readDataLines(Path) : List<String>
+    ~{static} appendLine(Path, String) : void
+    ~{static} writeAll(Path, List<String>, String) : void
+    ~{static} encode(String) : String
+    ~{static} decode(String) : String
+    ~{static} parseInt(String, int) : int
+    ~{static} parseDouble(String, double) : double
+    ~{static} parseBoolean(String) : boolean
+    ~{static} newId(String) : String
+  }
+  class "LoyaltyTransactionRepository" as com_velora_repository_LoyaltyTransactionRepository {
+    -{static} HEADER : String
+    -{static} FILE : Path
+    --
+    +LoyaltyTransactionRepository()
+    +findAll() : List<LoyaltyTransactionRepository.LoyaltyTransaction>
+    +findByCustomerEmail(String) : List<LoyaltyTransactionRepository.LoyaltyTransaction>
+    +pointsBalance(String) : int
+    +add(String, int, String, String, String) : LoyaltyTransactionRepository.LoyaltyTransaction
+  }
+  class "LoyaltyTransactionRepository.LoyaltyTransaction" as com_velora_repository_LoyaltyTransactionRepository_LoyaltyTransaction <<record>> {
+    -transactionId : String
+    -customerEmail : String
+    -points : int
+    -type : String
+    -description : String
+    -referenceId : String
+    -createdAt : String
+    --
+    +LoyaltyTransactionRepository.LoyaltyTransaction(String, String, int, String, String, String, String)
+    +transactionId() : String
+    +customerEmail() : String
+    +points() : int
+    +type() : String
+    +description() : String
+    +referenceId() : String
+    +createdAt() : String
+  }
+  class "ManagerRepository" as com_velora_repository_ManagerRepository {
+    +ManagerRepository()
+  }
+  class "NotificationRepository" as com_velora_repository_NotificationRepository {
+    -{static} HEADER : String
+    -{static} FILE : Path
+    --
+    +NotificationRepository()
+    +findAll() : List<NotificationRepository.NotificationRecord>
+    +findByCustomerEmail(String) : List<NotificationRepository.NotificationRecord>
+    +findUnreadByCustomerEmail(String) : List<NotificationRepository.NotificationRecord>
+    +create(String, String, String, String) : NotificationRepository.NotificationRecord
+    +markRead(String) : boolean
+  }
+  class "NotificationRepository.NotificationRecord" as com_velora_repository_NotificationRepository_NotificationRecord <<record>> {
+    -notificationId : String
+    -customerEmail : String
+    -type : String
+    -title : String
+    -message : String
+    -createdAt : String
+    -read : boolean
+    --
+    +NotificationRepository.NotificationRecord(String, String, String, String, String, String, boolean)
+    +notificationId() : String
+    +customerEmail() : String
+    +type() : String
+    +title() : String
+    +message() : String
+    +createdAt() : String
+    +read() : boolean
+  }
+  class "PaymentRepository" as com_velora_repository_PaymentRepository {
+    -{static} HEADER : String
+    -{static} FILE : Path
+    --
+    +PaymentRepository()
+    +findAll() : List<PaymentRepository.PaymentRecord>
+    +findByCustomerEmail(String) : List<PaymentRepository.PaymentRecord>
+    +create(String, String, String, double, String, String) : PaymentRepository.PaymentRecord
+  }
+  class "PaymentRepository.PaymentRecord" as com_velora_repository_PaymentRepository_PaymentRecord <<record>> {
+    -paymentId : String
+    -invoiceId : String
+    -rentalId : String
+    -customerEmail : String
+    -amount : double
+    -method : String
+    -status : String
+    -createdAt : String
+    --
+    +PaymentRepository.PaymentRecord(String, String, String, String, double, String, String, String)
+    +paymentId() : String
+    +invoiceId() : String
+    +rentalId() : String
+    +customerEmail() : String
+    +amount() : double
+    +method() : String
+    +status() : String
+    +createdAt() : String
+  }
+  class "RatingRepository" as com_velora_repository_RatingRepository {
+    -{static} HEADER : String
+    -ratingsFile : Path
+    --
+    +RatingRepository()
+    +RatingRepository(Path)
+    +saveRating(Customer, int, String) : void
+    +findByEmail(String) : List<RatingRepository.StoredRating>
+    +averageForEmail(String) : OptionalDouble
+    +countForEmail(String) : int
+    +getRatingsFile() : Path
+  }
+  class "RatingRepository.StoredRating" as com_velora_repository_RatingRepository_StoredRating <<record>> {
+    -email : String
+    -fullName : String
+    -rating : int
+    -comment : String
+    -createdAt : String
+    --
+    +RatingRepository.StoredRating(String, String, int, String, String)
+    +email() : String
+    +fullName() : String
+    +rating() : int
+    +comment() : String
+    +createdAt() : String
+  }
+  class "RentalRepository" as com_velora_repository_RentalRepository {
+    -{static} HEADER : String
+    -{static} FILE : Path
+    --
+    +RentalRepository()
+    +findAll() : List<RentalRepository.RentalRecord>
+    +findByCustomerEmail(String) : List<RentalRepository.RentalRecord>
+    +findById(String) : Optional<RentalRepository.RentalRecord>
+    +hasActiveRentalForVehicle(String) : boolean
+    +create(String, String, String, String, LocalDateTime, LocalDateTime, int, double, double, String, String) : RentalRepository.RentalRecord
+    +save(RentalRepository.RentalRecord) : void
+    +updateStatus(String, String, String, double) : boolean
+    +updateTimingStatus(String, String, double) : boolean
+    +updateLateFee(String, double) : boolean
+    +markReturned(String, LocalDateTime, double) : boolean
+  }
+  class "RentalRepository.RentalRecord" as com_velora_repository_RentalRepository_RentalRecord <<record>> {
+    -rentalId : String
+    -customerEmail : String
+    -customerName : String
+    -vehicleId : String
+    -vehicleName : String
+    -startDateTime : String
+    -expectedReturnDateTime : String
+    -actualReturnDateTime : String
+    -status : String
+    -rentalDays : int
+    -dailyRate : double
+    -baseAmount : double
+    -lateFee : double
+    -invoiceId : String
+    -paymentStatus : String
+    --
+    +RentalRepository.RentalRecord(String, String, String, String, String, String, String, String, String, int, double, double, double, String, String)
+    +rentalId() : String
+    +customerEmail() : String
+    +customerName() : String
+    +vehicleId() : String
+    +vehicleName() : String
+    +startDateTime() : String
+    +expectedReturnDateTime() : String
+    +actualReturnDateTime() : String
+    +status() : String
+    +rentalDays() : int
+    +dailyRate() : double
+    +baseAmount() : double
+    +lateFee() : double
+    +invoiceId() : String
+    +paymentStatus() : String
+  }
+  class "ReservationRepository" as com_velora_repository_ReservationRepository {
+    -{static} HEADER : String
+    -{static} FILE : Path
+    --
+    +ReservationRepository()
+    +findAll() : List<ReservationRepository.ReservationRecord>
+    +findByCustomerEmail(String) : List<ReservationRepository.ReservationRecord>
+    +hasOverlap(String, LocalDateTime, LocalDateTime) : boolean
+    +create(String, String, LocalDateTime, LocalDateTime) : ReservationRepository.ReservationRecord
+    +updateStatus(String, String) : boolean
+  }
+  class "ReservationRepository.ReservationRecord" as com_velora_repository_ReservationRepository_ReservationRecord <<record>> {
+    -reservationId : String
+    -customerEmail : String
+    -vehicleId : String
+    -pickupDateTime : String
+    -returnDateTime : String
+    -status : String
+    -createdAt : String
+    --
+    +ReservationRepository.ReservationRecord(String, String, String, String, String, String, String)
+    +reservationId() : String
+    +customerEmail() : String
+    +vehicleId() : String
+    +pickupDateTime() : String
+    +returnDateTime() : String
+    +status() : String
+    +createdAt() : String
+  }
+  class "VehicleRepository" as com_velora_repository_VehicleRepository {
+    -{static} VEHICLE_FILE : Path
+    -{static} SHARED_VEHICLES : List<Vehicle>
+    -vehicles : List<Vehicle>
+    --
+    +VehicleRepository()
+    +findAll() : List<Vehicle>
+    +saveAll() : void
+  }
+  class "VehicleWaitlistRepository" as com_velora_repository_VehicleWaitlistRepository {
+    -{static} HEADER : String
+    -{static} FILE : Path
+    --
+    +VehicleWaitlistRepository()
+    +findAll() : List<VehicleWaitlistRepository.WaitlistRecord>
+    +findByVehicleId(String) : List<VehicleWaitlistRepository.WaitlistRecord>
+    +isSubscribed(String, String) : boolean
+    +subscribe(String, String, String) : boolean
+    +unsubscribe(String, String) : boolean
+    +removeByVehicleId(String) : void
+  }
+  class "VehicleWaitlistRepository.WaitlistRecord" as com_velora_repository_VehicleWaitlistRepository_WaitlistRecord <<record>> {
+    -vehicleId : String
+    -customerName : String
+    -customerEmail : String
+    -subscribedAt : String
+    --
+    +VehicleWaitlistRepository.WaitlistRecord(String, String, String, String)
+    +vehicleId() : String
+    +customerName() : String
+    +customerEmail() : String
+    +subscribedAt() : String
+  }
+  class "WalletTransactionRepository" as com_velora_repository_WalletTransactionRepository {
+    -{static} HEADER : String
+    -{static} FILE : Path
+    --
+    +WalletTransactionRepository()
+    +findAll() : List<WalletTransactionRepository.WalletTransaction>
+    +findByCustomerEmail(String) : List<WalletTransactionRepository.WalletTransaction>
+    +add(String, String, double, double, String) : WalletTransactionRepository.WalletTransaction
+  }
+  class "WalletTransactionRepository.WalletTransaction" as com_velora_repository_WalletTransactionRepository_WalletTransaction <<record>> {
+    -transactionId : String
+    -customerEmail : String
+    -type : String
+    -amount : double
+    -balanceAfter : double
+    -referenceId : String
+    -createdAt : String
+    --
+    +WalletTransactionRepository.WalletTransaction(String, String, String, double, double, String, String)
+    +transactionId() : String
+    +customerEmail() : String
+    +type() : String
+    +amount() : double
+    +balanceAfter() : double
+    +referenceId() : String
+    +createdAt() : String
+  }
+}
+
+package "service" {
+  class "AuthenticationService" as com_velora_service_AuthenticationService
+  class "NotificationEmailService" as com_velora_service_NotificationEmailService
+  class "RentalDatabaseService" as com_velora_service_RentalDatabaseService
+  class "RentalExpiryReminderService" as com_velora_service_RentalExpiryReminderService
+  class "VehicleService" as com_velora_service_VehicleService
+}
+
+package "vehicle" {
+  abstract class "Vehicle" as com_velora_vehicle_Vehicle
+}
+
+com_velora_observer_CustomerAvailabilityObserver --> com_velora_repository_NotificationRepository : notificationRepository
+com_velora_observer_VehicleAvailabilitySubject --> com_velora_repository_VehicleWaitlistRepository : waitlistRepository
+com_velora_repository_CustomerRepository ..> com_velora_authentication_Customer : uses
+com_velora_repository_CustomerRepository ..> com_velora_repository_CustomerRepository_StoredCustomer : uses
+com_velora_repository_CustomerRepository_StoredCustomer --> com_velora_authentication_Customer : customer
+com_velora_repository_LoyaltyTransactionRepository ..> com_velora_repository_LoyaltyTransactionRepository_LoyaltyTransaction : uses
+com_velora_repository_NotificationRepository ..> com_velora_repository_NotificationRepository_NotificationRecord : uses
+com_velora_repository_PaymentRepository ..> com_velora_repository_PaymentRepository_PaymentRecord : uses
+com_velora_repository_RatingRepository ..> com_velora_repository_RatingRepository_StoredRating : uses
+com_velora_repository_RentalRepository ..> com_velora_repository_RentalRepository_RentalRecord : uses
+com_velora_repository_ReservationRepository ..> com_velora_repository_ReservationRepository_ReservationRecord : uses
+com_velora_repository_VehicleRepository "1" o-- "0..*" com_velora_vehicle_Vehicle : SHARED_VEHICLES
+com_velora_repository_VehicleRepository "1" o-- "0..*" com_velora_vehicle_Vehicle : vehicles
+com_velora_repository_VehicleWaitlistRepository ..> com_velora_repository_VehicleWaitlistRepository_WaitlistRecord : uses
+com_velora_repository_WalletTransactionRepository ..> com_velora_repository_WalletTransactionRepository_WalletTransaction : uses
+com_velora_service_AuthenticationService --> com_velora_repository_CustomerRepository : customerRepository
+com_velora_service_NotificationEmailService --> com_velora_repository_NotificationRepository : notificationRepository
+com_velora_service_RentalDatabaseService --> com_velora_repository_RentalRepository : rentalRepository
+com_velora_service_RentalDatabaseService --> com_velora_repository_PaymentRepository : paymentRepository
+com_velora_service_RentalDatabaseService --> com_velora_repository_LoyaltyTransactionRepository : loyaltyRepository
+com_velora_service_RentalDatabaseService --> com_velora_repository_NotificationRepository : notificationRepository
+com_velora_service_RentalDatabaseService --> com_velora_repository_WalletTransactionRepository : walletTransactionRepository
+com_velora_service_RentalDatabaseService ..> com_velora_repository_RentalRepository_RentalRecord : uses
+com_velora_service_RentalExpiryReminderService --> com_velora_repository_RentalRepository : rentalRepository
+com_velora_service_VehicleService --> com_velora_repository_VehicleRepository : vehicleRepository
+@enduml

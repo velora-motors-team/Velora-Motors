@@ -1,0 +1,131 @@
+@startuml
+top to bottom direction
+
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam defaultFontName Arial
+skinparam ArrowColor #444444
+skinparam PackageBorderColor #555555
+skinparam PackageBackgroundColor #F7F7F7
+skinparam noteBackgroundColor #FFFBEA
+skinparam noteBorderColor #888888
+
+title Velora Motors - Clean Architecture Overview
+
+package "Application Entry" as Entry {
+  class Velora_Motors
+}
+
+package "UI Layer" as UI {
+  class "Login / Dashboards / Panels" as UIComponents
+}
+
+package "Controller Layer" as Controller {
+  class LoginController
+  class DashboardController
+  class VehicleController
+}
+
+package "Service Layer" as Service {
+  class AuthenticationService
+  class VehicleService
+  class RentalDatabaseService
+  class RentalPricingService
+  class RentalExpiryReminderService
+  interface EmailService
+  class NotificationEmailService
+}
+
+package "Repository Layer" as Repository {
+  class CustomerRepository
+  class VehicleRepository
+  class RentalRepository
+  class PaymentRepository
+  class NotificationRepository
+  class ReservationRepository
+  class RatingRepository
+  class "Other Repositories" as OtherRepositories
+}
+
+package "Domain Layer" as Domain {
+  package "Authentication" {
+    class Customer
+    class Manager
+  }
+
+  package "Vehicle" {
+    abstract class Vehicle
+    class Car
+    class Truck
+    class Motorcycle
+    class ElectricVehicle
+    class ElectricMotorcycle
+    enum VehicleType
+    enum VehicleStatus
+  }
+}
+
+package "Observer Pattern" as Observer {
+  interface VehicleAvailabilityObserver
+  class CustomerAvailabilityObserver
+  class VehicleAvailabilitySubject
+}
+
+package "Strategy Pattern" as Strategy {
+  interface LateFeeStrategy
+  class StandardLateFeeStrategy
+  class ElectricLateFeeStrategy
+  class MotorcycleLateFeeStrategy
+  class TruckLateFeeStrategy
+  class LateFeeContext
+  class LateFeeStrategyFactory
+}
+
+package "Theme / Shared UI" as Theme {
+  class AppColors
+  class AppFonts
+  class UIConstants
+  class "Reusable Components" as ReusableComponents
+}
+
+Entry --> UI : starts
+UI --> Controller : user actions
+UI --> Service : application operations
+Controller --> Service : delegates
+Service --> Repository : reads / writes data
+Service --> Domain : business objects
+Repository --> Domain : stores / restores
+Service --> Observer : availability events
+Service --> Strategy : late-fee calculation
+Observer --> Repository : notifications / waitlist
+Theme ..> UI : styling
+
+EmailService <|.. NotificationEmailService
+VehicleAvailabilityObserver <|.. CustomerAvailabilityObserver
+LateFeeStrategy <|.. StandardLateFeeStrategy
+LateFeeStrategy <|.. ElectricLateFeeStrategy
+LateFeeStrategy <|.. MotorcycleLateFeeStrategy
+LateFeeStrategy <|.. TruckLateFeeStrategy
+Vehicle <|-- Car
+Vehicle <|-- Truck
+Vehicle <|-- Motorcycle
+Vehicle <|-- ElectricVehicle
+Motorcycle <|-- ElectricMotorcycle
+
+note right of UI
+Detailed UI classes and relations are shown
+in diagrams 06, 07, 08, and 09.
+end note
+
+note right of Repository
+Detailed fields, methods, and repository
+relations are shown in diagram 03.
+end note
+
+note right of Service
+Detailed service and strategy relations
+are shown in diagram 04.
+end note
+
+@enduml

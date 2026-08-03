@@ -1,0 +1,31 @@
+@startuml
+
+class com.velora.authentication.Customer
+class "com.velora.authentication.Customer.Role" as CustomerRole
+
+class com.velora.observer.VehicleAvailabilitySubject
+
+class com.velora.repository.CustomerRepository
+class "com.velora.repository.CustomerRepository.StoredCustomer" as StoredCustomer
+class com.velora.repository.LoyaltyTransactionRepository
+class com.velora.repository.NotificationRepository
+class com.velora.repository.PaymentRepository
+class com.velora.repository.RentalRepository
+class com.velora.repository.VehicleRepository
+class com.velora.repository.WalletTransactionRepository
+
+class com.velora.service.AuthenticationService
+class com.velora.service.NotificationEmailService
+class com.velora.service.RentalDatabaseService
+class com.velora.service.RentalExpiryReminderService
+class com.velora.service.RentalPricingService
+class com.velora.service.VehicleService
+interface com.velora.service.EmailService
+
+class com.velora.vehicle.Vehicle
+class com.velora.vehicle.VehicleStatus
+class com.velora.vehicle.VehicleType
+
+com.velora.service.NotificationEmailService --|> com.velora.service.EmailService
+
+@enduml

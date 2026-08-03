@@ -1,0 +1,127 @@
+@startuml
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam defaultFontName Arial
+hide circle
+
+title Vehicle Domain - Detailed UML
+
+package "repository" {
+  class "VehicleRepository" as com_velora_repository_VehicleRepository
+}
+
+package "service" {
+  class "VehicleService" as com_velora_service_VehicleService
+}
+
+package "vehicle" {
+  class "Car" as com_velora_vehicle_Car {
+    +Car()
+    +Car(String, String, String, VehicleStatus, double)
+    +Car(String, String, String, VehicleType, VehicleStatus, double, Integer)
+    +canBeRentedBy(int, boolean) : boolean
+  }
+  class "ElectricMotorcycle" as com_velora_vehicle_ElectricMotorcycle {
+    +ElectricMotorcycle()
+    +ElectricMotorcycle(String, String, String, VehicleStatus, double, Integer)
+    +hasEnoughBattery() : boolean
+    +canBeRentedBy(int, boolean) : boolean
+  }
+  class "ElectricVehicle" as com_velora_vehicle_ElectricVehicle {
+    +{static} MINIMUM_BATTERY_LEVEL : int
+    --
+    +ElectricVehicle()
+    +ElectricVehicle(String, String, String, VehicleStatus, double, Integer)
+    +ElectricVehicle(String, String, String, VehicleType, VehicleStatus, double, Integer)
+    +hasEnoughBattery() : boolean
+    +canBeRentedBy(int, boolean) : boolean
+  }
+  class "Motorcycle" as com_velora_vehicle_Motorcycle {
+    +{static} MINIMUM_DRIVER_AGE : int
+    --
+    +Motorcycle()
+    +Motorcycle(String, String, String, VehicleStatus, double)
+    +Motorcycle(String, String, String, VehicleStatus, double, Integer)
+    +canBeRentedBy(int, boolean) : boolean
+  }
+  class "Truck" as com_velora_vehicle_Truck {
+    +Truck()
+    +Truck(String, String, String, VehicleStatus, double)
+    +Truck(String, String, String, VehicleStatus, double, Integer)
+    +canBeRentedBy(int, boolean) : boolean
+  }
+  abstract class "Vehicle" as com_velora_vehicle_Vehicle {
+    -id : String
+    -brand : String
+    -model : String
+    -type : VehicleType
+    -status : VehicleStatus
+    -dailyPrice : double
+    -batteryLevel : Integer
+    --
+    #Vehicle()
+    #Vehicle(String, String, String, VehicleType, VehicleStatus, double)
+    #Vehicle(String, String, String, VehicleType, VehicleStatus, double, Integer)
+    +getId() : String
+    +setId(String) : void
+    +getBrand() : String
+    +setBrand(String) : void
+    +getModel() : String
+    +setModel(String) : void
+    +getType() : VehicleType
+    +setType(VehicleType) : void
+    +getStatus() : VehicleStatus
+    +setStatus(VehicleStatus) : void
+    +getDailyPrice() : double
+    +setDailyPrice(double) : void
+    +getBatteryLevel() : Integer
+    +setBatteryLevel(Integer) : void
+    +isAvailable() : boolean
+    +hasBattery() : boolean
+    +getDisplayName() : String
+    +{static} create() : Vehicle
+    +{static} create(String, String, String, VehicleType, VehicleStatus, double) : Vehicle
+    +{static} create(String, String, String, VehicleType, VehicleStatus, double, Integer) : Vehicle
+    +canBeRentedBy(int, boolean) : boolean
+  }
+  class "VehicleFactory" as com_velora_vehicle_VehicleFactory {
+    +{static} create() : Vehicle
+    +{static} create(String, String, String, VehicleType, VehicleStatus, double, Integer) : Vehicle
+  }
+  enum "VehicleStatus" as com_velora_vehicle_VehicleStatus {
+    +{static} AVAILABLE : VehicleStatus
+    +{static} RENTED : VehicleStatus
+    +{static} MAINTENANCE : VehicleStatus
+    --
+    +{static} values() : VehicleStatus[]
+    +{static} valueOf(String) : VehicleStatus
+  }
+  enum "VehicleType" as com_velora_vehicle_VehicleType {
+    +{static} CAR : VehicleType
+    +{static} SUV : VehicleType
+    +{static} HYBRID_CAR : VehicleType
+    +{static} ELECTRIC_VEHICLE : VehicleType
+    +{static} ELECTRIC_BIKE : VehicleType
+    +{static} MOTORCYCLE : VehicleType
+    +{static} TRUCK : VehicleType
+    --
+    +{static} values() : VehicleType[]
+    +{static} valueOf(String) : VehicleType
+  }
+}
+
+com_velora_repository_VehicleRepository "1" o-- "0..*" com_velora_vehicle_Vehicle : SHARED_VEHICLES
+com_velora_repository_VehicleRepository "1" o-- "0..*" com_velora_vehicle_Vehicle : vehicles
+com_velora_service_VehicleService ..> com_velora_vehicle_Vehicle : uses
+com_velora_vehicle_Vehicle <|-- com_velora_vehicle_Car
+com_velora_vehicle_Motorcycle <|-- com_velora_vehicle_ElectricMotorcycle
+com_velora_vehicle_Vehicle <|-- com_velora_vehicle_ElectricVehicle
+com_velora_vehicle_Vehicle <|-- com_velora_vehicle_Motorcycle
+com_velora_vehicle_Vehicle <|-- com_velora_vehicle_Truck
+com_velora_vehicle_Vehicle --> com_velora_vehicle_VehicleType : type
+com_velora_vehicle_Vehicle --> com_velora_vehicle_VehicleStatus : status
+com_velora_vehicle_VehicleFactory ..> com_velora_vehicle_Vehicle : uses
+@enduml

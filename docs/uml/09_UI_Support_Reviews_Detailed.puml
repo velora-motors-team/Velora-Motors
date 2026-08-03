@@ -1,0 +1,235 @@
+@startuml
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam defaultFontName Arial
+hide circle
+
+title UI - Support and Reviews
+
+package "authentication" {
+  class "Customer" as com_velora_authentication_Customer
+}
+
+package "repository" {
+  class "RatingRepository" as com_velora_repository_RatingRepository
+  class "RentalRepository" as com_velora_repository_RentalRepository
+}
+
+package "ui" {
+  class "AdminSupportInboxPanel" as com_velora_ui_AdminSupportInboxPanel {
+    -{static} BG : Color
+    -{static} CARD : Color
+    -{static} CARD_2 : Color
+    -{static} CARD_3 : Color
+    -{static} GOLD : Color
+    -{static} GOLD_LIGHT : Color
+    -{static} GOLD_DARK : Color
+    -{static} TEXT : Color
+    -{static} MUTED : Color
+    -{static} GREEN : Color
+    -{static} BLUE : Color
+    -{static} RED : Color
+    -{static} PURPLE : Color
+    -{static} MIDNIGHT : Color
+    -{static} PANEL_GLOW : Color
+    -{static} PANEL_BORDER : Color
+    -{static} SOFT_TEXT : Color
+    -repository : SupportMessageRepository
+    -conversationsPanel : JPanel
+    -filterTiles : Map<String, AdminSupportInboxPanel.FilterTile>
+    -allCountLabel : JLabel
+    -liveCountLabel : JLabel
+    -ticketCountLabel : JLabel
+    -unreadCountLabel : JLabel
+    -resolvedCountLabel : JLabel
+    -selectedCustomerName : JLabel
+    -selectedType : JLabel
+    -selectedSubject : JLabel
+    -receivedValue : JLabel
+    -statusValue : JLabel
+    -readValue : JLabel
+    -messageContentHolder : JPanel
+    -selectedMessage : SupportMessage
+    -currentFilter : String
+    --
+    +AdminSupportInboxPanel()
+    +refreshMessages() : void
+  }
+  class "ReviewsPanel" as com_velora_ui_ReviewsPanel {
+    -{static} CARD : Color
+    -{static} CARD_SOFT : Color
+    -{static} GOLD : Color
+    -{static} PALE : Color
+    -{static} TEXT : Color
+    -{static} MUTED : Color
+    -{static} GREEN : Color
+    -customer : Customer
+    -ratingRepository : RatingRepository
+    -rentalRepository : RentalRepository
+    -vehicleBox : JComboBox<String>
+    -ratingBox : JComboBox<String>
+    -reviewArea : JTextArea
+    -reviewsList : JPanel
+    -reviewCountLabel : JLabel
+    -averageRatingValue : JLabel
+    -totalReviewsValue : JLabel
+    -satisfactionValue : JLabel
+    -latestReviewValue : JLabel
+    -reviewsSharedValue : JLabel
+    -averageGivenValue : JLabel
+    -fiveStarReviewsValue : JLabel
+    --
+    +ReviewsPanel(Customer)
+  }
+  class "SupportMessage" as com_velora_ui_SupportMessage {
+    -messageId : String
+    -customerName : String
+    -customerEmail : String
+    -messageType : SupportMessage.MessageType
+    -subject : String
+    -message : String
+    -dateTime : LocalDateTime
+    -read : boolean
+    -status : SupportMessage.MessageStatus
+    -adminReply : String
+    -replyDateTime : LocalDateTime
+    --
+    +SupportMessage(String, String, String, SupportMessage.MessageType, String, String)
+    +getMessageId() : String
+    +getCustomerName() : String
+    +getCustomerEmail() : String
+    +getMessageType() : SupportMessage.MessageType
+    +getSubject() : String
+    +getMessage() : String
+    +getDateTime() : LocalDateTime
+    +isRead() : boolean
+    +getStatus() : SupportMessage.MessageStatus
+    +getAdminReply() : String
+    +getReplyDateTime() : LocalDateTime
+    +hasAdminReply() : boolean
+    +setDateTime(LocalDateTime) : void
+    +setRead(boolean) : void
+    +setStatus(SupportMessage.MessageStatus) : void
+    +setAdminReply(String) : void
+    +setReplyDateTime(LocalDateTime) : void
+    +getFormattedDateTime() : String
+    +getFormattedReplyDateTime() : String
+    +toString() : String
+  }
+  enum "SupportMessage.MessageStatus" as com_velora_ui_SupportMessage_MessageStatus {
+    +{static} OPEN : SupportMessage.MessageStatus
+    +{static} IN_PROGRESS : SupportMessage.MessageStatus
+    +{static} RESOLVED : SupportMessage.MessageStatus
+    --
+    +{static} values() : SupportMessage.MessageStatus[]
+    +{static} valueOf(String) : SupportMessage.MessageStatus
+  }
+  enum "SupportMessage.MessageType" as com_velora_ui_SupportMessage_MessageType {
+    +{static} LIVE_CHAT : SupportMessage.MessageType
+    +{static} SUPPORT_TICKET : SupportMessage.MessageType
+    +{static} RENTAL_ISSUE : SupportMessage.MessageType
+    +{static} BILLING_ISSUE : SupportMessage.MessageType
+    +{static} TECHNICAL_ISSUE : SupportMessage.MessageType
+    +{static} EMERGENCY : SupportMessage.MessageType
+    --
+    +{static} values() : SupportMessage.MessageType[]
+    +{static} valueOf(String) : SupportMessage.MessageType
+  }
+  class "SupportMessageRepository" as com_velora_ui_SupportMessageRepository {
+    -{static} DEFAULT_FILE_PATH : Path
+    -filePath : Path
+    -{static} FORMATTER : DateTimeFormatter
+    --
+    +SupportMessageRepository()
+    +SupportMessageRepository(Path)
+    +saveMessage(SupportMessage) : void
+    +loadMessages() : List<SupportMessage>
+    +saveAllMessages(List<SupportMessage>) : void
+    +updateMessage(SupportMessage) : boolean
+    +markAsRead(String) : boolean
+    +updateStatus(String, SupportMessage.MessageStatus) : boolean
+    +getUnreadCount() : int
+  }
+  class "SupportPanel" as com_velora_ui_SupportPanel {
+    -{static} BG : Color
+    -{static} CARD : Color
+    -{static} CARD_2 : Color
+    -{static} CARD_3 : Color
+    -{static} GOLD : Color
+    -{static} GOLD_LIGHT : Color
+    -{static} GOLD_DARK : Color
+    -{static} TEXT : Color
+    -{static} MUTED : Color
+    -{static} SOFT_TEXT : Color
+    -{static} GREEN : Color
+    -{static} BLUE : Color
+    -{static} RED : Color
+    -{static} PANEL_BORDER : Color
+    -customer : Customer
+    -messageRepository : SupportMessageRepository
+    -subjectField : JTextField
+    -categoryBox : JComboBox<String>
+    -messageArea : JTextArea
+    -chatMessagesPanel : JPanel
+    -chatInput : JTextField
+    --
+    +SupportPanel(Customer)
+    +refreshData() : void
+  }
+  class "VeloraEndToEndCheck" as com_velora_ui_VeloraEndToEndCheck {
+    -{static} CUSTOMER_NAME : String
+    -{static} CUSTOMER_EMAIL : String
+    -{static} CUSTOMER_PHONE : String
+    -{static} CUSTOMER_PASSWORD : char[]
+    -{static} ADMIN_EMAIL : String
+    -{static} ADMIN_PASSWORD : char[]
+    --
+    +{static} main(String[]) : void
+    ~{static} runScenario() : VeloraEndToEndCheck.EndToEndResult
+  }
+  class "VeloraNotificationDialog" as com_velora_ui_VeloraNotificationDialog {
+    -{static} BG : Color
+    -{static} PANEL : Color
+    -{static} PANEL_2 : Color
+    -{static} GOLD : Color
+    -{static} GOLD_LIGHT : Color
+    -{static} GOLD_DARK : Color
+    -{static} TEXT : Color
+    -{static} MUTED : Color
+    -{static} GREEN : Color
+    -{static} RED : Color
+    -{static} BLUE : Color
+    -{static} ORANGE : Color
+    -type : VeloraNotificationDialog.NotificationType
+    --
+    +{static} showSuccess(Component, String, String) : void
+    +{static} showWarning(Component, String, String) : void
+    +{static} showError(Component, String, String) : void
+    +{static} showInfo(Component, String, String) : void
+    +{static} showReplyDialog(Component, String) : String
+    +{static} showConfirm(Component, String, String, String) : boolean
+  }
+}
+
+package "vehicle" {
+  abstract class "Vehicle" as com_velora_vehicle_Vehicle
+}
+
+com_velora_ui_AdminSupportInboxPanel --> com_velora_ui_SupportMessageRepository : repository
+com_velora_ui_AdminSupportInboxPanel --> com_velora_ui_SupportMessage : selectedMessage
+com_velora_ui_ReviewsPanel --> com_velora_authentication_Customer : customer
+com_velora_ui_ReviewsPanel --> com_velora_repository_RatingRepository : ratingRepository
+com_velora_ui_ReviewsPanel --> com_velora_repository_RentalRepository : rentalRepository
+com_velora_ui_SupportMessage --> com_velora_ui_SupportMessage_MessageType : messageType
+com_velora_ui_SupportMessage --> com_velora_ui_SupportMessage_MessageStatus : status
+com_velora_ui_SupportMessageRepository ..> com_velora_ui_SupportMessage : uses
+com_velora_ui_SupportPanel --> com_velora_authentication_Customer : customer
+com_velora_ui_SupportPanel --> com_velora_ui_SupportMessageRepository : messageRepository
+com_velora_ui_SupportPanel ..> com_velora_ui_SupportMessage_MessageType : uses
+com_velora_ui_VeloraEndToEndCheck ..> com_velora_authentication_Customer : uses
+com_velora_ui_VeloraEndToEndCheck ..> com_velora_ui_SupportMessage : uses
+com_velora_ui_VeloraEndToEndCheck ..> com_velora_vehicle_Vehicle : uses
+@enduml

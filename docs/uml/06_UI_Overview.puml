@@ -1,0 +1,158 @@
+@startuml
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam defaultFontName Arial
+hide circle
+
+title User Interface Layer - Overview
+
+package "authentication" {
+  class "Customer" as com_velora_authentication_Customer
+}
+
+package "observer" {
+  class "VehicleAvailabilitySubject" as com_velora_observer_VehicleAvailabilitySubject
+}
+
+package "repository" {
+  class "CustomerRepository" as com_velora_repository_CustomerRepository
+  class "LoyaltyTransactionRepository" as com_velora_repository_LoyaltyTransactionRepository
+  class "NotificationRepository" as com_velora_repository_NotificationRepository
+  class "RatingRepository" as com_velora_repository_RatingRepository
+  class "RentalRepository" as com_velora_repository_RentalRepository
+  class "RentalRepository.RentalRecord" as com_velora_repository_RentalRepository_RentalRecord <<record>>
+  class "ReservationRepository" as com_velora_repository_ReservationRepository
+  class "VehicleWaitlistRepository" as com_velora_repository_VehicleWaitlistRepository
+}
+
+package "service" {
+  class "AuthenticationService" as com_velora_service_AuthenticationService
+  class "RentalDatabaseService" as com_velora_service_RentalDatabaseService
+  class "RentalExpiryReminderService" as com_velora_service_RentalExpiryReminderService
+  class "RentalPricingService" as com_velora_service_RentalPricingService
+  class "VehicleService" as com_velora_service_VehicleService
+}
+
+package "strategy" {
+  class "LateFeeContext" as com_velora_strategy_LateFeeContext
+}
+
+package "ui" {
+  class "AdminFooter" as com_velora_ui_AdminFooter
+  class "AdminSupportInboxPanel" as com_velora_ui_AdminSupportInboxPanel
+  class "AnalyticsPanel" as com_velora_ui_AnalyticsPanel
+  class "BillingMetricsBus" as com_velora_ui_BillingMetricsBus
+  interface "BillingMetricsBus.ChangeListener" as com_velora_ui_BillingMetricsBus_ChangeListener
+  class "BillingPanel" as com_velora_ui_BillingPanel
+  class "CustomerAccountState" as com_velora_ui_CustomerAccountState
+  interface "CustomerAccountState.ChangeListener" as com_velora_ui_CustomerAccountState_ChangeListener
+  class "CustomerBillingPanel" as com_velora_ui_CustomerBillingPanel
+  class "CustomerDashboard" as com_velora_ui_CustomerDashboard
+  class "CustomerFooter" as com_velora_ui_CustomerFooter
+  class "FarewellScreen" as com_velora_ui_FarewellScreen
+  class "FleetUiData" as com_velora_ui_FleetUiData
+  class "LoginScreen" as com_velora_ui_LoginScreen
+  class "LogoutConfirmDialog" as com_velora_ui_LogoutConfirmDialog
+  class "LoyaltyPointsPanel" as com_velora_ui_LoyaltyPointsPanel
+  class "MaintenancePanel" as com_velora_ui_MaintenancePanel
+  class "ManagerDashboard" as com_velora_ui_ManagerDashboard
+  class "MyRentalsPanel" as com_velora_ui_MyRentalsPanel
+  class "ProfilePanel" as com_velora_ui_ProfilePanel
+  class "RentalReturnPanel" as com_velora_ui_RentalReturnPanel
+  class "ReviewsPanel" as com_velora_ui_ReviewsPanel
+  class "SplashScreen" as com_velora_ui_SplashScreen
+  class "SupportMessage" as com_velora_ui_SupportMessage
+  enum "SupportMessage.MessageStatus" as com_velora_ui_SupportMessage_MessageStatus
+  enum "SupportMessage.MessageType" as com_velora_ui_SupportMessage_MessageType
+  class "SupportMessageRepository" as com_velora_ui_SupportMessageRepository
+  class "SupportPanel" as com_velora_ui_SupportPanel
+  class "VehicleCatalog" as com_velora_ui_VehicleCatalog
+  class "VehicleDetails" as com_velora_ui_VehicleDetails
+  class "VeloraEndToEndCheck" as com_velora_ui_VeloraEndToEndCheck
+  class "VeloraNotificationDialog" as com_velora_ui_VeloraNotificationDialog
+  class "VeloraTheme" as com_velora_ui_VeloraTheme
+}
+
+package "vehicle" {
+  abstract class "Vehicle" as com_velora_vehicle_Vehicle
+}
+
+com_velora_ui_AdminSupportInboxPanel --> com_velora_ui_SupportMessageRepository : repository
+com_velora_ui_AdminSupportInboxPanel --> com_velora_ui_SupportMessage : selectedMessage
+com_velora_ui_AnalyticsPanel --> com_velora_service_VehicleService : vehicleService
+com_velora_ui_AnalyticsPanel --> com_velora_service_AuthenticationService : authenticationService
+com_velora_ui_AnalyticsPanel --> com_velora_repository_RentalRepository : rentalRepository
+com_velora_ui_AnalyticsPanel ..> com_velora_repository_RentalRepository_RentalRecord : uses
+com_velora_ui_BillingMetricsBus "1" o-- "0..*" com_velora_ui_BillingMetricsBus_ChangeListener : LISTENERS
+com_velora_ui_BillingPanel --> com_velora_authentication_Customer : manager
+com_velora_ui_BillingPanel --> com_velora_service_VehicleService : vehicleService
+com_velora_ui_BillingPanel --> com_velora_service_RentalPricingService : pricingService
+com_velora_ui_CustomerAccountState "1" o-- "0..*" com_velora_ui_CustomerAccountState_ChangeListener : listeners
+com_velora_ui_CustomerBillingPanel --> com_velora_authentication_Customer : customer
+com_velora_ui_CustomerBillingPanel --> com_velora_service_VehicleService : vehicleService
+com_velora_ui_CustomerBillingPanel --> com_velora_ui_CustomerAccountState : accountState
+com_velora_ui_CustomerDashboard --> com_velora_authentication_Customer : customer
+com_velora_ui_CustomerDashboard --> com_velora_ui_CustomerAccountState : accountState
+com_velora_ui_CustomerDashboard --> com_velora_repository_NotificationRepository : notificationRepository
+com_velora_ui_CustomerDashboard --> com_velora_service_RentalExpiryReminderService : rentalExpiryReminderService
+com_velora_ui_CustomerDashboard --> com_velora_ui_VehicleCatalog : vehicleCatalog
+com_velora_ui_CustomerDashboard --> com_velora_ui_SupportPanel : supportPanel
+com_velora_ui_CustomerDashboard --> com_velora_ui_MyRentalsPanel : myRentalsPanel
+com_velora_ui_CustomerDashboard --> com_velora_ui_LoyaltyPointsPanel : loyaltyPointsPanel
+com_velora_ui_LoyaltyPointsPanel --> com_velora_authentication_Customer : customer
+com_velora_ui_LoyaltyPointsPanel --> com_velora_ui_CustomerAccountState : accountState
+com_velora_ui_LoyaltyPointsPanel --> com_velora_repository_LoyaltyTransactionRepository : loyaltyRepository
+com_velora_ui_MaintenancePanel --> com_velora_authentication_Customer : manager
+com_velora_ui_MaintenancePanel --> com_velora_service_VehicleService : vehicleService
+com_velora_ui_ManagerDashboard --> com_velora_authentication_Customer : manager
+com_velora_ui_ManagerDashboard --> com_velora_service_VehicleService : vehicleService
+com_velora_ui_ManagerDashboard --> com_velora_service_RentalPricingService : pricingService
+com_velora_ui_ManagerDashboard --> com_velora_service_AuthenticationService : authenticationService
+com_velora_ui_ManagerDashboard --> com_velora_repository_RatingRepository : ratingRepository
+com_velora_ui_ManagerDashboard --> com_velora_repository_VehicleWaitlistRepository : waitlistRepository
+com_velora_ui_ManagerDashboard --> com_velora_ui_BillingPanel : billingPanel
+com_velora_ui_ManagerDashboard --> com_velora_ui_AnalyticsPanel : analyticsPanel
+com_velora_ui_ManagerDashboard --> com_velora_ui_AdminSupportInboxPanel : adminSupportInboxPanel
+com_velora_ui_ManagerDashboard --> com_velora_ui_RentalReturnPanel : rentalReturnPanel
+com_velora_ui_ManagerDashboard ..> com_velora_vehicle_Vehicle : uses
+com_velora_ui_MyRentalsPanel --> com_velora_authentication_Customer : customer
+com_velora_ui_MyRentalsPanel --> com_velora_ui_CustomerAccountState : accountState
+com_velora_ui_MyRentalsPanel --> com_velora_repository_RentalRepository : rentalRepository
+com_velora_ui_MyRentalsPanel --> com_velora_service_RentalDatabaseService : rentalDatabaseService
+com_velora_ui_MyRentalsPanel --> com_velora_service_VehicleService : vehicleService
+com_velora_ui_MyRentalsPanel --> com_velora_strategy_LateFeeContext : lateFeeContext
+com_velora_ui_MyRentalsPanel ..> com_velora_vehicle_Vehicle : uses
+com_velora_ui_ProfilePanel --> com_velora_authentication_Customer : customer
+com_velora_ui_ProfilePanel --> com_velora_service_AuthenticationService : authenticationService
+com_velora_ui_ProfilePanel --> com_velora_repository_RentalRepository : rentalRepository
+com_velora_ui_ProfilePanel --> com_velora_ui_CustomerAccountState : accountState
+com_velora_ui_RentalReturnPanel --> com_velora_authentication_Customer : manager
+com_velora_ui_RentalReturnPanel --> com_velora_service_VehicleService : vehicleService
+com_velora_ui_RentalReturnPanel --> com_velora_repository_RentalRepository : rentalRepository
+com_velora_ui_RentalReturnPanel --> com_velora_repository_CustomerRepository : customerRepository
+com_velora_ui_RentalReturnPanel --> com_velora_observer_VehicleAvailabilitySubject : availabilitySubject
+com_velora_ui_RentalReturnPanel ..> com_velora_vehicle_Vehicle : uses
+com_velora_ui_ReviewsPanel --> com_velora_authentication_Customer : customer
+com_velora_ui_ReviewsPanel --> com_velora_repository_RatingRepository : ratingRepository
+com_velora_ui_ReviewsPanel --> com_velora_repository_RentalRepository : rentalRepository
+com_velora_ui_SupportMessage --> com_velora_ui_SupportMessage_MessageType : messageType
+com_velora_ui_SupportMessage --> com_velora_ui_SupportMessage_MessageStatus : status
+com_velora_ui_SupportMessageRepository ..> com_velora_ui_SupportMessage : uses
+com_velora_ui_SupportPanel --> com_velora_authentication_Customer : customer
+com_velora_ui_SupportPanel --> com_velora_ui_SupportMessageRepository : messageRepository
+com_velora_ui_SupportPanel ..> com_velora_ui_SupportMessage_MessageType : uses
+com_velora_ui_VehicleCatalog --> com_velora_authentication_Customer : customer
+com_velora_ui_VehicleCatalog --> com_velora_service_VehicleService : vehicleService
+com_velora_ui_VehicleCatalog --> com_velora_service_RentalDatabaseService : rentalDatabaseService
+com_velora_ui_VehicleCatalog --> com_velora_service_RentalPricingService : pricingService
+com_velora_ui_VehicleCatalog --> com_velora_repository_ReservationRepository : reservationRepository
+com_velora_ui_VehicleCatalog --> com_velora_observer_VehicleAvailabilitySubject : availabilitySubject
+com_velora_ui_VehicleCatalog --> com_velora_ui_CustomerAccountState : accountState
+com_velora_ui_VehicleCatalog ..> com_velora_vehicle_Vehicle : uses
+com_velora_ui_VeloraEndToEndCheck ..> com_velora_authentication_Customer : uses
+com_velora_ui_VeloraEndToEndCheck ..> com_velora_ui_SupportMessage : uses
+com_velora_ui_VeloraEndToEndCheck ..> com_velora_vehicle_Vehicle : uses
+@enduml

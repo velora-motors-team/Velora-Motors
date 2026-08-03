@@ -1,0 +1,87 @@
+@startuml
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam defaultFontName Arial
+hide circle
+
+title Theme Components - Detailed UML
+
+package "theme" {
+  class "AppColors" as com_velora_theme_AppColors {
+    +{static} BACKGROUND : Color
+    +{static} SURFACE : Color
+    +{static} CARD : Color
+    +{static} GLASS : Color
+    +{static} PANEL : Color
+    +{static} PANEL_STRONG : Color
+    +{static} TEXT_PRIMARY : Color
+    +{static} TEXT_SECONDARY : Color
+    +{static} WHITE : Color
+    +{static} MUTED : Color
+    +{static} GOLD : Color
+    +{static} GOLD_LIGHT : Color
+    +{static} GOLD_DARK : Color
+    +{static} BMW_BLUE : Color
+    +{static} SUCCESS : Color
+    +{static} WARNING : Color
+    +{static} ERROR : Color
+    +{static} BORDER : Color
+    +{static} GLASS_BORDER : Color
+    --
+  }
+  class "AppFonts" as com_velora_theme_AppFonts {
+    +{static} title(float) : Font
+    +{static} body(float) : Font
+    +{static} bodyBold(float) : Font
+  }
+  class "GlassPanel" as com_velora_theme_GlassPanel {
+    -arc : int
+    -fill : Color
+    --
+    +GlassPanel()
+    +GlassPanel(int, Color)
+    #paintComponent(Graphics) : void
+  }
+  class "PrimaryButton" as com_velora_theme_PrimaryButton {
+    -hover : float
+    -press : float
+    --
+    +PrimaryButton(String)
+    +animate() : void
+    #paintComponent(Graphics) : void
+  }
+  class "ShadowPanel" as com_velora_theme_ShadowPanel {
+    -arc : int
+    --
+    +ShadowPanel(int)
+    #paintComponent(Graphics) : void
+  }
+  class "UIConstants" as com_velora_theme_UIConstants {
+    +{static} PANEL_ARC : int
+    +{static} CARD_ARC : int
+    +{static} FIELD_ARC : int
+    +{static} CONTENT_GAP : int
+    +{static} ANIMATION_DELAY : int
+    +{static} FOOTER_HEIGHT : int
+    --
+  }
+  class "VeloraPasswordField" as com_velora_theme_VeloraPasswordField {
+    -placeholder : String
+    --
+    +VeloraPasswordField(String)
+    #paintComponent(Graphics) : void
+  }
+  class "VeloraTextField" as com_velora_theme_VeloraTextField {
+    -placeholder : String
+    --
+    +VeloraTextField(String)
+    #paintComponent(Graphics) : void
+    #paintField(Graphics) : void
+    #paintPlaceholder(Graphics) : void
+  }
+}
+
+@enduml

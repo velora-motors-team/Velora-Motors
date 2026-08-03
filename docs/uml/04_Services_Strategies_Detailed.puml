@@ -1,0 +1,221 @@
+@startuml
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam defaultFontName Arial
+hide circle
+
+title Services and Strategy Patterns - Detailed UML
+
+package "authentication" {
+  class "Customer" as com_velora_authentication_Customer
+}
+
+package "controller" {
+  class "LoginController" as com_velora_controller_LoginController
+}
+
+package "observer" {
+  class "VehicleAvailabilitySubject" as com_velora_observer_VehicleAvailabilitySubject
+}
+
+package "repository" {
+  class "CustomerRepository" as com_velora_repository_CustomerRepository
+  class "LoyaltyTransactionRepository" as com_velora_repository_LoyaltyTransactionRepository
+  class "NotificationRepository" as com_velora_repository_NotificationRepository
+  class "PaymentRepository" as com_velora_repository_PaymentRepository
+  class "RentalRepository" as com_velora_repository_RentalRepository
+  class "RentalRepository.RentalRecord" as com_velora_repository_RentalRepository_RentalRecord <<record>>
+  class "VehicleRepository" as com_velora_repository_VehicleRepository
+  class "WalletTransactionRepository" as com_velora_repository_WalletTransactionRepository
+}
+
+package "service" {
+  class "AuthenticationService" as com_velora_service_AuthenticationService {
+    -customerRepository : CustomerRepository
+    --
+    +AuthenticationService()
+    +AuthenticationService(CustomerRepository)
+    +registerCustomer(String, String, String, char[]) : Customer
+    +authenticateCustomer(String, char[]) : Optional<Customer>
+    +resetPassword(String, char[]) : boolean
+    +updateProfile(String, String, String) : boolean
+    +getAccountsFile() : Path
+    +emailExists(String) : boolean
+    +deleteAccount(String) : boolean
+    +getAllAccounts() : List<Customer>
+    +registerAccount(String, String, String, Customer.Role, char[]) : Customer
+  }
+  interface "EmailService" as com_velora_service_EmailService {
+    +hasRentalExpiryReminder(String, String) : boolean
+    +sendRentalExpiryReminder(String, String, String, LocalDateTime) : void
+  }
+  class "NotificationEmailService" as com_velora_service_NotificationEmailService {
+    -{static} REMINDER_TYPE : String
+    -{static} DATE_TIME_FORMAT : DateTimeFormatter
+    -notificationRepository : NotificationRepository
+    --
+    +NotificationEmailService()
+    +NotificationEmailService(NotificationRepository)
+    +hasRentalExpiryReminder(String, String) : boolean
+    +sendRentalExpiryReminder(String, String, String, LocalDateTime) : void
+  }
+  class "RentalDatabaseService" as com_velora_service_RentalDatabaseService {
+    -rentalRepository : RentalRepository
+    -paymentRepository : PaymentRepository
+    -loyaltyRepository : LoyaltyTransactionRepository
+    -notificationRepository : NotificationRepository
+    -walletTransactionRepository : WalletTransactionRepository
+    --
+    +RentalDatabaseService()
+    +RentalDatabaseService(RentalRepository, PaymentRepository, LoyaltyTransactionRepository, NotificationRepository, WalletTransactionRepository)
+    +recordSuccessfulRental(Customer, Vehicle, int, String, double, double, String, double) : RentalRepository.RentalRecord
+    +recordSuccessfulRental(Customer, Vehicle, int, String, double, double, String, double, LocalDateTime, LocalDateTime) : RentalRepository.RentalRecord
+    +recordSuccessfulRental(Customer, Vehicle, int, String, double, double, String, double, LocalDateTime, LocalDateTime, int, boolean) : RentalRepository.RentalRecord
+    +{static} validateRentalEligibility(Vehicle, int, boolean) : void
+    +validateRentalRequest(Vehicle, int, int, boolean) : void
+    +markReturnDue(String) : boolean
+    +recordLateFeeCharge(Customer, RentalRepository.RentalRecord, double, double, double) : boolean
+    +markRentalReturned(Customer, String, double) : boolean
+  }
+  class "RentalExpiryReminderService" as com_velora_service_RentalExpiryReminderService {
+    -{static} DEFAULT_REMINDER_WINDOW : Duration
+    -rentalRepository : RentalRepository
+    -emailService : EmailService
+    -clock : Clock
+    --
+    +RentalExpiryReminderService()
+    +RentalExpiryReminderService(RentalRepository, EmailService, Clock)
+    +sendUpcomingReminders(String) : int
+    +sendUpcomingReminders(String, Duration) : int
+  }
+  class "RentalPricingService" as com_velora_service_RentalPricingService {
+    +{static} TAX_RATE : double
+    +{static} LOYALTY_DISCOUNT_RATE : double
+    +{static} SUMMER_PROMOTION_END : LocalDate
+    -clock : Clock
+    --
+    +RentalPricingService()
+    +RentalPricingService(Clock)
+    +quote(Vehicle, int, boolean) : RentalPricingService.PricingQuote
+    +promotionRate(VehicleType) : double
+  }
+  class "RentalPricingService.PricingQuote" as com_velora_service_RentalPricingService_PricingQuote <<record>> {
+    -originalSubtotal : double
+    -promotionRate : double
+    -promotionDiscount : double
+    -loyaltyDiscount : double
+    -taxableSubtotal : double
+    -tax : double
+    -total : double
+    --
+    +RentalPricingService.PricingQuote(double, double, double, double, double, double, double)
+    +totalDiscount() : double
+    +hasPromotion() : boolean
+    +hasLoyaltyDiscount() : boolean
+    +originalSubtotal() : double
+    +promotionRate() : double
+    +promotionDiscount() : double
+    +loyaltyDiscount() : double
+    +taxableSubtotal() : double
+    +tax() : double
+    +total() : double
+  }
+  class "VehicleService" as com_velora_service_VehicleService {
+    -vehicleRepository : VehicleRepository
+    -availabilitySubject : VehicleAvailabilitySubject
+    --
+    +VehicleService()
+    +VehicleService(VehicleRepository)
+    +getAllVehicles() : List<Vehicle>
+    +getAvailableVehicles() : List<Vehicle>
+    +countAvailableVehicles() : int
+    +saveVehicles() : void
+    +changeStatus(Vehicle, VehicleStatus) : int
+    +notifyWaitlistsForAvailableVehicles() : int
+  }
+}
+
+package "strategy" {
+  class "ElectricLateFeeStrategy" as com_velora_strategy_ElectricLateFeeStrategy {
+    -{static} HOURLY_RATE_PERCENT : double
+    --
+    +ElectricLateFeeStrategy()
+    +calculateLateFee(Vehicle, Duration) : double
+  }
+  class "LateFeeContext" as com_velora_strategy_LateFeeContext {
+    -strategy : LateFeeStrategy
+    --
+    +LateFeeContext()
+    +LateFeeContext(LateFeeStrategy)
+    +setStrategy(LateFeeStrategy) : void
+    +getStrategy() : LateFeeStrategy
+    +calculateLateFee(Vehicle, Duration) : double
+  }
+  interface "LateFeeStrategy" as com_velora_strategy_LateFeeStrategy {
+    +calculateLateFee(Vehicle, Duration) : double
+  }
+  class "LateFeeStrategyFactory" as com_velora_strategy_LateFeeStrategyFactory {
+    -{static} STANDARD : LateFeeStrategy
+    -{static} ELECTRIC : LateFeeStrategy
+    -{static} MOTORCYCLE : LateFeeStrategy
+    -{static} TRUCK : LateFeeStrategy
+    --
+    +{static} forVehicle(Vehicle) : LateFeeStrategy
+  }
+  class "LateFeeStrategySupport" as com_velora_strategy_LateFeeStrategySupport {
+    ~{static} calculateStartedHourFee(Vehicle, Duration, double) : double
+  }
+  class "MotorcycleLateFeeStrategy" as com_velora_strategy_MotorcycleLateFeeStrategy {
+    -{static} HOURLY_RATE_PERCENT : double
+    --
+    +MotorcycleLateFeeStrategy()
+    +calculateLateFee(Vehicle, Duration) : double
+  }
+  class "StandardLateFeeStrategy" as com_velora_strategy_StandardLateFeeStrategy {
+    -{static} HOURLY_RATE_PERCENT : double
+    --
+    +StandardLateFeeStrategy()
+    +calculateLateFee(Vehicle, Duration) : double
+  }
+  class "TruckLateFeeStrategy" as com_velora_strategy_TruckLateFeeStrategy {
+    -{static} HOURLY_RATE_PERCENT : double
+    --
+    +TruckLateFeeStrategy()
+    +calculateLateFee(Vehicle, Duration) : double
+  }
+}
+
+package "vehicle" {
+  abstract class "Vehicle" as com_velora_vehicle_Vehicle
+}
+
+com_velora_controller_LoginController --> com_velora_service_AuthenticationService : authenticationService
+com_velora_service_AuthenticationService --> com_velora_repository_CustomerRepository : customerRepository
+com_velora_service_AuthenticationService ..> com_velora_authentication_Customer : uses
+com_velora_service_EmailService <|.. com_velora_service_NotificationEmailService
+com_velora_service_NotificationEmailService --> com_velora_repository_NotificationRepository : notificationRepository
+com_velora_service_RentalDatabaseService --> com_velora_repository_RentalRepository : rentalRepository
+com_velora_service_RentalDatabaseService --> com_velora_repository_PaymentRepository : paymentRepository
+com_velora_service_RentalDatabaseService --> com_velora_repository_LoyaltyTransactionRepository : loyaltyRepository
+com_velora_service_RentalDatabaseService --> com_velora_repository_NotificationRepository : notificationRepository
+com_velora_service_RentalDatabaseService --> com_velora_repository_WalletTransactionRepository : walletTransactionRepository
+com_velora_service_RentalDatabaseService ..> com_velora_repository_RentalRepository_RentalRecord : uses
+com_velora_service_RentalExpiryReminderService --> com_velora_repository_RentalRepository : rentalRepository
+com_velora_service_RentalExpiryReminderService --> com_velora_service_EmailService : emailService
+com_velora_service_RentalPricingService ..> com_velora_service_RentalPricingService_PricingQuote : uses
+com_velora_service_VehicleService --> com_velora_repository_VehicleRepository : vehicleRepository
+com_velora_service_VehicleService --> com_velora_observer_VehicleAvailabilitySubject : availabilitySubject
+com_velora_service_VehicleService ..> com_velora_vehicle_Vehicle : uses
+com_velora_strategy_LateFeeStrategy <|.. com_velora_strategy_ElectricLateFeeStrategy
+com_velora_strategy_LateFeeContext --> com_velora_strategy_LateFeeStrategy : strategy
+com_velora_strategy_LateFeeStrategyFactory --> com_velora_strategy_LateFeeStrategy : STANDARD
+com_velora_strategy_LateFeeStrategyFactory --> com_velora_strategy_LateFeeStrategy : ELECTRIC
+com_velora_strategy_LateFeeStrategyFactory --> com_velora_strategy_LateFeeStrategy : MOTORCYCLE
+com_velora_strategy_LateFeeStrategyFactory --> com_velora_strategy_LateFeeStrategy : TRUCK
+com_velora_strategy_LateFeeStrategy <|.. com_velora_strategy_MotorcycleLateFeeStrategy
+com_velora_strategy_LateFeeStrategy <|.. com_velora_strategy_StandardLateFeeStrategy
+com_velora_strategy_LateFeeStrategy <|.. com_velora_strategy_TruckLateFeeStrategy
+@enduml

@@ -1,0 +1,296 @@
+@startuml
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam defaultFontName Arial
+hide circle
+
+title UI - Login and Dashboards
+
+package "authentication" {
+  class "Customer" as com_velora_authentication_Customer
+}
+
+package "repository" {
+  class "NotificationRepository" as com_velora_repository_NotificationRepository
+  class "RatingRepository" as com_velora_repository_RatingRepository
+  class "RentalRepository" as com_velora_repository_RentalRepository
+  class "VehicleWaitlistRepository" as com_velora_repository_VehicleWaitlistRepository
+}
+
+package "service" {
+  class "AuthenticationService" as com_velora_service_AuthenticationService
+  class "RentalExpiryReminderService" as com_velora_service_RentalExpiryReminderService
+  class "RentalPricingService" as com_velora_service_RentalPricingService
+  class "VehicleService" as com_velora_service_VehicleService
+}
+
+package "ui" {
+  class "AdminFooter" as com_velora_ui_AdminFooter {
+    -{static} BACKGROUND : Color
+    -{static} BORDER : Color
+    -{static} GOLD : Color
+    -{static} TEXT : Color
+    -{static} MUTED : Color
+    --
+    ~AdminFooter()
+    #paintComponent(Graphics) : void
+  }
+  class "CustomerAccountState" as com_velora_ui_CustomerAccountState {
+    -{static} STATES : Map<String, CustomerAccountState>
+    -{static} STARTING_POINTS : int
+    -{static} STARTING_REWARDS_USED : int
+    -{static} STARTING_WALLET_BALANCE : double
+    -{static} STORE_DIR : Path
+    -{static} persistedStatesLoaded : boolean
+    -invoices : List<CustomerAccountState.CustomerInvoice>
+    -listeners : List<CustomerAccountState.ChangeListener>
+    -storageKey : String
+    -redeemedPoints : int
+    -redeemedRewards : int
+    -pendingRentalDiscounts : int
+    -walletBalance : double
+    --
+    ~{static} forCustomer(Customer) : CustomerAccountState
+    ~{static} billingMetricsSnapshot() : BillingMetricsBus.Metrics
+    ~addChangeListener(CustomerAccountState.ChangeListener) : void
+    ~getInvoices() : List<CustomerAccountState.CustomerInvoice>
+    ~applyLateFee(String, double) : CustomerAccountState.LateFeeChargeResult
+    ~isInvoiceFullyPaid(String) : boolean
+    ~addInvoice(CustomerAccountState.CustomerInvoice) : void
+    ~adjustWalletBalance(double) : boolean
+    ~recordPayment(CustomerAccountState.CustomerInvoice, String) : boolean
+    ~addPaidInvoice(CustomerAccountState.CustomerInvoice, String) : boolean
+    ~addPaidInvoice(CustomerAccountState.CustomerInvoice, String, boolean) : boolean
+    ~getWalletBalance() : double
+    ~canAfford(double) : boolean
+    ~addWalletFunds(double) : void
+    ~redeemReward(int) : boolean
+    ~redeemReward(String, int) : boolean
+    ~hasRentalDiscountReward() : boolean
+    ~getPendingRentalDiscounts() : int
+    ~getTotalRentals() : int
+    ~getActiveRentals() : int
+    ~getCompletedRentals() : int
+    ~getLateReturns() : int
+    ~getPaidInvoices() : long
+    ~getPendingPayments() : long
+    ~getTotalSpent() : double
+    ~getOutstandingBalance() : double
+    ~getLateFees() : double
+    ~getLoyaltyPoints() : int
+    ~getRewardsUsed() : int
+    ~getTierName() : String
+    ~getPointsToNextTier() : int
+    ~getNextTierName() : String
+    ~{static} resolveCustomerName(Customer) : String
+    ~{static} createInvoice(Customer, int, String, int, double, double, String, String) : CustomerAccountState.CustomerInvoice
+    ~{static} createInvoice(Customer, int, String, int, double, double, String, String, LocalDateTime, LocalDateTime) : CustomerAccountState.CustomerInvoice
+  }
+  class "CustomerDashboard" as com_velora_ui_CustomerDashboard {
+    -{static} GOLD : Color
+    -{static} GOLD_LIGHT : Color
+    -{static} TEXT : Color
+    -{static} MUTED : Color
+    -{static} LINE : Color
+    -customer : Customer
+    -accountState : CustomerAccountState
+    -notificationRepository : NotificationRepository
+    -rentalExpiryReminderService : RentalExpiryReminderService
+    -pageLayout : CardLayout
+    -pageCards : JPanel
+    -menuButtons : Map<String, CustomerDashboard.MenuButton>
+    -vehicleCatalog : VehicleCatalog
+    -supportPanel : SupportPanel
+    -totalRentalsValue : JLabel
+    -activeRentalsValue : JLabel
+    -loyaltyPointsValue : JLabel
+    -totalSpentValue : JLabel
+    -notificationBell : CustomerDashboard.TopBadgeIcon
+    -mailIcon : CustomerDashboard.TopBadgeIcon
+    -myRentalsPanel : MyRentalsPanel
+    -loyaltyPointsPanel : LoyaltyPointsPanel
+    -iconImage : image.BufferedImage
+    -heroImage : image.BufferedImage
+    -rentalCard1 : image.BufferedImage
+    -rentalCard2 : image.BufferedImage
+    -rentalCard3 : image.BufferedImage
+    --
+    +CustomerDashboard(Customer)
+    +showVehicleCatalog() : void
+    +showAvailabilityToast() : void
+  }
+  class "CustomerFooter" as com_velora_ui_CustomerFooter {
+    -{static} BACKGROUND : Color
+    -{static} BORDER : Color
+    -{static} GOLD : Color
+    -{static} TEXT : Color
+    -{static} MUTED : Color
+    --
+    ~CustomerFooter()
+    #paintComponent(Graphics) : void
+  }
+  class "FarewellScreen" as com_velora_ui_FarewellScreen {
+    -{static} GOLD : Color
+    -{static} GOLD_LIGHT : Color
+    -progress : int
+    -loadingTimer : Timer
+    -canvas : FarewellScreen.FarewellCanvas
+    -restoreBounds : Rectangle
+    --
+    +{static} main(String[]) : void
+    +FarewellScreen(String)
+  }
+  class "LoginScreen" as com_velora_ui_LoginScreen {
+    +LoginScreen()
+    +{static} main(String[]) : void
+  }
+  class "LogoutConfirmDialog" as com_velora_ui_LogoutConfirmDialog {
+    -confirmed : boolean
+    -{static} W : int
+    -{static} H : int
+    -{static} ARC : int
+    -{static} GOLD : Color
+    -{static} GOLD_LIGHT : Color
+    -{static} GOLD_DARK : Color
+    -{static} BG_1 : Color
+    -{static} BG_2 : Color
+    -{static} BG_3 : Color
+    -{static} TEXT_MAIN : Color
+    -{static} TEXT_MUTED : Color
+    -{static} TEXT_SOFT : Color
+    --
+    +LogoutConfirmDialog(JFrame)
+    +isConfirmed() : boolean
+    +setVisible(boolean) : void
+  }
+  class "ManagerDashboard" as com_velora_ui_ManagerDashboard {
+    -{static} BACKGROUND : Color
+    -{static} SIDEBAR : Color
+    -{static} CARD : Color
+    -{static} CARD_LIGHT : Color
+    -{static} GOLD : Color
+    -{static} PALE : Color
+    -{static} TEXT : Color
+    -{static} MUTED : Color
+    -{static} GREEN : Color
+    -{static} RED : Color
+    -manager : Customer
+    -vehicleService : VehicleService
+    -pricingService : RentalPricingService
+    -authenticationService : AuthenticationService
+    -ratingRepository : RatingRepository
+    -waitlistRepository : VehicleWaitlistRepository
+    -menuButtons : Map<String, ManagerDashboard.MenuButton>
+    -contentLayout : CardLayout
+    -contentCards : JPanel
+    -root : ManagerDashboard.DashboardBackground
+    -billingPanel : BillingPanel
+    -analyticsPanel : AnalyticsPanel
+    -adminSupportInboxPanel : AdminSupportInboxPanel
+    -rentalReturnPanel : RentalReturnPanel
+    -sidebar : JPanel
+    -searchField : JTextField
+    -vehiclePageSearchField : JTextField
+    -vehicleCategoryFilter : JComboBox<String>
+    -vehicleStatusFilter : JComboBox<String>
+    -vehicleModel : DefaultTableModel
+    -vehicleTable : JTable
+    -vehicleSorter : TableRowSorter<DefaultTableModel>
+    -vehicleDetailsHost : JPanel
+    -vehicleFleetMetric : JLabel
+    -vehicleAvailableMetric : JLabel
+    -vehicleRentedMetric : JLabel
+    -vehicleMaintenanceMetric : JLabel
+    -vehicleShowingLabel : JLabel
+    -fleetMetric : JLabel
+    -availableMetric : JLabel
+    -customerMetric : JLabel
+    -maintenanceMetric : JLabel
+    -customerModel : DefaultTableModel
+    -customerTable : JTable
+    -customerSorter : TableRowSorter<DefaultTableModel>
+    -customerProfileHost : JPanel
+    -totalCustomersMetric : JLabel
+    -activeCustomersMetric : JLabel
+    -newCustomersMetric : JLabel
+    -loyalCustomersMetric : JLabel
+    -customerPagerLabel : JLabel
+    -activeSection : String
+    --
+    +ManagerDashboard()
+    +ManagerDashboard(Customer)
+  }
+  class "ProfilePanel" as com_velora_ui_ProfilePanel {
+    -{static} CARD_TOP : Color
+    -{static} CARD_BOTTOM : Color
+    -{static} INPUT_BG : Color
+    -{static} GOLD : Color
+    -{static} GOLD_LIGHT : Color
+    -{static} GOLD_DARK : Color
+    -{static} TEXT : Color
+    -{static} SECONDARY_TEXT : Color
+    -{static} MUTED : Color
+    -{static} GREEN : Color
+    -{static} BLUE : Color
+    -{static} FONT_NAME : String
+    -{static} PAGE_TITLE_FONT : Font
+    -{static} PAGE_SUBTITLE_FONT : Font
+    -{static} PROFILE_NAME_FONT : Font
+    -{static} SECTION_TITLE_FONT : Font
+    -{static} CARD_TITLE_FONT : Font
+    -{static} SMALL_CARD_TITLE_FONT : Font
+    -{static} LABEL_FONT : Font
+    -{static} BODY_FONT : Font
+    -{static} SMALL_FONT : Font
+    -{static} SMALL_BOLD_FONT : Font
+    -{static} STAT_VALUE_FONT : Font
+    -customer : Customer
+    -openRentalsAction : Runnable
+    -authenticationService : AuthenticationService
+    -rentalRepository : RentalRepository
+    -accountState : CustomerAccountState
+    -nameField : JTextField
+    -emailField : JTextField
+    -phoneField : JTextField
+    -totalRentalsValue : JLabel
+    -activeRentalsValue : JLabel
+    -loyaltyPointsValue : JLabel
+    -totalSpentValue : JLabel
+    -recentRentalsList : JPanel
+    -membershipTierValue : JLabel
+    -membershipPointsValue : JLabel
+    -membershipProgressText : JLabel
+    -membershipProgress : ProfilePanel.MembershipProgressBar
+    --
+    +ProfilePanel(Customer)
+    +ProfilePanel(Customer, Runnable)
+  }
+  class "SplashScreen" as com_velora_ui_SplashScreen {
+    +SplashScreen(Customer)
+    +{static} main(String[]) : void
+  }
+}
+
+package "vehicle" {
+  abstract class "Vehicle" as com_velora_vehicle_Vehicle
+}
+
+com_velora_ui_CustomerDashboard --> com_velora_authentication_Customer : customer
+com_velora_ui_CustomerDashboard --> com_velora_ui_CustomerAccountState : accountState
+com_velora_ui_CustomerDashboard --> com_velora_repository_NotificationRepository : notificationRepository
+com_velora_ui_CustomerDashboard --> com_velora_service_RentalExpiryReminderService : rentalExpiryReminderService
+com_velora_ui_ManagerDashboard --> com_velora_authentication_Customer : manager
+com_velora_ui_ManagerDashboard --> com_velora_service_VehicleService : vehicleService
+com_velora_ui_ManagerDashboard --> com_velora_service_RentalPricingService : pricingService
+com_velora_ui_ManagerDashboard --> com_velora_service_AuthenticationService : authenticationService
+com_velora_ui_ManagerDashboard --> com_velora_repository_RatingRepository : ratingRepository
+com_velora_ui_ManagerDashboard --> com_velora_repository_VehicleWaitlistRepository : waitlistRepository
+com_velora_ui_ManagerDashboard ..> com_velora_vehicle_Vehicle : uses
+com_velora_ui_ProfilePanel --> com_velora_authentication_Customer : customer
+com_velora_ui_ProfilePanel --> com_velora_service_AuthenticationService : authenticationService
+com_velora_ui_ProfilePanel --> com_velora_repository_RentalRepository : rentalRepository
+com_velora_ui_ProfilePanel --> com_velora_ui_CustomerAccountState : accountState
+@enduml

@@ -1,0 +1,360 @@
+@startuml
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam defaultFontName Arial
+hide circle
+
+title UI - Billing, Rental and Fleet
+
+package "authentication" {
+  class "Customer" as com_velora_authentication_Customer
+}
+
+package "observer" {
+  class "VehicleAvailabilitySubject" as com_velora_observer_VehicleAvailabilitySubject
+}
+
+package "repository" {
+  class "CustomerRepository" as com_velora_repository_CustomerRepository
+  class "LoyaltyTransactionRepository" as com_velora_repository_LoyaltyTransactionRepository
+  class "RentalRepository" as com_velora_repository_RentalRepository
+  class "RentalRepository.RentalRecord" as com_velora_repository_RentalRepository_RentalRecord <<record>>
+  class "ReservationRepository" as com_velora_repository_ReservationRepository
+}
+
+package "service" {
+  class "AuthenticationService" as com_velora_service_AuthenticationService
+  class "RentalDatabaseService" as com_velora_service_RentalDatabaseService
+  class "RentalPricingService" as com_velora_service_RentalPricingService
+  class "VehicleService" as com_velora_service_VehicleService
+}
+
+package "strategy" {
+  class "LateFeeContext" as com_velora_strategy_LateFeeContext
+}
+
+package "ui" {
+  class "AnalyticsPanel" as com_velora_ui_AnalyticsPanel {
+    -{static} CARD_FILL : Color
+    -{static} GOLD : Color
+    -{static} PALE : Color
+    -{static} TEXT : Color
+    -{static} MUTED : Color
+    -{static} GREEN : Color
+    -vehicleService : VehicleService
+    -{static} CUSTOMER_ACCOUNTS_DIR : Path
+    -authenticationService : AuthenticationService
+    -rentalRepository : RentalRepository
+    -selectedDateRange : String
+    --
+    +AnalyticsPanel(VehicleService, AuthenticationService)
+    +refreshData() : void
+  }
+  class "BillingMetricsBus" as com_velora_ui_BillingMetricsBus {
+    -{static} LISTENERS : List<BillingMetricsBus.ChangeListener>
+    -{static} adminMetrics : BillingMetricsBus.Metrics
+    --
+    ~{static} addChangeListener(BillingMetricsBus.ChangeListener) : void
+    ~{static} setAdminMetrics(BillingMetricsBus.Metrics) : void
+    ~{static} snapshot() : BillingMetricsBus.Metrics
+    ~{static} fireChanged() : void
+  }
+  class "BillingPanel" as com_velora_ui_BillingPanel {
+    -{static} BACKGROUND : Color
+    -{static} CARD : Color
+    -{static} CARD_2 : Color
+    -{static} GOLD : Color
+    -{static} PALE : Color
+    -{static} TEXT : Color
+    -{static} MUTED : Color
+    -{static} GREEN : Color
+    -{static} RED : Color
+    -{static} BLUE : Color
+    -{static} PAGE_SIZE : int
+    ~{static} ADMIN_INVOICE_FILE : Path
+    -{static} CUSTOMER_ACCOUNTS_DIR : Path
+    -manager : Customer
+    -vehicleService : VehicleService
+    -pricingService : RentalPricingService
+    -invoices : List<BillingPanel.Invoice>
+    -filteredInvoices : List<BillingPanel.Invoice>
+    -searchField : JTextField
+    -statusFilter : BillingPanel.DarkComboButton
+    -paymentFilter : BillingPanel.DarkComboButton
+    -dateFilter : BillingPanel.DarkComboButton
+    -totalRevenueValue : JLabel
+    -paidInvoicesValue : JLabel
+    -pendingPaymentsValue : JLabel
+    -lateFeesValue : JLabel
+    -tableModel : BillingPanel.BillingTableModel
+    -table : JTable
+    -paginationPanel : JPanel
+    -showingLabel : JLabel
+    -summaryPanel : BillingPanel.InvoiceSummaryPanel
+    -currentPage : int
+    -totalPages : int
+    --
+    +BillingPanel(Customer)
+    +refreshData() : void
+  }
+  class "CustomerBillingPanel" as com_velora_ui_CustomerBillingPanel {
+    -{static} BACKGROUND : Color
+    -{static} CARD : Color
+    -{static} CARD_2 : Color
+    -{static} GOLD : Color
+    -{static} PALE : Color
+    -{static} TEXT : Color
+    -{static} MUTED : Color
+    -{static} GREEN : Color
+    -{static} RED : Color
+    -{static} BLUE : Color
+    -{static} PAGE_SIZE : int
+    -customer : Customer
+    -vehicleService : VehicleService
+    -accountState : CustomerAccountState
+    -filteredInvoices : List<CustomerAccountState.CustomerInvoice>
+    -searchField : JTextField
+    -statusFilter : CustomerBillingPanel.DarkComboButton
+    -paymentFilter : CustomerBillingPanel.DarkComboButton
+    -dateFilter : CustomerBillingPanel.DarkComboButton
+    -totalRevenueValue : JLabel
+    -walletBalanceValue : JLabel
+    -paidInvoicesValue : JLabel
+    -pendingPaymentsValue : JLabel
+    -lateFeesValue : JLabel
+    -totalSpentHint : JLabel
+    -walletBalanceHint : JLabel
+    -paidInvoicesHint : JLabel
+    -pendingPaymentsHint : JLabel
+    -lateFeesHint : JLabel
+    -tableModel : CustomerBillingPanel.BillingTableModel
+    -table : JTable
+    -paginationPanel : JPanel
+    -showingLabel : JLabel
+    -summaryPanel : CustomerBillingPanel.InvoiceSummaryPanel
+    -currentPage : int
+    -totalPages : int
+    --
+    +CustomerBillingPanel(Customer)
+  }
+  class "FleetUiData" as com_velora_ui_FleetUiData {
+    ~{static} displayName(Vehicle) : String
+    ~{static} imagePath(Vehicle) : String
+    ~{static} color(Vehicle) : String
+    ~{static} vin(Vehicle) : String
+    ~{static} plate(Vehicle) : String
+    ~{static} serviceType(Vehicle, int) : String
+  }
+  class "LoyaltyPointsPanel" as com_velora_ui_LoyaltyPointsPanel {
+    -{static} CARD : Color
+    -{static} CARD_DARK : Color
+    -{static} GOLD : Color
+    -{static} PALE : Color
+    -{static} TEXT : Color
+    -{static} MUTED : Color
+    -{static} GREEN : Color
+    -{static} RED : Color
+    -{static} BLUE : Color
+    -customer : Customer
+    -accountState : CustomerAccountState
+    -loyaltyRepository : LoyaltyTransactionRepository
+    -points : int
+    -pointsLabel : JLabel
+    -tierLabel : JLabel
+    -nextTierLabel : JLabel
+    -availablePointsValue : JLabel
+    -currentLevelValue : JLabel
+    -toNextTierValue : JLabel
+    -rewardsUsedValue : JLabel
+    -progress : LoyaltyPointsPanel.TierProgress
+    -historyList : JPanel
+    --
+    +LoyaltyPointsPanel(Customer)
+    +refreshData() : void
+  }
+  class "MaintenancePanel" as com_velora_ui_MaintenancePanel {
+    -{static} GOLD : Color
+    -{static} PALE : Color
+    -{static} TEXT : Color
+    -{static} MUTED : Color
+    -{static} GREEN : Color
+    -{static} RED : Color
+    -{static} BLUE : Color
+    -{static} ORANGE : Color
+    -{static} PAGE_SIZE : int
+    -{static} MAINTENANCE_FILE : Path
+    -manager : Customer
+    -vehicleService : VehicleService
+    -jobs : List<MaintenancePanel.ServiceJob>
+    -filteredJobs : List<MaintenancePanel.ServiceJob>
+    -searchField : JTextField
+    -statusFilter : MaintenancePanel.DarkComboButton
+    -typeFilter : MaintenancePanel.DarkComboButton
+    -priorityFilter : MaintenancePanel.DarkComboButton
+    -totalJobsValue : JLabel
+    -inServiceValue : JLabel
+    -dueSoonValue : JLabel
+    -completedValue : JLabel
+    -tableModel : MaintenancePanel.MaintenanceTableModel
+    -table : JTable
+    -summaryPanel : MaintenancePanel.MaintenanceSummaryPanel
+    -paginationPanel : JPanel
+    -showingLabel : JLabel
+    -currentPage : int
+    -totalPages : int
+    --
+    +MaintenancePanel(Customer)
+    +refreshData() : void
+  }
+  class "MyRentalsPanel" as com_velora_ui_MyRentalsPanel {
+    -{static} CARD : Color
+    -{static} CARD_DARK : Color
+    -{static} CARD_HOVER : Color
+    -{static} GOLD : Color
+    -{static} GOLD_LIGHT : Color
+    -{static} PALE : Color
+    -{static} TEXT : Color
+    -{static} MUTED : Color
+    -{static} GREEN : Color
+    -{static} RED : Color
+    -{static} ORANGE : Color
+    -{static} GRACE_PERIOD : Duration
+    -nextReturnValue : JLabel
+    -nextReturnVehicle : JLabel
+    -paymentStatusValue : JLabel
+    -paymentStatusDescription : JLabel
+    -onTimeRateValue : JLabel
+    -onTimeRateDescription : JLabel
+    -customer : Customer
+    -accountState : CustomerAccountState
+    -rentalRepository : RentalRepository
+    -rentalDatabaseService : RentalDatabaseService
+    -vehicleService : VehicleService
+    -lateFeeContext : LateFeeContext
+    -countdownTimer : Timer
+    -refreshInProgress : boolean
+    -activeRentalsValue : JLabel
+    -completedRentalsValue : JLabel
+    -currentCostValue : JLabel
+    -lateReturnsValue : JLabel
+    -activeRentalsList : JPanel
+    -historyList : JPanel
+    --
+    +MyRentalsPanel(Customer)
+    +addNotify() : void
+    +removeNotify() : void
+    +refreshData() : void
+  }
+  class "RentalReturnPanel" as com_velora_ui_RentalReturnPanel {
+    -{static} BACKGROUND : Color
+    -{static} PANEL : Color
+    -{static} GOLD : Color
+    -{static} PALE : Color
+    -{static} TEXT : Color
+    -{static} MUTED : Color
+    -{static} GREEN : Color
+    -{static} RED : Color
+    -{static} BLUE : Color
+    -{static} PAGE_SIZE : int
+    -manager : Customer
+    -vehicleService : VehicleService
+    -rentalRepository : RentalRepository
+    -customerRepository : CustomerRepository
+    -availabilitySubject : VehicleAvailabilitySubject
+    -allRentals : List<RentalReturnPanel.RentalRecord>
+    -filteredRentals : List<RentalReturnPanel.RentalRecord>
+    -pageRentals : List<RentalReturnPanel.RentalRecord>
+    -tableModel : RentalReturnPanel.RentalTableModel
+    -table : JTable
+    -searchField : RentalReturnPanel.SearchField
+    -statusFilter : RentalReturnPanel.BlackDropDown
+    -vehicleFilter : RentalReturnPanel.BlackDropDown
+    -dateFilter : RentalReturnPanel.BlackDropDown
+    -summaryPanel : RentalReturnPanel.ReturnSummaryPanel
+    -pageButtonsPanel : JPanel
+    -showingLabel : JLabel
+    -currentPage : int
+    -totalPages : int
+    --
+    +RentalReturnPanel(Customer)
+    +refreshData() : void
+  }
+  class "VehicleCatalog" as com_velora_ui_VehicleCatalog {
+    -{static} BG : Color
+    -{static} CARD : Color
+    -{static} CARD_DARK : Color
+    -{static} GOLD : Color
+    -{static} PALE : Color
+    -{static} TEXT : Color
+    -{static} MUTED : Color
+    -{static} GREEN : Color
+    -{static} RED : Color
+    -{static} LINE : Color
+    -{static} PAGE_SIZE : int
+    -customer : Customer
+    -vehicleService : VehicleService
+    -rentalDatabaseService : RentalDatabaseService
+    -pricingService : RentalPricingService
+    -reservationRepository : ReservationRepository
+    -availabilitySubject : VehicleAvailabilitySubject
+    -accountState : CustomerAccountState
+    -cardsGrid : JPanel
+    -searchField : JTextField
+    -showingLabel : JLabel
+    -walletBalanceLabel : JLabel
+    -pager : JPanel
+    -categoryFilter : VehicleCatalog.FilterCombo
+    -priceFilter : VehicleCatalog.FilterCombo
+    -fuelFilter : VehicleCatalog.FilterCombo
+    -availabilityFilter : VehicleCatalog.FilterCombo
+    -currentPage : int
+    --
+    +VehicleCatalog()
+    +VehicleCatalog(Customer)
+    +refreshData() : void
+  }
+  class "VehicleDetails" as com_velora_ui_VehicleDetails {
+    +VehicleDetails()
+  }
+}
+
+package "vehicle" {
+  abstract class "Vehicle" as com_velora_vehicle_Vehicle
+}
+
+com_velora_ui_AnalyticsPanel --> com_velora_service_VehicleService : vehicleService
+com_velora_ui_AnalyticsPanel --> com_velora_service_AuthenticationService : authenticationService
+com_velora_ui_AnalyticsPanel --> com_velora_repository_RentalRepository : rentalRepository
+com_velora_ui_AnalyticsPanel ..> com_velora_repository_RentalRepository_RentalRecord : uses
+com_velora_ui_BillingPanel --> com_velora_authentication_Customer : manager
+com_velora_ui_BillingPanel --> com_velora_service_VehicleService : vehicleService
+com_velora_ui_BillingPanel --> com_velora_service_RentalPricingService : pricingService
+com_velora_ui_CustomerBillingPanel --> com_velora_authentication_Customer : customer
+com_velora_ui_CustomerBillingPanel --> com_velora_service_VehicleService : vehicleService
+com_velora_ui_LoyaltyPointsPanel --> com_velora_authentication_Customer : customer
+com_velora_ui_LoyaltyPointsPanel --> com_velora_repository_LoyaltyTransactionRepository : loyaltyRepository
+com_velora_ui_MaintenancePanel --> com_velora_authentication_Customer : manager
+com_velora_ui_MaintenancePanel --> com_velora_service_VehicleService : vehicleService
+com_velora_ui_MyRentalsPanel --> com_velora_authentication_Customer : customer
+com_velora_ui_MyRentalsPanel --> com_velora_repository_RentalRepository : rentalRepository
+com_velora_ui_MyRentalsPanel --> com_velora_service_RentalDatabaseService : rentalDatabaseService
+com_velora_ui_MyRentalsPanel --> com_velora_service_VehicleService : vehicleService
+com_velora_ui_MyRentalsPanel --> com_velora_strategy_LateFeeContext : lateFeeContext
+com_velora_ui_MyRentalsPanel ..> com_velora_vehicle_Vehicle : uses
+com_velora_ui_RentalReturnPanel --> com_velora_authentication_Customer : manager
+com_velora_ui_RentalReturnPanel --> com_velora_service_VehicleService : vehicleService
+com_velora_ui_RentalReturnPanel --> com_velora_repository_RentalRepository : rentalRepository
+com_velora_ui_RentalReturnPanel --> com_velora_repository_CustomerRepository : customerRepository
+com_velora_ui_RentalReturnPanel --> com_velora_observer_VehicleAvailabilitySubject : availabilitySubject
+com_velora_ui_RentalReturnPanel ..> com_velora_vehicle_Vehicle : uses
+com_velora_ui_VehicleCatalog --> com_velora_authentication_Customer : customer
+com_velora_ui_VehicleCatalog --> com_velora_service_VehicleService : vehicleService
+com_velora_ui_VehicleCatalog --> com_velora_service_RentalDatabaseService : rentalDatabaseService
+com_velora_ui_VehicleCatalog --> com_velora_service_RentalPricingService : pricingService
+com_velora_ui_VehicleCatalog --> com_velora_repository_ReservationRepository : reservationRepository
+com_velora_ui_VehicleCatalog --> com_velora_observer_VehicleAvailabilitySubject : availabilitySubject
+com_velora_ui_VehicleCatalog ..> com_velora_vehicle_Vehicle : uses
+@enduml

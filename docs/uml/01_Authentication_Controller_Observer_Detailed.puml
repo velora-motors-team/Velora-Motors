@@ -1,0 +1,127 @@
+@startuml
+left to right direction
+skinparam classAttributeIconSize 0
+skinparam packageStyle rectangle
+skinparam linetype ortho
+skinparam shadowing false
+skinparam defaultFontName Arial
+hide circle
+
+title Authentication, Controllers and Observer - Detailed UML
+
+package "Velora_Motors" {
+  class "Velora_Motors" as com_velora_Velora_Motors {
+    +Velora_Motors()
+    +{static} main(String[]) : void
+  }
+}
+
+package "authentication" {
+  class "Customer" as com_velora_authentication_Customer {
+    -fullName : String
+    -email : String
+    -phone : String
+    -role : Customer.Role
+    --
+    +Customer(String, String, String)
+    +Customer(String, String, String, Customer.Role)
+    +getFullName() : String
+    +getEmail() : String
+    +getPhone() : String
+    +getRole() : Customer.Role
+    +isManager() : boolean
+    +isCustomer() : boolean
+    +toString() : String
+  }
+  enum "Customer.Role" as com_velora_authentication_Customer_Role {
+    +{static} MANAGER : Customer.Role
+    +{static} CUSTOMER : Customer.Role
+    --
+    +{static} values() : Customer.Role[]
+    +{static} valueOf(String) : Customer.Role
+  }
+  class "Manager" as com_velora_authentication_Manager {
+    -fullName : String
+    -email : String
+    --
+    +Manager(String, String)
+    +getFullName() : String
+    +getEmail() : String
+    +toString() : String
+  }
+}
+
+package "controller" {
+  class "DashboardController" as com_velora_controller_DashboardController {
+    +DashboardController()
+  }
+  class "LoginController" as com_velora_controller_LoginController {
+    -authenticationService : AuthenticationService
+    --
+    +LoginController()
+    +LoginController(AuthenticationService)
+    +login(String, String) : Optional<Customer>
+    +createCustomerAccount(String, String, String, String) : Customer
+    +createManagerAccount(String, String, String, String) : Customer
+    +resetPassword(String, String, String) : boolean
+    +deleteAccount(String) : boolean
+    +emailExists(String) : boolean
+    +getAllAccounts() : List<Customer>
+    +getAccountsFile() : Path
+    +isManager(Customer) : boolean
+    +isCustomer(Customer) : boolean
+  }
+  class "VehicleController" as com_velora_controller_VehicleController {
+    +VehicleController()
+  }
+}
+
+package "observer" {
+  class "CustomerAvailabilityObserver" as com_velora_observer_CustomerAvailabilityObserver {
+    -{static} DEFAULT_CUSTOMER_NAME : String
+    -customerEmail : String
+    -customerName : String
+    -notificationRepository : NotificationRepository
+    --
+    +CustomerAvailabilityObserver(String)
+    +CustomerAvailabilityObserver(String, String, NotificationRepository)
+    +onVehicleAvailable(Vehicle) : void
+  }
+  interface "VehicleAvailabilityObserver" as com_velora_observer_VehicleAvailabilityObserver {
+    +onVehicleAvailable(Vehicle) : void
+  }
+  class "VehicleAvailabilitySubject" as com_velora_observer_VehicleAvailabilitySubject {
+    -waitlistRepository : VehicleWaitlistRepository
+    --
+    +VehicleAvailabilitySubject()
+    +VehicleAvailabilitySubject(VehicleWaitlistRepository)
+    +addObserver(Vehicle, Customer) : boolean
+    +removeObserver(Vehicle, Customer) : boolean
+    +hasObserver(Vehicle, Customer) : boolean
+    +notifyObservers(Vehicle) : int
+  }
+}
+
+package "repository" {
+  class "CustomerRepository" as com_velora_repository_CustomerRepository
+  class "CustomerRepository.StoredCustomer" as com_velora_repository_CustomerRepository_StoredCustomer <<record>>
+  class "NotificationRepository" as com_velora_repository_NotificationRepository
+  class "VehicleWaitlistRepository" as com_velora_repository_VehicleWaitlistRepository
+}
+
+package "service" {
+  class "AuthenticationService" as com_velora_service_AuthenticationService
+  class "VehicleService" as com_velora_service_VehicleService
+}
+
+com_velora_authentication_Customer --> com_velora_authentication_Customer_Role : role
+com_velora_controller_LoginController --> com_velora_service_AuthenticationService : authenticationService
+com_velora_controller_LoginController ..> com_velora_authentication_Customer : uses
+com_velora_observer_VehicleAvailabilityObserver <|.. com_velora_observer_CustomerAvailabilityObserver
+com_velora_observer_CustomerAvailabilityObserver --> com_velora_repository_NotificationRepository : notificationRepository
+com_velora_observer_VehicleAvailabilitySubject --> com_velora_repository_VehicleWaitlistRepository : waitlistRepository
+com_velora_repository_CustomerRepository ..> com_velora_authentication_Customer : uses
+com_velora_repository_CustomerRepository_StoredCustomer --> com_velora_authentication_Customer : customer
+com_velora_service_AuthenticationService ..> com_velora_authentication_Customer : uses
+com_velora_service_VehicleService --> com_velora_observer_VehicleAvailabilitySubject : availabilitySubject
+@enduml
